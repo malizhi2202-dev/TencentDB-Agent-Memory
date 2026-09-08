@@ -15,11 +15,16 @@ import { readSceneIndex } from "../scene/scene-index.js";
 import { generateSceneNavigation, stripSceneNavigation } from "../scene/scene-navigation.js";
 import { RecallErrors, toRecallFailure, type RecallError } from "./recall-errors.js";
 import type { MemoryRecord } from "../record/l1-reader.js";
-import type { IMemoryStore, L1SearchResult, L1FtsResult } from "../store/types.js";
+import type { IMemoryStore, L1SearchResult, L1FtsResult, IsolationFilter } from "../store/types.js";
 import { buildFtsQuery } from "../store/tokenize.js";
 import { hasClientEmbedding, type EmbeddingService, type EmbeddingCallOptions } from "../store/embedding.js";
 import { sanitizeText } from "../../utils/sanitize.js";
 import path from "node:path";
+import { estimateTokens, recencyDecay, queryOverlapScore, selectRetention, retentionPriority } from "../record/retention.js";
+import { estimateTokens, recencyDecay, queryOverlapScore, selectRetention, retentionPriority } from "../record/retention.js";
+import { isHighRiskInjection } from "../record/guardrail.js";
+import { isRecallableDomain } from "../record/memory-domain.js";
+import { isRecallableDomain } from "../record/memory-domain.js";
 import { scopeProfileStorageView, type StorageAdapter } from "../storage/adapter.js";
 import { StoragePaths } from "../storage/types.js";
 import {
@@ -102,6 +107,8 @@ export async function performAutoRecall(params: {
   storage?: StorageAdapter;
   /** L2/L3 profile scope. Defaults to the standalone default team and agent. */
   profileIsolation?: ProfileIsolation;
+  /** L1 tenant isolation filter (team/user/agent/session/task). Narrows L1 search to the caller's bucket. */
+  isolation?: IsolationFilter;
 }): Promise<RecallResult | undefined> {
   const { cfg, logger } = params;
   const timeoutMs = cfg.recall.timeoutMs ?? 5000;
@@ -156,14 +163,22 @@ async function performAutoRecallCore(params: {
   embeddingService?: EmbeddingService;
   storage?: StorageAdapter;
   profileIsolation?: ProfileIsolation;
+  isolation?: IsolationFilter;
 }): Promise<RecallResult | undefined> {
-  const { userText, cfg, pluginDataDir, logger, vectorStore, embeddingService, storage } = params;
+  const { userText, cfg, pluginDataDir, logger, vectorStore, embeddingService, storage, isolation } = params;
   const tRecallStart = performance.now();
 
   // L2/L3 writers scope profile files by team+agent. Recall resolves the same
   // scope and never falls back to the unscoped data root, preventing cross-scope
   // profile reads.
-  const profileIsolation = params.profileIsolation ?? { teamId: "default", agentId: "default" };
+  // When the caller supplies an L1 isolation filter but no explicit profile
+  // isolation, derive the L2/L3 profile scope from the same tenant dimensions
+  // so a tenant's persona/scene are scoped consistently with its L1 memories.
+  const profileIsolation = params.profileIsolation
+    ?? (isolation
+      ? { teamId: isolation.teamId, userId: isolation.userId, agentId: isolation.agentId, sessionId: isolation.sessionId }
+      : undefined)
+    ?? { teamId: "default", agentId: "default" };
   const profileScope = buildProfileIsolationScope(profileIsolation);
   const isScopedProfile = profileScope !== DEFAULT_PROFILE_SCOPE;
   const profileDataDir = isScopedProfile
@@ -184,7 +199,7 @@ async function performAutoRecallCore(params: {
     logger?.debug?.(`${TAG} User text empty/undefined, skipping memory search (persona/scene still injected)`);
   } else {
     effectiveStrategy = cfg.recall.strategy ?? "hybrid";
-    const searchResult = await searchMemories(userText, pluginDataDir, cfg, logger, effectiveStrategy as "keyword" | "embedding" | "hybrid", vectorStore, embeddingService);
+    const searchResult = await searchMemories(userText, pluginDataDir, cfg, logger, effectiveStrategy as "keyword" | "embedding" | "hybrid", vectorStore, embeddingService, isolation);
     memoryLines = searchResult.lines;
     searchTiming = searchResult.timing;
     memoryLines = applyRecallBudget(memoryLines, cfg.recall, logger);
@@ -335,6 +350,7 @@ async function performAutoRecallInner(params: {
   embeddingService?: EmbeddingService;
   storage?: StorageAdapter;
   profileIsolation?: ProfileIsolation;
+  isolation?: IsolationFilter;
 }): Promise<RecallResult | undefined> {
   try {
     return await performAutoRecallCore(params);
@@ -439,6 +455,7 @@ async function searchMemories(
   strategy: "keyword" | "embedding" | "hybrid",
   vectorStore?: IMemoryStore,
   embeddingService?: EmbeddingService,
+  filter?: IsolationFilter,
 ): Promise<SearchResult> {
   const emptyResult: SearchResult = { lines: [], timing: { ftsMs: 0, embeddingMs: 0, ftsHits: 0, embeddingHits: 0 } };
   // Strip gateway-injected inbound metadata (Sender, timestamps, media markers,
@@ -458,6 +475,10 @@ async function searchMemories(
 
   const maxResults = cfg.recall.maxResults ?? 5;
   const threshold = cfg.recall.scoreThreshold ?? 0.3;
+  // P0.2 Retention：tokenBudget > 0 时启用混合分数 + MMR 保留层
+  const retention = cfg.recall.tokenBudget > 0
+    ? { tokenBudget: cfg.recall.tokenBudget, lambda: cfg.recall.retentionLambda ?? 0.7, topM: cfg.recall.retentionTopM ?? 5 }
+    : undefined;
 
   const nativeHybrid =
     strategy === "hybrid" &&
@@ -494,13 +515,13 @@ async function searchMemories(
   try {
     if (effectiveStrategy === "keyword") {
       const tFts = performance.now();
-      const lines = await searchByKeyword(cleanText, pluginDataDir, maxResults, threshold, logger, vectorStore);
+      const lines = await searchByKeyword(cleanText, pluginDataDir, maxResults, threshold, logger, vectorStore, filter);
       return { lines, timing: { ftsMs: performance.now() - tFts, embeddingMs: 0, ftsHits: lines.length, embeddingHits: 0 } };
     }
 
     if (effectiveStrategy === "embedding") {
       const tEmb = performance.now();
-      const lines = await searchByEmbedding(cleanText, maxResults, threshold, vectorStore!, embeddingService!, logger, embeddingCallOpts);
+      const lines = await searchByEmbedding(cleanText, maxResults, threshold, vectorStore!, embeddingService!, logger, embeddingCallOpts, filter);
       return { lines, timing: { ftsMs: 0, embeddingMs: performance.now() - tEmb, ftsHits: 0, embeddingHits: lines.length } };
     }
 
@@ -509,7 +530,7 @@ async function searchMemories(
     // to avoid a redundant second HTTP request and a wasted local embed().
     if (vectorStore?.getCapabilities().nativeHybridSearch) {
       const tNative = performance.now();
-      const results = await vectorStore.searchL1Hybrid({ query: cleanText, topK: maxResults });
+      const results = await vectorStore.searchL1Hybrid({ query: cleanText, topK: maxResults, filter });
       const nativeMs = performance.now() - tNative;
       logger?.debug?.(`${TAG} [hybrid-native] Single-call hybrid: ${results.length} results in ${nativeMs.toFixed(0)}ms`);
       const lines = results.map((r) => formatMemoryLine(vectorResultToFormatable(r)));
@@ -518,7 +539,7 @@ async function searchMemories(
     }
 
     // Fallback: run keyword + embedding in parallel, merge with client-side RRF (SQLite path)
-    return await searchHybrid(cleanText, pluginDataDir, maxResults, threshold, vectorStore!, embeddingService!, logger, embeddingCallOpts);
+    return await searchHybrid(cleanText, pluginDataDir, maxResults, threshold, vectorStore!, embeddingService!, logger, embeddingCallOpts, filter, retention);
   } catch (err) {
     logger?.warn?.(`${TAG} Memory search failed (strategy=${effectiveStrategy}): ${err instanceof Error ? err.message : String(err)}`);
     return emptyResult;
@@ -536,13 +557,14 @@ async function searchByKeyword(
   threshold: number,
   logger?: Logger,
   vectorStore?: IMemoryStore,
+  filter?: IsolationFilter,
 ): Promise<string[]> {
   // Prefer FTS5 if available
   if (vectorStore?.isFtsAvailable()) {
     const ftsQuery = buildFtsQuery(userText);
     if (ftsQuery) {
       logger?.debug?.(`${TAG} [keyword-fts] Using FTS5 BM25 search: query="${ftsQuery}"`);
-      const ftsResults = await vectorStore.searchL1Fts(ftsQuery, maxResults * 2);
+      const ftsResults = await vectorStore.searchL1Fts(ftsQuery, maxResults * 2, filter);
       if (ftsResults.length > 0) {
         logger?.debug?.(
           `${TAG} [keyword-fts] FTS5 raw results (${ftsResults.length}): ` +
@@ -589,6 +611,7 @@ async function searchByEmbedding(
   embeddingService: EmbeddingService,
   logger?: Logger,
   embeddingCallOpts?: EmbeddingCallOptions,
+  filter?: IsolationFilter,
 ): Promise<string[]> {
   logger?.debug?.(
     `${TAG} [embedding-search] START query="${userText.slice(0, 80)}...", maxResults=${maxResults}, threshold=${threshold}`,
@@ -600,7 +623,7 @@ async function searchByEmbedding(
     `searching top-${maxResults * 2}...`,
   );
   // Retrieve more candidates for subsequent filtering
-  const vecResults: L1SearchResult[] = await vectorStore.searchL1Vector(queryEmbedding, maxResults * 2);
+  const vecResults: L1SearchResult[] = await vectorStore.searchL1Vector(queryEmbedding, maxResults * 2, undefined, filter);
 
   if (vecResults.length === 0) {
     logger?.debug?.(`${TAG} [embedding-search] Returned 0 results`);
@@ -651,6 +674,8 @@ async function searchHybrid(
   embeddingService: EmbeddingService,
   logger?: Logger,
   embeddingCallOpts?: EmbeddingCallOptions,
+  filter?: IsolationFilter,
+  retention?: { tokenBudget: number; lambda: number; topM: number },
 ): Promise<SearchResult> {
   // Run keyword and embedding searches in parallel
   const candidateK = maxResults * 3; // retrieve more for merging
@@ -664,7 +689,7 @@ async function searchHybrid(
         if (vectorStore.isFtsAvailable()) {
           const ftsQuery = buildFtsQuery(userText);
           if (ftsQuery) {
-            const ftsResults = await vectorStore.searchL1Fts(ftsQuery, candidateK);
+            const ftsResults = await vectorStore.searchL1Fts(ftsQuery, candidateK, filter);
             if (ftsResults.length > 0) {
               logger?.debug?.(`${TAG} [hybrid-keyword-fts] FTS5 found ${ftsResults.length} candidates`);
               // Convert FtsSearchResult to ScoredRecord for RRF merge
@@ -706,7 +731,7 @@ async function searchHybrid(
         logger?.debug?.(
           `${TAG} [hybrid-embedding] Embedding OK, dims=${queryEmbedding.length}, searching top-${candidateK}...`,
         );
-        const results = await vectorStore.searchL1Vector(queryEmbedding, candidateK, userText);
+        const results = await vectorStore.searchL1Vector(queryEmbedding, candidateK, userText, filter);
         logger?.debug?.(`${TAG} [hybrid-embedding] Got ${results.length} candidates`);
         return { results, ms: performance.now() - tStart };
       } catch (err) {
@@ -762,21 +787,107 @@ async function searchHybrid(
     }
   }
 
-  // Sort by combined RRF score and take top results
-  const sorted = [...mergedMap.entries()]
-    .sort((a, b) => b[1].rrfScore - a[1].rrfScore)
-    .slice(0, maxResults);
+  // Sort by combined RRF score (descending)
+  let merged = [...mergedMap.entries()]
+    .map(([id, { rrfScore, formatable }]) => ({ id, rrfScore, formatable }))
+    .sort((a, b) => b.rrfScore - a.rrfScore || a.id.localeCompare(b.id));
 
+  // 召回侧空间隔离（P0/P1 闭环）：排除 defaultRecall=false 的域（archive 默认不召回）
+  if (merged.length > 0) {
+    try {
+      const ids = merged.map((m) => m.id);
+      const rows = await vectorStore.queryL1Records({ recordIds: ids });
+      const domainById = new Map(rows.map((r) => [r.record_id, r.domain]));
+      const before = merged.length;
+      merged = merged.filter((m) => isRecallableDomain(domainById.get(m.id) ?? ""));
+      if (merged.length < before) {
+        logger?.debug?.(`${TAG} [space-isolation] excluded ${before - merged.length} non-recallable (archive) memories`);
+      }
+    } catch (err) {
+      logger?.debug?.(`${TAG} [space-isolation] domain filter skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // 召回侧空间隔离（P0/P1 闭环）：排除 defaultRecall=false 的域（archive 默认不召回）
+  if (merged.length > 0) {
+    try {
+      const ids = merged.map((m) => m.id);
+      const rows = await vectorStore.queryL1Records({ recordIds: ids });
+      const domainById = new Map(rows.map((r) => [r.record_id, r.domain]));
+      const before = merged.length;
+      merged = merged.filter((m) => isRecallableDomain(domainById.get(m.id) ?? ""));
+      if (merged.length < before) {
+        logger?.debug?.(`${TAG} [space-isolation] excluded ${before - merged.length} non-recallable (archive) memories`);
+      }
+    } catch (err) {
+      logger?.debug?.(`${TAG} [space-isolation] domain filter skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // P2 治理：召回前护栏（高危注入的记忆不注入上下文）
+  const injectionCount = merged.filter((m) => isHighRiskInjection(m.formatable.content)).length;
+  if (injectionCount > 0) {
+    merged = merged.filter((m) => !isHighRiskInjection(m.formatable.content));
+    logger?.debug?.(`${TAG} [guardrail] dropped ${injectionCount} high-risk injection memories`);
+  }
+
+  // P0.2 Retention：tokenBudget > 0 时启用混合分数 + MMR + token 保留层
+  if (retention && merged.length > 0) {
+    const maxRrf = Math.max(...merged.map((m) => m.rrfScore), 0.0001);
+    const candidates = merged.map((m) => {
+      const content = m.formatable.content;
+      const tokens = estimateTokens(content);
+      return {
+        id: m.id,
+        content,
+        relevance: m.rrfScore / maxRrf,
+        queryOverlap: queryOverlapScore(userText, content),
+        recency: recencyDecay(ageDaysFromTimestamp(m.formatable.timestamp)),
+        costRatio: tokens / retention.tokenBudget,
+        tokens,
+      };
+    });
+    const { selected } = selectRetention(candidates, {
+      tokenBudget: retention.tokenBudget,
+      topM: retention.topM,
+      lambda: retention.lambda,
+    });
+    if (selected.length > 0) {
+      const selectedIds = new Set(selected.map((c) => c.id));
+      const ordered = merged.filter((m) => selectedIds.has(m.id));
+      logger?.debug?.(
+        `${TAG} [retention] selected ${ordered.length}/${merged.length} within ${retention.tokenBudget} token budget`,
+      );
+      return {
+        lines: ordered.map((m) => formatMemoryLine(m.formatable)),
+        scores: ordered.map((m) => retentionPriority(selected.find((s) => s.id === m.id)!)),
+        timing,
+      };
+    }
+    logger?.debug?.(`${TAG} [retention] no candidates within budget`);
+    return { lines: [], timing };
+  }
+
+  // Legacy path: top-K by RRF score
+  const sorted = merged.slice(0, maxResults);
   if (sorted.length > 0) {
     logger?.debug?.(
       `${TAG} Hybrid search found ${sorted.length} results ` +
       `(keyword=${keywordResults.length}, embedding=${embeddingResults.length})`,
     );
-    return { lines: sorted.map(([, { formatable }]) => formatMemoryLine(formatable)), timing };
+    return { lines: sorted.map((m) => formatMemoryLine(m.formatable)), timing };
   }
 
   logger?.debug?.(`${TAG} Hybrid search: no results after merge`);
   return { lines: [], timing };
+}
+
+/** 由 L1 时间戳估算记忆年龄（天）。缺时间戳或不可解析 → 30 天（recency=0.5 中性）。 */
+function ageDaysFromTimestamp(timestamp?: string): number {
+  if (!timestamp) return 30;
+  const ts = Date.parse(timestamp);
+  if (Number.isNaN(ts)) return 30;
+  return Math.max(0, (Date.now() - ts) / 86_400_000);
 }
 
 // ============================

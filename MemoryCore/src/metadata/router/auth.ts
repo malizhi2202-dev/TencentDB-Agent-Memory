@@ -32,6 +32,7 @@ export interface V3AuthResult {
 /** 公开接口中可不传 x-tdai-user-key 的路径（仍须 Bearer + x-tdai-service-id）。 */
 export const V3_NO_USER_KEY_ROUTES = new Set([
   "/v3/meta/auth/verify",
+  "/v3/meta/auth/login",
 ]);
 
 /** 从 x-tdai-user-key 头提取用户 API 密钥。 */

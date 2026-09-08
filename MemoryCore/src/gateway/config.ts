@@ -15,6 +15,8 @@ import { getEnv } from "../utils/env.js";
 import { parseConfig as parseMemoryConfig } from "../config.js";
 import type { MemoryTdaiConfig } from "../config.js";
 import type { StandaloneLLMConfig } from "../adapters/standalone/llm-runner.js";
+import type { OpenAICompatibleProviderConfig, ModelInfo } from "../model/index.js";
+import type { OpenAICompatibleProviderConfig, ModelInfo } from "../model/index.js";
 
 // ============================
 // Gateway config types
@@ -1034,6 +1036,11 @@ function positiveQuotaLimit(value: number | undefined, fallback: number): number
 function bool(src: Record<string, unknown>, key: string): boolean | undefined {
   const v = src[key];
   return typeof v === "boolean" ? v : undefined;
+}
+
+function arr(src: Record<string, unknown>, key: string): unknown[] {
+  const v = src[key];
+  return Array.isArray(v) ? v : [];
 }
 
 /**

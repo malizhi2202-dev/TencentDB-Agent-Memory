@@ -26,8 +26,25 @@ import type {
   TeamEntity,
   TeamMemberEntity,
   TeamMemberView,
+  ProjectEntity,
+  ProjectMemberEntity,
+  ProjectMemberView,
   AgentEntity,
+  AgentSpaceEntity,
   TaskEntity,
+  KnowledgeEntryEntity,
+  KnowledgeEntryFilter,
+  ToolSourceEntity,
+  ToolSourceFilter,
+  AgentTeamEntity,
+  AgentTeamMemberEntity,
+  AgentTeamFilter,
+  AutomationEntity,
+  AutomationFilter,
+  RunTraceEntity,
+  RunTraceFilter,
+  WriteApprovalEntity,
+  WriteApprovalFilter,
   TaskAgentEntity,
   ParticipationLogEntity,
   AppendParticipationLogInput,
@@ -39,7 +56,17 @@ import type {
   CreateUserKeyInput,
   CreateTeamInput,
   AddTeamMemberInput,
+  CreateProjectInput,
+  AddProjectMemberInput,
   CreateAgentInput,
+  CreateAgentSpaceInput,
+  CreateKnowledgeEntryInput,
+  CreateToolSourceInput,
+  CreateAgentTeamInput,
+  AgentTeamMemberInput,
+  CreateAutomationInput,
+  CreateRunTraceInput,
+  CreateWriteApprovalInput,
   CreateTaskInput,
   CreateAssetInput,
   FixedAssetBindingInput,
@@ -47,6 +74,8 @@ import type {
   AgentFilter,
   TaskFilter,
   AssetFilter,
+  ProjectFilter,
+  ProjectFilter,
   BatchDeleteResult,
   ListPage,
   PaginationParams,
@@ -181,10 +210,172 @@ export class SqliteMetadataStore implements IMetadataStore {
         status TEXT NOT NULL DEFAULT 'active',
         UNIQUE(team_id, user_id)
       );
+      CREATE TABLE IF NOT EXISTS meta_projects (
+        project_id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        owner_user_id TEXT NOT NULL,
+        manager_user_id TEXT,
+        visibility TEXT NOT NULL DEFAULT 'private',
+        default_agent_id TEXT,
+        repo_url TEXT,
+        git_repo_urls TEXT NOT NULL DEFAULT '[]',
+        path_globs TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_projects_team ON meta_projects(team_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_meta_projects_owner ON meta_projects(owner_user_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS meta_project_members (
+        project_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        granted_by TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (project_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_project_members_user ON meta_project_members(user_id);
+      CREATE TABLE IF NOT EXISTS meta_projects (
+        project_id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        owner_user_id TEXT NOT NULL,
+        manager_user_id TEXT,
+        visibility TEXT NOT NULL DEFAULT 'private',
+        default_agent_id TEXT,
+        repo_url TEXT,
+        git_repo_urls TEXT NOT NULL DEFAULT '[]',
+        path_globs TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_projects_team ON meta_projects(team_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_meta_projects_owner ON meta_projects(owner_user_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS meta_knowledge_entries (
+        entry_id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT,
+        status TEXT,
+        source TEXT NOT NULL DEFAULT 'memory',
+        owner_user_id TEXT NOT NULL,
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_knowledge_scope ON meta_knowledge_entries(scope, scope_id, kind, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_meta_knowledge_owner ON meta_knowledge_entries(owner_user_id);
+      CREATE TABLE IF NOT EXISTS meta_tool_sources (
+        tool_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        team_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        endpoint_url TEXT,
+        transport TEXT,
+        auth_config_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT,
+        source TEXT NOT NULL DEFAULT 'memory',
+        owner_user_id TEXT NOT NULL,
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_tool_team ON meta_tool_sources(team_id, kind, created_at DESC);
+      CREATE TABLE IF NOT EXISTS meta_agent_teams (
+        agent_team_id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        owner_user_id TEXT NOT NULL,
+        status TEXT,
+        source TEXT NOT NULL DEFAULT 'memory',
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_agent_teams_team ON meta_agent_teams(team_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS meta_agent_team_members (
+        id TEXT PRIMARY KEY,
+        agent_team_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        role TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE (agent_team_id, agent_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_agent_team_members_team ON meta_agent_team_members(agent_team_id);
+      CREATE TABLE IF NOT EXISTS meta_automations (
+        automation_id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        trigger_type TEXT NOT NULL DEFAULT 'manual',
+        trigger_config_json TEXT NOT NULL DEFAULT '{}',
+        action_type TEXT NOT NULL DEFAULT 'notify',
+        action_config_json TEXT NOT NULL DEFAULT '{}',
+        target_id TEXT,
+        status TEXT,
+        source TEXT NOT NULL DEFAULT 'memory',
+        owner_user_id TEXT NOT NULL,
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_automations_team ON meta_automations(team_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS meta_run_traces (
+        run_id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        agent_id TEXT,
+        task_id TEXT,
+        kind TEXT NOT NULL DEFAULT 'run',
+        title TEXT NOT NULL,
+        status TEXT,
+        input_summary TEXT,
+        output_summary TEXT,
+        trace_json TEXT NOT NULL DEFAULT '[]',
+        source TEXT NOT NULL DEFAULT 'memory',
+        owner_user_id TEXT NOT NULL,
+        meta_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_run_traces_team ON meta_run_traces(team_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_meta_run_traces_agent ON meta_run_traces(agent_id);
+      CREATE TABLE IF NOT EXISTS meta_write_approvals (
+        approval_id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        agent_id TEXT,
+        task_id TEXT,
+        session_id TEXT,
+        write_policy TEXT NOT NULL,
+        risk TEXT,
+        plans_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'pending',
+        decided_by_user_id TEXT,
+        decision_note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_write_approvals_team ON meta_write_approvals(team_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_meta_write_approvals_status ON meta_write_approvals(status);
+      CREATE TABLE IF NOT EXISTS meta_project_members (
+        project_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        granted_by TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (project_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_project_members_user ON meta_project_members(user_id);
       CREATE TABLE IF NOT EXISTS meta_agents (
         agent_id TEXT PRIMARY KEY,
         team_id TEXT NOT NULL,
         owner_user_id TEXT NOT NULL,
+        project_id TEXT,
         name TEXT NOT NULL,
         description TEXT,
         prompt TEXT,
@@ -195,6 +386,32 @@ export class SqliteMetadataStore implements IMetadataStore {
         metadata_json TEXT NOT NULL DEFAULT '{}'
       );
       CREATE INDEX IF NOT EXISTS idx_meta_agents_team_status ON meta_agents(team_id, status, created_at DESC);
+      CREATE TABLE IF NOT EXISTS meta_agent_spaces (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        space_id TEXT NOT NULL,
+        owner_type TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        write_policy TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'default_mount',
+        created_at TEXT NOT NULL,
+        UNIQUE(agent_id, space_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_agent_spaces_agent ON meta_agent_spaces(agent_id);
+      CREATE TABLE IF NOT EXISTS meta_agent_spaces (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        space_id TEXT NOT NULL,
+        owner_type TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        write_policy TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'default_mount',
+        created_at TEXT NOT NULL,
+        UNIQUE(agent_id, space_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_agent_spaces_agent ON meta_agent_spaces(agent_id);
       CREATE TABLE IF NOT EXISTS meta_tasks (
         task_id TEXT PRIMARY KEY,
         team_id TEXT NOT NULL,
@@ -206,6 +423,7 @@ export class SqliteMetadataStore implements IMetadataStore {
         status TEXT NOT NULL DEFAULT 'running',
         auto_assign_floating_assets INTEGER NOT NULL DEFAULT 0,
         risk_level TEXT,
+        project_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         metadata_json TEXT NOT NULL DEFAULT '{}'
@@ -238,6 +456,7 @@ export class SqliteMetadataStore implements IMetadataStore {
         name TEXT NOT NULL,
         description TEXT,
         owner_user_id TEXT NOT NULL,
+        project_id TEXT,
         source_type TEXT NOT NULL,
         source_ref TEXT,
         version INTEGER NOT NULL DEFAULT 1,
@@ -331,6 +550,26 @@ export class SqliteMetadataStore implements IMetadataStore {
     `);
     this.migrateUserTypeColumn();
     this.migrateLegacyUserKeys();
+    this.migrateProjectIdColumns();
+  }
+
+  /** 存量库：给 meta_agents / meta_assets / meta_tasks 补 project_id 列（协作轴挂接）。 */
+  private migrateProjectIdColumns(): void {
+    for (const table of ["meta_agents", "meta_assets", "meta_tasks"]) {
+      const hasCol = this.all<{ name: string }>(
+        `SELECT name FROM pragma_table_info('${table}') WHERE name = 'project_id'`,
+      );
+      if (hasCol.length === 0) {
+        try {
+          this.db.exec(`ALTER TABLE ${table} ADD COLUMN project_id TEXT`);
+        } catch {
+          /* column may exist from concurrent init */
+        }
+      }
+    }
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_meta_agents_project ON meta_agents(project_id)`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_meta_assets_project ON meta_assets(project_id)`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_meta_tasks_project ON meta_tasks(project_id)`);
   }
 
   private migrateUserTypeColumn(): void {
@@ -449,8 +688,8 @@ export class SqliteMetadataStore implements IMetadataStore {
     return this.db.prepare(sql).all(...params) as T[];
   }
 
-  private run(sql: string, ...params: SQLInputValue[]): void {
-    this.db.prepare(sql).run(...params);
+  private run(sql: string, ...params: SQLInputValue[]): { changes: number | bigint } {
+    return this.db.prepare(sql).run(...params);
   }
 
   private selectList<T>(
@@ -838,6 +1077,23 @@ export class SqliteMetadataStore implements IMetadataStore {
     );
   }
 
+  listTeams(filter?: { name?: string }, pagination?: PaginationParams | null): ListPage<TeamEntity> {
+    let base = "FROM meta_teams t WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter?.name) {
+      base += " AND t.name = ?";
+      params.push(filter.name);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c ${base}`,
+      params,
+      `SELECT t.* ${base} ORDER BY t.created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapTeam(r),
+    );
+  }
+
   // ============================================================
   // TeamMember
   // ============================================================
@@ -909,6 +1165,350 @@ export class SqliteMetadataStore implements IMetadataStore {
   }
 
   // ============================================================
+  // Project（createProject 自动把 owner 加为 manager 成员）
+  // ============================================================
+  createProject(input: CreateProjectInput): ProjectEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const projectId = input.project_id ?? generateId(ID_PREFIX.project);
+      try {
+        return this.tx(() => {
+          this.run(
+            `INSERT INTO meta_projects
+              (project_id, team_id, name, description, owner_user_id, manager_user_id,
+               visibility, default_agent_id, repo_url, git_repo_urls, path_globs, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            projectId,
+            input.team_id,
+            input.name,
+            input.description ?? null,
+            input.owner_user_id,
+            input.owner_user_id,
+            input.visibility ?? "private",
+            input.default_agent_id ?? null,
+            input.repo_url ?? null,
+            JSON.stringify(input.git_repo_urls ?? []),
+            JSON.stringify(input.path_globs ?? []),
+            now,
+            now,
+          );
+          this.run(
+            `INSERT INTO meta_project_members (project_id, user_id, role, granted_by, created_at)
+             VALUES (?,?,?,?,?)`,
+            projectId,
+            input.owner_user_id,
+            "manager",
+            input.owner_user_id,
+            now,
+          );
+          return this.getProjectById(projectId)!;
+        });
+      } catch (err) {
+        if (isPkCollision(err) && !input.project_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getProjectById(projectId: string): ProjectEntity | null {
+    return this.mapProject(this.get("SELECT * FROM meta_projects WHERE project_id = ?", projectId));
+  }
+
+  updateProject(projectId: string, patch: Partial<ProjectEntity>): ProjectEntity | null {
+    const allowed = ["name", "description", "manager_user_id", "visibility", "default_agent_id", "repo_url", "git_repo_urls", "path_globs"] as const;
+    this.applyUpdate("meta_projects", "project_id", projectId, allowed, patch);
+    return this.getProjectById(projectId);
+  }
+
+  deleteProjects(projectIds: string[]): BatchDeleteResult {
+    const result = this.batchDelete("meta_projects", "project_id", projectIds);
+    if (result.deleted_ids.length > 0) {
+      const ph = result.deleted_ids.map(() => "?").join(",");
+      this.run(`DELETE FROM meta_project_members WHERE project_id IN (${ph})`, ...result.deleted_ids);
+    }
+    return result;
+  }
+
+  listProjects(filter?: ProjectFilter, pagination?: PaginationParams | null): ListPage<ProjectEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter?.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter?.owner_user_id) {
+      where += " AND owner_user_id = ?";
+      params.push(filter.owner_user_id);
+    }
+    if (filter?.visibility) {
+      where += " AND visibility = ?";
+      params.push(filter.visibility);
+    }
+    if (filter?.name) {
+      where += " AND name = ?";
+      params.push(filter.name);
+    }
+    if (filter?.member_user_id) {
+      where += " AND project_id IN (SELECT project_id FROM meta_project_members WHERE user_id = ?)";
+      params.push(filter.member_user_id);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_projects ${where}`,
+      params,
+      `SELECT * FROM meta_projects ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapProject(r),
+    );
+  }
+
+  // ============================================================
+  // ProjectMember
+  // ============================================================
+  addProjectMember(input: AddProjectMemberInput): ProjectMemberEntity {
+    const now = nowIso();
+    this.run(
+      `INSERT INTO meta_project_members (project_id, user_id, role, granted_by, created_at)
+       VALUES (?,?,?,?,?)
+       ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role, granted_by = excluded.granted_by`,
+      input.project_id,
+      input.user_id,
+      input.role ?? "member",
+      input.granted_by ?? null,
+      now,
+    );
+    return this.getProjectMember(input.project_id, input.user_id)!;
+  }
+
+  removeProjectMember(projectId: string, userId: string): void {
+    this.run("DELETE FROM meta_project_members WHERE project_id = ? AND user_id = ?", projectId, userId);
+  }
+
+  listProjectMembers(projectId: string, pagination?: PaginationParams | null): ListPage<ProjectMemberEntity> {
+    const base = "FROM meta_project_members WHERE project_id = ?";
+    return this.selectList(
+      `SELECT COUNT(*) AS c ${base}`,
+      [projectId],
+      `SELECT * ${base} ORDER BY created_at DESC`,
+      [projectId],
+      pagination,
+      (r) => this.mapProjectMember(r),
+    );
+  }
+
+  getProjectMember(projectId: string, userId: string): ProjectMemberEntity | null {
+    return this.mapProjectMember(
+      this.get("SELECT * FROM meta_project_members WHERE project_id = ? AND user_id = ?", projectId, userId),
+    );
+  }
+
+  listProjectMembersWithProfile(projectId: string, pagination?: PaginationParams | null): ListPage<ProjectMemberView> {
+    const base =
+      "FROM meta_project_members m LEFT JOIN meta_users u ON u.user_id = m.user_id WHERE m.project_id = ?";
+    return this.selectList(
+      `SELECT COUNT(*) AS c ${base}`,
+      [projectId],
+      `SELECT m.project_id, m.user_id, m.role, m.granted_by, m.created_at, COALESCE(u.username, '') AS username ${base} ORDER BY m.created_at DESC`,
+      [projectId],
+      pagination,
+      (r) => {
+        const member = this.mapProjectMember(r);
+        if (!member) return null;
+        const username = (r as unknown as { username?: string }).username ?? "";
+        return { ...member, username };
+      },
+    );
+  }
+
+  getProjectMemberWithProfile(projectId: string, userId: string): ProjectMemberView | null {
+    const row = this.get(
+      `SELECT m.project_id, m.user_id, m.role, m.granted_by, m.created_at, COALESCE(u.username, '') AS username
+       FROM meta_project_members m
+       LEFT JOIN meta_users u ON u.user_id = m.user_id
+       WHERE m.project_id = ? AND m.user_id = ?`,
+      projectId,
+      userId,
+    );
+    const member = this.mapProjectMember(row);
+    if (!member) return null;
+    const username = String((row as Record<string, unknown>).username ?? "");
+    return { ...member, username };
+  }
+
+  // ============================================================
+  // Project（createProject 自动把 owner 加为 manager 成员）
+  // ============================================================
+  createProject(input: CreateProjectInput): ProjectEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const projectId = input.project_id ?? generateId(ID_PREFIX.project);
+      try {
+        return this.tx(() => {
+          this.run(
+            `INSERT INTO meta_projects
+              (project_id, team_id, name, description, owner_user_id, manager_user_id,
+               visibility, default_agent_id, repo_url, git_repo_urls, path_globs, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            projectId,
+            input.team_id,
+            input.name,
+            input.description ?? null,
+            input.owner_user_id,
+            input.owner_user_id,
+            input.visibility ?? "private",
+            input.default_agent_id ?? null,
+            input.repo_url ?? null,
+            JSON.stringify(input.git_repo_urls ?? []),
+            JSON.stringify(input.path_globs ?? []),
+            now,
+            now,
+          );
+          this.run(
+            `INSERT INTO meta_project_members (project_id, user_id, role, granted_by, created_at)
+             VALUES (?,?,?,?,?)`,
+            projectId,
+            input.owner_user_id,
+            "manager",
+            input.owner_user_id,
+            now,
+          );
+          return this.getProjectById(projectId)!;
+        });
+      } catch (err) {
+        if (isPkCollision(err) && !input.project_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getProjectById(projectId: string): ProjectEntity | null {
+    return this.mapProject(this.get("SELECT * FROM meta_projects WHERE project_id = ?", projectId));
+  }
+
+  updateProject(projectId: string, patch: Partial<ProjectEntity>): ProjectEntity | null {
+    const allowed = ["name", "description", "manager_user_id", "visibility", "default_agent_id", "repo_url", "git_repo_urls", "path_globs"] as const;
+    this.applyUpdate("meta_projects", "project_id", projectId, allowed, patch);
+    return this.getProjectById(projectId);
+  }
+
+  deleteProjects(projectIds: string[]): BatchDeleteResult {
+    const result = this.batchDelete("meta_projects", "project_id", projectIds);
+    if (result.deleted_ids.length > 0) {
+      const ph = result.deleted_ids.map(() => "?").join(",");
+      this.run(`DELETE FROM meta_project_members WHERE project_id IN (${ph})`, ...result.deleted_ids);
+    }
+    return result;
+  }
+
+  listProjects(filter?: ProjectFilter, pagination?: PaginationParams | null): ListPage<ProjectEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter?.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter?.owner_user_id) {
+      where += " AND owner_user_id = ?";
+      params.push(filter.owner_user_id);
+    }
+    if (filter?.visibility) {
+      where += " AND visibility = ?";
+      params.push(filter.visibility);
+    }
+    if (filter?.name) {
+      where += " AND name = ?";
+      params.push(filter.name);
+    }
+    if (filter?.member_user_id) {
+      where += " AND project_id IN (SELECT project_id FROM meta_project_members WHERE user_id = ?)";
+      params.push(filter.member_user_id);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_projects ${where}`,
+      params,
+      `SELECT * FROM meta_projects ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapProject(r),
+    );
+  }
+
+  // ============================================================
+  // ProjectMember
+  // ============================================================
+  addProjectMember(input: AddProjectMemberInput): ProjectMemberEntity {
+    const now = nowIso();
+    this.run(
+      `INSERT INTO meta_project_members (project_id, user_id, role, granted_by, created_at)
+       VALUES (?,?,?,?,?)
+       ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role, granted_by = excluded.granted_by`,
+      input.project_id,
+      input.user_id,
+      input.role ?? "member",
+      input.granted_by ?? null,
+      now,
+    );
+    return this.getProjectMember(input.project_id, input.user_id)!;
+  }
+
+  removeProjectMember(projectId: string, userId: string): void {
+    this.run("DELETE FROM meta_project_members WHERE project_id = ? AND user_id = ?", projectId, userId);
+  }
+
+  listProjectMembers(projectId: string, pagination?: PaginationParams | null): ListPage<ProjectMemberEntity> {
+    const base = "FROM meta_project_members WHERE project_id = ?";
+    return this.selectList(
+      `SELECT COUNT(*) AS c ${base}`,
+      [projectId],
+      `SELECT * ${base} ORDER BY created_at DESC`,
+      [projectId],
+      pagination,
+      (r) => this.mapProjectMember(r),
+    );
+  }
+
+  getProjectMember(projectId: string, userId: string): ProjectMemberEntity | null {
+    return this.mapProjectMember(
+      this.get("SELECT * FROM meta_project_members WHERE project_id = ? AND user_id = ?", projectId, userId),
+    );
+  }
+
+  listProjectMembersWithProfile(projectId: string, pagination?: PaginationParams | null): ListPage<ProjectMemberView> {
+    const base =
+      "FROM meta_project_members m LEFT JOIN meta_users u ON u.user_id = m.user_id WHERE m.project_id = ?";
+    return this.selectList(
+      `SELECT COUNT(*) AS c ${base}`,
+      [projectId],
+      `SELECT m.project_id, m.user_id, m.role, m.granted_by, m.created_at, COALESCE(u.username, '') AS username ${base} ORDER BY m.created_at DESC`,
+      [projectId],
+      pagination,
+      (r) => {
+        const member = this.mapProjectMember(r);
+        if (!member) return null;
+        const username = (r as unknown as { username?: string }).username ?? "";
+        return { ...member, username };
+      },
+    );
+  }
+
+  getProjectMemberWithProfile(projectId: string, userId: string): ProjectMemberView | null {
+    const row = this.get(
+      `SELECT m.project_id, m.user_id, m.role, m.granted_by, m.created_at, COALESCE(u.username, '') AS username
+       FROM meta_project_members m
+       LEFT JOIN meta_users u ON u.user_id = m.user_id
+       WHERE m.project_id = ? AND m.user_id = ?`,
+      projectId,
+      userId,
+    );
+    const member = this.mapProjectMember(row);
+    if (!member) return null;
+    const username = String((row as Record<string, unknown>).username ?? "");
+    return { ...member, username };
+  }
+
+  // ============================================================
   // Agent
   // ============================================================
   createAgent(input: CreateAgentInput): AgentEntity {
@@ -918,11 +1518,12 @@ export class SqliteMetadataStore implements IMetadataStore {
       try {
         this.run(
           `INSERT INTO meta_agents
-            (agent_id, team_id, owner_user_id, name, description, prompt, visibility, status, created_at, updated_at, metadata_json)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            (agent_id, team_id, owner_user_id, project_id, name, description, prompt, visibility, status, created_at, updated_at, metadata_json)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
           agentId,
           input.team_id,
           input.owner_user_id,
+          input.project_id ?? null,
           input.name,
           input.description ?? null,
           input.prompt ?? null,
@@ -945,8 +1546,633 @@ export class SqliteMetadataStore implements IMetadataStore {
     return this.mapAgent(this.get("SELECT * FROM meta_agents WHERE agent_id = ?", agentId));
   }
 
+  createAgentSpaces(spaces: CreateAgentSpaceInput[]): void {
+    if (spaces.length === 0) return;
+    const now = nowIso();
+    for (const s of spaces) {
+      const id = generateRelationId();
+      // (agent_id, space_id) UNIQUE 幂等：已存在时忽略（重复 createSpaces 调用无副作用）
+      this.run(
+        `INSERT OR IGNORE INTO meta_agent_spaces
+          (id, agent_id, space_id, owner_type, owner_id, domain, write_policy, source, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        id,
+        s.agent_id,
+        s.space_id,
+        s.owner_type,
+        s.owner_id,
+        s.domain,
+        s.write_policy,
+        s.source ?? "default_mount",
+        now,
+      );
+    }
+  }
+
+  getAgentSpaces(agentId: string): AgentSpaceEntity[] {
+    const rows = this.all("SELECT * FROM meta_agent_spaces WHERE agent_id = ? ORDER BY created_at ASC", agentId);
+    return rows.map((r) => this.mapAgentSpace(r));
+  }
+
+  deleteAgentSpaces(agentId: string): void {
+    this.run("DELETE FROM meta_agent_spaces WHERE agent_id = ?", agentId);
+  }
+
+  createAgentSpaces(spaces: CreateAgentSpaceInput[]): void {
+    if (spaces.length === 0) return;
+    const now = nowIso();
+    for (const s of spaces) {
+      const id = generateRelationId();
+      // (agent_id, space_id) UNIQUE 幂等：已存在时忽略（重复 createSpaces 调用无副作用）
+      this.run(
+        `INSERT OR IGNORE INTO meta_agent_spaces
+          (id, agent_id, space_id, owner_type, owner_id, domain, write_policy, source, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        id,
+        s.agent_id,
+        s.space_id,
+        s.owner_type,
+        s.owner_id,
+        s.domain,
+        s.write_policy,
+        s.source ?? "default_mount",
+        now,
+      );
+    }
+  }
+
+  getAgentSpaces(agentId: string): AgentSpaceEntity[] {
+    const rows = this.all("SELECT * FROM meta_agent_spaces WHERE agent_id = ? ORDER BY created_at ASC", agentId);
+    return rows.map((r) => this.mapAgentSpace(r));
+  }
+
+  listAgentSpacesByAgentIds(agentIds: string[]): AgentSpaceEntity[] {
+    if (agentIds.length === 0) return [];
+    const ph = agentIds.map(() => "?").join(",");
+    const rows = this.all(
+      `SELECT * FROM meta_agent_spaces WHERE agent_id IN (${ph}) ORDER BY created_at ASC`,
+      ...agentIds,
+    );
+    return rows.map((r) => this.mapAgentSpace(r));
+  }
+
+  deleteAgentSpaces(agentId: string): void {
+    this.run("DELETE FROM meta_agent_spaces WHERE agent_id = ?", agentId);
+  }
+
+  // ============================================================
+  // KnowledgeEntry（项目级五类 + 团队级工作模式）
+  // ============================================================
+  createKnowledgeEntry(input: CreateKnowledgeEntryInput): KnowledgeEntryEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const entryId = input.entry_id ?? generateId(ID_PREFIX.knowledge);
+      try {
+        this.run(
+          `INSERT INTO meta_knowledge_entries
+            (entry_id, scope, scope_id, kind, title, content, status, source, owner_user_id, meta_json, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+          entryId,
+          input.scope,
+          input.scope_id,
+          input.kind,
+          input.title,
+          input.content ?? null,
+          input.status ?? null,
+          input.source,
+          input.owner_user_id,
+          input.meta_json ?? "{}",
+          now,
+          now,
+        );
+        return this.getKnowledgeEntry(entryId)!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.entry_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getKnowledgeEntry(entryId: string): KnowledgeEntryEntity | null {
+    return this.mapKnowledgeEntry(this.get("SELECT * FROM meta_knowledge_entries WHERE entry_id = ?", entryId));
+  }
+
+  updateKnowledgeEntry(entryId: string, patch: Partial<KnowledgeEntryEntity>): KnowledgeEntryEntity | null {
+    const allowed = ["title", "content", "status", "source", "kind", "meta_json"] as const;
+    const normalized: Record<string, SQLInputValue> = {};
+    for (const k of allowed) {
+      const v = (patch as Record<string, unknown>)[k];
+      if (v !== undefined) normalized[k] = v as SQLInputValue;
+    }
+    normalized.updated_at = nowIso();
+    this.applyUpdateRaw("meta_knowledge_entries", "entry_id", entryId, normalized);
+    return this.getKnowledgeEntry(entryId);
+  }
+
+  deleteKnowledgeEntries(entryIds: string[]): BatchDeleteResult {
+    return this.batchDelete("meta_knowledge_entries", "entry_id", entryIds);
+  }
+
+  listKnowledgeEntries(filter: KnowledgeEntryFilter, pagination?: PaginationParams | null): ListPage<KnowledgeEntryEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter.scope) {
+      where += " AND scope = ?";
+      params.push(filter.scope);
+    }
+    if (filter.scope_id) {
+      where += " AND scope_id = ?";
+      params.push(filter.scope_id);
+    }
+    if (filter.kind) {
+      where += " AND kind = ?";
+      params.push(filter.kind);
+    }
+    if (filter.source) {
+      where += " AND source = ?";
+      params.push(filter.source);
+    }
+    if (filter.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_knowledge_entries ${where}`,
+      params,
+      `SELECT * FROM meta_knowledge_entries ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapKnowledgeEntry(r),
+    );
+  }
+
+  // ============================================================
+  // ToolSource（MCP Server / REST API）
+  // ============================================================
+  createToolSource(input: CreateToolSourceInput): ToolSourceEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const toolId = input.tool_id ?? generateId(ID_PREFIX.toolSource);
+      try {
+        this.run(
+          `INSERT INTO meta_tool_sources
+            (tool_id, kind, team_id, name, description, endpoint_url, transport, auth_config_json, status, source, owner_user_id, meta_json, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          toolId,
+          input.kind,
+          input.team_id,
+          input.name,
+          input.description ?? null,
+          input.endpoint_url ?? null,
+          input.transport ?? null,
+          input.auth_config_json ?? "{}",
+          input.status ?? null,
+          input.source,
+          input.owner_user_id,
+          input.meta_json ?? "{}",
+          now,
+          now,
+        );
+        return this.getToolSource(toolId)!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.tool_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getToolSource(toolId: string): ToolSourceEntity | null {
+    return this.mapToolSource(this.get("SELECT * FROM meta_tool_sources WHERE tool_id = ?", toolId));
+  }
+
+  updateToolSource(toolId: string, patch: Partial<ToolSourceEntity>): ToolSourceEntity | null {
+    const allowed = ["name", "description", "endpoint_url", "transport", "auth_config_json", "status", "source", "kind", "meta_json"] as const;
+    const normalized: Record<string, SQLInputValue> = {};
+    for (const k of allowed) {
+      const v = (patch as Record<string, unknown>)[k];
+      if (v !== undefined) normalized[k] = v as SQLInputValue;
+    }
+    normalized.updated_at = nowIso();
+    this.applyUpdateRaw("meta_tool_sources", "tool_id", toolId, normalized);
+    return this.getToolSource(toolId);
+  }
+
+  deleteToolSources(toolIds: string[]): BatchDeleteResult {
+    return this.batchDelete("meta_tool_sources", "tool_id", toolIds);
+  }
+
+  listToolSources(filter: ToolSourceFilter, pagination?: PaginationParams | null): ListPage<ToolSourceEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter.kind) {
+      where += " AND kind = ?";
+      params.push(filter.kind);
+    }
+    if (filter.source) {
+      where += " AND source = ?";
+      params.push(filter.source);
+    }
+    if (filter.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_tool_sources ${where}`,
+      params,
+      `SELECT * FROM meta_tool_sources ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapToolSource(r),
+    );
+  }
+
+  // ============================================================
+  // AgentTeam（多 Agent 编排）
+  // ============================================================
+  createAgentTeam(input: CreateAgentTeamInput): AgentTeamEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const agentTeamId = input.agent_team_id ?? generateId(ID_PREFIX.agentTeam);
+      try {
+        this.tx(() => {
+          this.run(
+            `INSERT INTO meta_agent_teams
+              (agent_team_id, team_id, name, description, owner_user_id, status, source, meta_json, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            agentTeamId,
+            input.team_id,
+            input.name,
+            input.description ?? null,
+            input.owner_user_id,
+            input.status ?? null,
+            input.source,
+            input.meta_json ?? "{}",
+            now,
+            now,
+          );
+          for (const link of input.linked_agents ?? []) {
+            this.run(
+              `INSERT INTO meta_agent_team_members (id, agent_team_id, agent_id, role, created_at)
+               VALUES (?,?,?,?,?)`,
+              generateRelationId(),
+              agentTeamId,
+              link.agent_id,
+              link.role ?? null,
+              now,
+            );
+          }
+        });
+        return this.getAgentTeam(agentTeamId)!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.agent_team_id) continue;
+        if (isSqliteRelationIdCollision(err)) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getAgentTeam(agentTeamId: string): AgentTeamEntity | null {
+    return this.mapAgentTeam(this.get("SELECT * FROM meta_agent_teams WHERE agent_team_id = ?", agentTeamId));
+  }
+
+  updateAgentTeam(agentTeamId: string, patch: Partial<AgentTeamEntity>): AgentTeamEntity | null {
+    const allowed = ["name", "description", "status", "source", "meta_json"] as const;
+    const normalized: Record<string, SQLInputValue> = {};
+    for (const k of allowed) {
+      const v = (patch as Record<string, unknown>)[k];
+      if (v !== undefined) normalized[k] = v as SQLInputValue;
+    }
+    normalized.updated_at = nowIso();
+    this.applyUpdateRaw("meta_agent_teams", "agent_team_id", agentTeamId, normalized);
+    return this.getAgentTeam(agentTeamId);
+  }
+
+  deleteAgentTeams(agentTeamIds: string[]): BatchDeleteResult {
+    const result = this.batchDelete("meta_agent_teams", "agent_team_id", agentTeamIds);
+    if (result.deleted_ids.length > 0) {
+      const ph = result.deleted_ids.map(() => "?").join(",");
+      this.run(`DELETE FROM meta_agent_team_members WHERE agent_team_id IN (${ph})`, ...result.deleted_ids);
+    }
+    return result;
+  }
+
+  listAgentTeams(filter: AgentTeamFilter, pagination?: PaginationParams | null): ListPage<AgentTeamEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter.source) {
+      where += " AND source = ?";
+      params.push(filter.source);
+    }
+    if (filter.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_agent_teams ${where}`,
+      params,
+      `SELECT * FROM meta_agent_teams ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapAgentTeam(r),
+    );
+  }
+
+  addAgentTeamMember(input: AgentTeamMemberInput): AgentTeamMemberEntity {
+    const now = nowIso();
+    this.run(
+      `INSERT INTO meta_agent_team_members (id, agent_team_id, agent_id, role, created_at)
+       VALUES (?,?,?,?,?)
+       ON CONFLICT (agent_team_id, agent_id) DO UPDATE SET role = excluded.role`,
+      generateRelationId(),
+      input.agent_team_id,
+      input.agent_id,
+      input.role ?? null,
+      now,
+    );
+    const row = this.get("SELECT * FROM meta_agent_team_members WHERE agent_team_id = ? AND agent_id = ?", input.agent_team_id, input.agent_id);
+    return this.mapAgentTeamMember(row);
+  }
+
+  removeAgentTeamMember(agentTeamId: string, agentId: string): void {
+    this.run("DELETE FROM meta_agent_team_members WHERE agent_team_id = ? AND agent_id = ?", agentTeamId, agentId);
+  }
+
+  listAgentTeamMembers(agentTeamId: string, pagination?: PaginationParams | null): ListPage<AgentTeamMemberEntity> {
+    return this.selectList(
+      "SELECT COUNT(*) AS c FROM meta_agent_team_members WHERE agent_team_id = ?",
+      [agentTeamId],
+      "SELECT * FROM meta_agent_team_members WHERE agent_team_id = ? ORDER BY created_at ASC",
+      [agentTeamId],
+      pagination,
+      (r) => this.mapAgentTeamMember(r),
+    );
+  }
+
+  // ============================================================
+  // Automation（自动化编排）
+  // ============================================================
+  createAutomation(input: CreateAutomationInput): AutomationEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const automationId = input.automation_id ?? generateId(ID_PREFIX.automation);
+      try {
+        this.run(
+          `INSERT INTO meta_automations
+            (automation_id, team_id, name, description, trigger_type, trigger_config_json, action_type, action_config_json, target_id, status, source, owner_user_id, meta_json, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          automationId,
+          input.team_id,
+          input.name,
+          input.description ?? null,
+          input.trigger_type,
+          input.trigger_config_json ?? "{}",
+          input.action_type,
+          input.action_config_json ?? "{}",
+          input.target_id ?? null,
+          input.status ?? null,
+          input.source,
+          input.owner_user_id,
+          input.meta_json ?? "{}",
+          now,
+          now,
+        );
+        return this.getAutomation(automationId)!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.automation_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getAutomation(automationId: string): AutomationEntity | null {
+    return this.mapAutomation(this.get("SELECT * FROM meta_automations WHERE automation_id = ?", automationId));
+  }
+
+  updateAutomation(automationId: string, patch: Partial<AutomationEntity>): AutomationEntity | null {
+    const allowed = ["name", "description", "trigger_type", "trigger_config_json", "action_type", "action_config_json", "target_id", "status", "source", "meta_json"] as const;
+    const normalized: Record<string, SQLInputValue> = {};
+    for (const k of allowed) {
+      const v = (patch as Record<string, unknown>)[k];
+      if (v !== undefined) normalized[k] = v as SQLInputValue;
+    }
+    normalized.updated_at = nowIso();
+    this.applyUpdateRaw("meta_automations", "automation_id", automationId, normalized);
+    return this.getAutomation(automationId);
+  }
+
+  deleteAutomations(automationIds: string[]): BatchDeleteResult {
+    return this.batchDelete("meta_automations", "automation_id", automationIds);
+  }
+
+  listAutomations(filter: AutomationFilter, pagination?: PaginationParams | null): ListPage<AutomationEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter.trigger_type) {
+      where += " AND trigger_type = ?";
+      params.push(filter.trigger_type);
+    }
+    if (filter.action_type) {
+      where += " AND action_type = ?";
+      params.push(filter.action_type);
+    }
+    if (filter.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_automations ${where}`,
+      params,
+      `SELECT * FROM meta_automations ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapAutomation(r),
+    );
+  }
+
+  // ============================================================
+  // RunTrace（会话回放）
+  // ============================================================
+  createRunTrace(input: CreateRunTraceInput): RunTraceEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const runId = input.run_id ?? generateId(ID_PREFIX.runTrace);
+      try {
+        this.run(
+          `INSERT INTO meta_run_traces
+            (run_id, team_id, agent_id, task_id, kind, title, status, input_summary, output_summary, trace_json, source, owner_user_id, meta_json, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          runId,
+          input.team_id,
+          input.agent_id ?? null,
+          input.task_id ?? null,
+          input.kind,
+          input.title,
+          input.status ?? null,
+          input.input_summary ?? null,
+          input.output_summary ?? null,
+          input.trace_json ?? "[]",
+          input.source,
+          input.owner_user_id,
+          input.meta_json ?? "{}",
+          now,
+          now,
+        );
+        return this.getRunTrace(runId)!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.run_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getRunTrace(runId: string): RunTraceEntity | null {
+    return this.mapRunTrace(this.get("SELECT * FROM meta_run_traces WHERE run_id = ?", runId));
+  }
+
+  updateRunTrace(runId: string, patch: Partial<RunTraceEntity>): RunTraceEntity | null {
+    const allowed = ["title", "status", "input_summary", "output_summary", "trace_json", "source", "kind", "meta_json"] as const;
+    const normalized: Record<string, SQLInputValue> = {};
+    for (const k of allowed) {
+      const v = (patch as Record<string, unknown>)[k];
+      if (v !== undefined) normalized[k] = v as SQLInputValue;
+    }
+    normalized.updated_at = nowIso();
+    this.applyUpdateRaw("meta_run_traces", "run_id", runId, normalized);
+    return this.getRunTrace(runId);
+  }
+
+  deleteRunTraces(runIds: string[]): BatchDeleteResult {
+    return this.batchDelete("meta_run_traces", "run_id", runIds);
+  }
+
+  listRunTraces(filter: RunTraceFilter, pagination?: PaginationParams | null): ListPage<RunTraceEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter.agent_id) {
+      where += " AND agent_id = ?";
+      params.push(filter.agent_id);
+    }
+    if (filter.kind) {
+      where += " AND kind = ?";
+      params.push(filter.kind);
+    }
+    if (filter.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_run_traces ${where}`,
+      params,
+      `SELECT * FROM meta_run_traces ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapRunTrace(r),
+    );
+  }
+
+  // ============================================================
+  // WriteApproval（记忆写入审批）
+  // ============================================================
+  createWriteApproval(input: CreateWriteApprovalInput): WriteApprovalEntity {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const approvalId = input.approval_id ?? generateId(ID_PREFIX.writeApproval);
+      try {
+        this.run(
+          `INSERT INTO meta_write_approvals
+            (approval_id, team_id, agent_id, task_id, session_id, write_policy, risk, plans_json, status, decided_by_user_id, decision_note, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          approvalId,
+          input.team_id,
+          input.agent_id ?? null,
+          input.task_id ?? null,
+          input.session_id ?? null,
+          input.write_policy,
+          input.risk ?? null,
+          input.plans_json,
+          input.status ?? "pending",
+          null,
+          null,
+          now,
+          now,
+        );
+        return this.getWriteApproval(approvalId)!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.approval_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  getWriteApproval(approvalId: string): WriteApprovalEntity | null {
+    return this.mapWriteApproval(this.get("SELECT * FROM meta_write_approvals WHERE approval_id = ?", approvalId));
+  }
+
+  updateWriteApproval(approvalId: string, patch: Partial<WriteApprovalEntity>): WriteApprovalEntity | null {
+    const allowed = ["status", "decided_by_user_id", "decision_note", "write_policy", "risk"] as const;
+    const normalized: Record<string, SQLInputValue> = {};
+    for (const k of allowed) {
+      const v = (patch as Record<string, unknown>)[k];
+      if (v !== undefined) normalized[k] = v as SQLInputValue;
+    }
+    normalized.updated_at = nowIso();
+    this.applyUpdateRaw("meta_write_approvals", "approval_id", approvalId, normalized);
+    return this.getWriteApproval(approvalId);
+  }
+
+  deleteWriteApprovals(approvalIds: string[]): BatchDeleteResult {
+    return this.batchDelete("meta_write_approvals", "approval_id", approvalIds);
+  }
+
+  listWriteApprovals(filter: WriteApprovalFilter, pagination?: PaginationParams | null): ListPage<WriteApprovalEntity> {
+    let where = "WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter.team_id) {
+      where += " AND team_id = ?";
+      params.push(filter.team_id);
+    }
+    if (filter.agent_id) {
+      where += " AND agent_id = ?";
+      params.push(filter.agent_id);
+    }
+    if (filter.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_write_approvals ${where}`,
+      params,
+      `SELECT * FROM meta_write_approvals ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapWriteApproval(r),
+    );
+  }
+
   updateAgent(agentId: string, patch: Partial<AgentEntity>): AgentEntity | null {
-    const allowed = ["name", "description", "prompt", "visibility", "status", "metadata_json"] as const;
+    const allowed = ["name", "description", "prompt", "visibility", "status", "project_id", "metadata_json"] as const;
     this.applyUpdate("meta_agents", "agent_id", agentId, allowed, patch);
     return this.getAgentById(agentId);
   }
@@ -964,6 +2190,8 @@ export class SqliteMetadataStore implements IMetadataStore {
       const ph = result.deleted_ids.map(() => "?").join(",");
       this.run(`DELETE FROM meta_task_agents WHERE agent_id IN (${ph})`, ...result.deleted_ids);
       this.run(`DELETE FROM meta_agent_fixed_assets WHERE agent_id IN (${ph})`, ...result.deleted_ids);
+      this.run(`DELETE FROM meta_agent_spaces WHERE agent_id IN (${ph})`, ...result.deleted_ids);
+      this.run(`DELETE FROM meta_agent_spaces WHERE agent_id IN (${ph})`, ...result.deleted_ids);
       const selfMemoryAssetIds = result.deleted_ids
         .map((agentId) => selfMemoryByAgent.get(agentId))
         .filter((assetId): assetId is string => !!assetId);
@@ -989,6 +2217,12 @@ export class SqliteMetadataStore implements IMetadataStore {
       where += " AND name = ?";
       params.push(filter.name);
     }
+    if (filter?.project_id === null) {
+      where += " AND project_id IS NULL";
+    } else if (filter?.project_id) {
+      where += " AND project_id = ?";
+      params.push(filter.project_id);
+    }
     return this.selectList(
       `SELECT COUNT(*) AS c FROM meta_agents ${where}`,
       params,
@@ -1009,6 +2243,12 @@ export class SqliteMetadataStore implements IMetadataStore {
     if (filter?.name) {
       where += " AND name = ?";
       params.push(filter.name);
+    }
+    if (filter?.project_id === null) {
+      where += " AND project_id IS NULL";
+    } else if (filter?.project_id) {
+      where += " AND project_id = ?";
+      params.push(filter.project_id);
     }
     return this.selectList(
       `SELECT COUNT(*) AS c FROM meta_agents ${where}`,
@@ -1032,8 +2272,8 @@ export class SqliteMetadataStore implements IMetadataStore {
           this.run(
             `INSERT INTO meta_tasks
               (task_id, team_id, creator_user_id, title, description, source_type, source_url,
-               status, auto_assign_floating_assets, risk_level, created_at, updated_at, metadata_json)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+               status, auto_assign_floating_assets, risk_level, project_id, created_at, updated_at, metadata_json)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskId,
             input.team_id,
             input.creator_user_id,
@@ -1044,6 +2284,7 @@ export class SqliteMetadataStore implements IMetadataStore {
             input.status ?? "running",
             input.auto_assign_floating_assets ? 1 : 0,
             input.risk_level ?? null,
+            input.project_id ?? null,
             now,
             now,
             input.metadata_json ?? "{}",
@@ -1112,6 +2353,16 @@ export class SqliteMetadataStore implements IMetadataStore {
       where += " AND title = ?";
       params.push(filter.title);
     }
+    if (filter?.agent_id) {
+      where += " AND task_id IN (SELECT task_id FROM meta_task_agents WHERE agent_id = ? AND status = 'active')";
+      params.push(filter.agent_id);
+    }
+    if (filter?.project_id === null) {
+      where += " AND project_id IS NULL";
+    } else if (filter?.project_id) {
+      where += " AND project_id = ?";
+      params.push(filter.project_id);
+    }
     return this.selectList(
       `SELECT COUNT(*) AS c FROM meta_tasks ${where}`,
       params,
@@ -1136,6 +2387,16 @@ export class SqliteMetadataStore implements IMetadataStore {
     if (filter.title) {
       where += " AND title = ?";
       params.push(filter.title);
+    }
+    if (filter.agent_id) {
+      where += " AND task_id IN (SELECT task_id FROM meta_task_agents WHERE agent_id = ? AND status = 'active')";
+      params.push(filter.agent_id);
+    }
+    if (filter.project_id === null) {
+      where += " AND project_id IS NULL";
+    } else if (filter.project_id) {
+      where += " AND project_id = ?";
+      params.push(filter.project_id);
     }
     return this.selectList(
       `SELECT COUNT(*) AS c FROM meta_tasks ${where}`,
@@ -1305,16 +2566,17 @@ export class SqliteMetadataStore implements IMetadataStore {
     const assetId = input.asset_id;
     this.run(
       `INSERT INTO meta_assets
-        (asset_id, team_id, asset_type, name, description, owner_user_id, source_type, source_ref,
+        (asset_id, team_id, asset_type, name, description, owner_user_id, project_id, source_type, source_ref,
          version, visibility, status, confidence, expires_at, last_used_at, usage_count, content_ref,
          created_at, updated_at, metadata_json)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       assetId,
       input.team_id,
       input.asset_type,
       input.name,
       input.description ?? null,
       input.owner_user_id,
+      input.project_id ?? null,
       input.source_type,
       input.source_ref ?? null,
       1,
@@ -1337,7 +2599,7 @@ export class SqliteMetadataStore implements IMetadataStore {
   }
 
   updateAsset(assetId: string, patch: Partial<AssetEntity>): AssetEntity | null {
-    const allowed = ["name", "description", "visibility", "status", "confidence", "expires_at", "content_ref", "version", "source_ref", "metadata_json"] as const;
+    const allowed = ["name", "description", "visibility", "status", "confidence", "expires_at", "content_ref", "version", "source_ref", "project_id", "metadata_json"] as const;
     this.applyUpdate("meta_assets", "asset_id", assetId, allowed, patch);
     return this.getAssetById(assetId);
   }
@@ -1396,6 +2658,114 @@ export class SqliteMetadataStore implements IMetadataStore {
       "UPDATE meta_assets SET usage_count = usage_count + 1, last_used_at = ? WHERE asset_id = ?",
       nowIso(),
       assetId,
+    );
+  }
+
+  listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): ListPage<AssetEntity> {
+    let where = "WHERE project_id = ?";
+    const params: SQLInputValue[] = [projectId];
+    if (filter?.asset_type) {
+      where += " AND asset_type = ?";
+      params.push(filter.asset_type);
+    }
+    if (filter?.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.owner_user_id) {
+      where += " AND owner_user_id = ?";
+      params.push(filter.owner_user_id);
+    }
+    if (filter?.visibility) {
+      where += " AND visibility = ?";
+      params.push(filter.visibility);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_assets ${where}`,
+      params,
+      `SELECT * FROM meta_assets ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapAsset(r),
+    );
+  }
+
+  listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): ListPage<AssetEntity> {
+    let where = "WHERE project_id = ?";
+    const params: SQLInputValue[] = [projectId];
+    if (filter?.asset_type) {
+      where += " AND asset_type = ?";
+      params.push(filter.asset_type);
+    }
+    if (filter?.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.owner_user_id) {
+      where += " AND owner_user_id = ?";
+      params.push(filter.owner_user_id);
+    }
+    if (filter?.visibility) {
+      where += " AND visibility = ?";
+      params.push(filter.visibility);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_assets ${where}`,
+      params,
+      `SELECT * FROM meta_assets ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapAsset(r),
+    );
+  }
+
+  listAssetsByOwner(ownerUserId: string, pagination?: PaginationParams | null, filter?: AssetFilter): ListPage<AssetEntity> {
+    let where = "WHERE owner_user_id = ?";
+    const params: SQLInputValue[] = [ownerUserId];
+    if (filter?.asset_type) {
+      where += " AND asset_type = ?";
+      params.push(filter.asset_type);
+    }
+    if (filter?.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.visibility) {
+      where += " AND visibility = ?";
+      params.push(filter.visibility);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_assets ${where}`,
+      params,
+      `SELECT * FROM meta_assets ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapAsset(r),
+    );
+  }
+
+  listAssetsByOwner(ownerUserId: string, pagination?: PaginationParams | null, filter?: AssetFilter): ListPage<AssetEntity> {
+    let where = "WHERE owner_user_id = ?";
+    const params: SQLInputValue[] = [ownerUserId];
+    if (filter?.asset_type) {
+      where += " AND asset_type = ?";
+      params.push(filter.asset_type);
+    }
+    if (filter?.status) {
+      where += " AND status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.visibility) {
+      where += " AND visibility = ?";
+      params.push(filter.visibility);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_assets ${where}`,
+      params,
+      `SELECT * FROM meta_assets ${where} ORDER BY created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapAsset(r),
     );
   }
 
@@ -1607,7 +2977,7 @@ export class SqliteMetadataStore implements IMetadataStore {
     fields: Record<string, SQLInputValue>,
   ): void {
     const keys = Object.keys(fields);
-    const hasUpdatedAt = ["meta_users", "meta_teams", "meta_agents", "meta_tasks", "meta_assets"].includes(table);
+    const hasUpdatedAt = ["meta_users", "meta_teams", "meta_agents", "meta_tasks", "meta_assets", "meta_projects"].includes(table);
     if (keys.length === 0 && !hasUpdatedAt) return;
     const sets = keys.map((k) => `${k} = ?`);
     const params: SQLInputValue[] = keys.map((k) => fields[k]);
@@ -1670,6 +3040,70 @@ export class SqliteMetadataStore implements IMetadataStore {
     };
   }
 
+  private mapProject(row: Row | null): ProjectEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      project_id: String(r.project_id),
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      owner_user_id: String(r.owner_user_id),
+      manager_user_id: r.manager_user_id != null ? String(r.manager_user_id) : null,
+      visibility: String(r.visibility ?? "private") as ProjectEntity["visibility"],
+      default_agent_id: r.default_agent_id != null ? String(r.default_agent_id) : null,
+      repo_url: r.repo_url != null ? String(r.repo_url) : null,
+      git_repo_urls: String(r.git_repo_urls ?? "[]"),
+      path_globs: String(r.path_globs ?? "[]"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapProjectMember(row: Row | null): ProjectMemberEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      project_id: String(r.project_id),
+      user_id: String(r.user_id),
+      role: String(r.role ?? "member") as ProjectMemberEntity["role"],
+      granted_by: r.granted_by != null ? String(r.granted_by) : null,
+      created_at: String(r.created_at),
+    };
+  }
+
+  private mapProject(row: Row | null): ProjectEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      project_id: String(r.project_id),
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      owner_user_id: String(r.owner_user_id),
+      manager_user_id: r.manager_user_id != null ? String(r.manager_user_id) : null,
+      visibility: String(r.visibility ?? "private") as ProjectEntity["visibility"],
+      default_agent_id: r.default_agent_id != null ? String(r.default_agent_id) : null,
+      repo_url: r.repo_url != null ? String(r.repo_url) : null,
+      git_repo_urls: String(r.git_repo_urls ?? "[]"),
+      path_globs: String(r.path_globs ?? "[]"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapProjectMember(row: Row | null): ProjectMemberEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      project_id: String(r.project_id),
+      user_id: String(r.user_id),
+      role: String(r.role ?? "member") as ProjectMemberEntity["role"],
+      granted_by: r.granted_by != null ? String(r.granted_by) : null,
+      created_at: String(r.created_at),
+    };
+  }
+
   private mapAgent(row: Row | null): AgentEntity | null {
     if (!row) return null;
     const r = row as Record<string, unknown>;
@@ -1682,9 +3116,291 @@ export class SqliteMetadataStore implements IMetadataStore {
       prompt: r.prompt != null ? String(r.prompt) : null,
       visibility: String(r.visibility ?? "team") as AgentEntity["visibility"],
       status: String(r.status) as AgentEntity["status"],
+      project_id: r.project_id != null ? String(r.project_id) : null,
       created_at: String(r.created_at),
       updated_at: String(r.updated_at),
       metadata_json: String(r.metadata_json ?? "{}"),
+    };
+  }
+
+  private mapAgentSpace(row: Row): AgentSpaceEntity {
+    const r = row as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      agent_id: String(r.agent_id),
+      space_id: String(r.space_id),
+      owner_type: String(r.owner_type),
+      owner_id: String(r.owner_id),
+      domain: String(r.domain),
+      write_policy: String(r.write_policy),
+      source: (r.source ?? "default_mount") as AgentSpaceEntity["source"],
+      created_at: String(r.created_at),
+    };
+  }
+
+  private mapKnowledgeEntry(row: Row | null): KnowledgeEntryEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      entry_id: String(r.entry_id),
+      scope: String(r.scope) as KnowledgeEntryEntity["scope"],
+      scope_id: String(r.scope_id),
+      kind: String(r.kind) as KnowledgeEntryEntity["kind"],
+      title: String(r.title),
+      content: r.content != null ? String(r.content) : null,
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as KnowledgeEntryEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapToolSource(row: Row | null): ToolSourceEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      tool_id: String(r.tool_id),
+      kind: String(r.kind) as ToolSourceEntity["kind"],
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      endpoint_url: r.endpoint_url != null ? String(r.endpoint_url) : null,
+      transport: r.transport != null ? String(r.transport) : null,
+      auth_config_json: String(r.auth_config_json ?? "{}"),
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as ToolSourceEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapAgentTeam(row: Row | null): AgentTeamEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      agent_team_id: String(r.agent_team_id),
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      owner_user_id: String(r.owner_user_id),
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as AgentTeamEntity["source"],
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapAgentTeamMember(row: Row | null): AgentTeamMemberEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      agent_team_id: String(r.agent_team_id),
+      agent_id: String(r.agent_id),
+      role: r.role != null ? String(r.role) : null,
+      created_at: String(r.created_at),
+    };
+  }
+
+  private mapAutomation(row: Row | null): AutomationEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      automation_id: String(r.automation_id),
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      trigger_type: String(r.trigger_type) as AutomationEntity["trigger_type"],
+      trigger_config_json: String(r.trigger_config_json ?? "{}"),
+      action_type: String(r.action_type) as AutomationEntity["action_type"],
+      action_config_json: String(r.action_config_json ?? "{}"),
+      target_id: r.target_id != null ? String(r.target_id) : null,
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as AutomationEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapRunTrace(row: Row | null): RunTraceEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      run_id: String(r.run_id),
+      team_id: String(r.team_id),
+      agent_id: r.agent_id != null ? String(r.agent_id) : null,
+      task_id: r.task_id != null ? String(r.task_id) : null,
+      kind: String(r.kind) as RunTraceEntity["kind"],
+      title: String(r.title),
+      status: r.status != null ? String(r.status) : null,
+      input_summary: r.input_summary != null ? String(r.input_summary) : null,
+      output_summary: r.output_summary != null ? String(r.output_summary) : null,
+      trace_json: String(r.trace_json ?? "[]"),
+      source: String(r.source) as RunTraceEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapWriteApproval(row: Row | null): WriteApprovalEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      approval_id: String(r.approval_id),
+      team_id: String(r.team_id),
+      agent_id: r.agent_id != null ? String(r.agent_id) : null,
+      task_id: r.task_id != null ? String(r.task_id) : null,
+      session_id: r.session_id != null ? String(r.session_id) : null,
+      write_policy: String(r.write_policy),
+      risk: r.risk != null ? String(r.risk) : null,
+      plans_json: String(r.plans_json ?? "[]"),
+      status: String(r.status) as WriteApprovalEntity["status"],
+      decided_by_user_id: r.decided_by_user_id != null ? String(r.decided_by_user_id) : null,
+      decision_note: r.decision_note != null ? String(r.decision_note) : null,
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapKnowledgeEntry(row: Row | null): KnowledgeEntryEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      entry_id: String(r.entry_id),
+      scope: String(r.scope) as KnowledgeEntryEntity["scope"],
+      scope_id: String(r.scope_id),
+      kind: String(r.kind) as KnowledgeEntryEntity["kind"],
+      title: String(r.title),
+      content: r.content != null ? String(r.content) : null,
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as KnowledgeEntryEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapToolSource(row: Row | null): ToolSourceEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      tool_id: String(r.tool_id),
+      kind: String(r.kind) as ToolSourceEntity["kind"],
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      endpoint_url: r.endpoint_url != null ? String(r.endpoint_url) : null,
+      transport: r.transport != null ? String(r.transport) : null,
+      auth_config_json: String(r.auth_config_json ?? "{}"),
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as ToolSourceEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapAgentTeam(row: Row | null): AgentTeamEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      agent_team_id: String(r.agent_team_id),
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      owner_user_id: String(r.owner_user_id),
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as AgentTeamEntity["source"],
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapAgentTeamMember(row: Row | null): AgentTeamMemberEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      agent_team_id: String(r.agent_team_id),
+      agent_id: String(r.agent_id),
+      role: r.role != null ? String(r.role) : null,
+      created_at: String(r.created_at),
+    };
+  }
+
+  private mapAutomation(row: Row | null): AutomationEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      automation_id: String(r.automation_id),
+      team_id: String(r.team_id),
+      name: String(r.name),
+      description: r.description != null ? String(r.description) : null,
+      trigger_type: String(r.trigger_type) as AutomationEntity["trigger_type"],
+      trigger_config_json: String(r.trigger_config_json ?? "{}"),
+      action_type: String(r.action_type) as AutomationEntity["action_type"],
+      action_config_json: String(r.action_config_json ?? "{}"),
+      target_id: r.target_id != null ? String(r.target_id) : null,
+      status: r.status != null ? String(r.status) : null,
+      source: String(r.source) as AutomationEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapRunTrace(row: Row | null): RunTraceEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      run_id: String(r.run_id),
+      team_id: String(r.team_id),
+      agent_id: r.agent_id != null ? String(r.agent_id) : null,
+      task_id: r.task_id != null ? String(r.task_id) : null,
+      kind: String(r.kind) as RunTraceEntity["kind"],
+      title: String(r.title),
+      status: r.status != null ? String(r.status) : null,
+      input_summary: r.input_summary != null ? String(r.input_summary) : null,
+      output_summary: r.output_summary != null ? String(r.output_summary) : null,
+      trace_json: String(r.trace_json ?? "[]"),
+      source: String(r.source) as RunTraceEntity["source"],
+      owner_user_id: String(r.owner_user_id),
+      meta_json: String(r.meta_json ?? "{}"),
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
+    };
+  }
+
+  private mapWriteApproval(row: Row | null): WriteApprovalEntity | null {
+    if (!row) return null;
+    const r = row as Record<string, unknown>;
+    return {
+      approval_id: String(r.approval_id),
+      team_id: String(r.team_id),
+      agent_id: r.agent_id != null ? String(r.agent_id) : null,
+      task_id: r.task_id != null ? String(r.task_id) : null,
+      session_id: r.session_id != null ? String(r.session_id) : null,
+      write_policy: String(r.write_policy),
+      risk: r.risk != null ? String(r.risk) : null,
+      plans_json: String(r.plans_json ?? "[]"),
+      status: String(r.status) as WriteApprovalEntity["status"],
+      decided_by_user_id: r.decided_by_user_id != null ? String(r.decided_by_user_id) : null,
+      decision_note: r.decision_note != null ? String(r.decision_note) : null,
+      created_at: String(r.created_at),
+      updated_at: String(r.updated_at),
     };
   }
 
@@ -1702,6 +3418,7 @@ export class SqliteMetadataStore implements IMetadataStore {
       status: String(r.status) as TaskEntity["status"],
       auto_assign_floating_assets: Boolean(r.auto_assign_floating_assets),
       risk_level: r.risk_level != null ? String(r.risk_level) : null,
+      project_id: r.project_id != null ? String(r.project_id) : null,
       created_at: String(r.created_at),
       updated_at: String(r.updated_at),
       metadata_json: String(r.metadata_json ?? "{}"),
@@ -1723,6 +3440,8 @@ export class SqliteMetadataStore implements IMetadataStore {
       version: Number(r.version ?? 1),
       visibility: String(r.visibility) as AssetEntity["visibility"],
       status: String(r.status) as AssetEntity["status"],
+      project_id: r.project_id != null ? String(r.project_id) : null,
+      project_id: r.project_id != null ? String(r.project_id) : null,
       confidence: r.confidence != null ? Number(r.confidence) : null,
       expires_at: r.expires_at != null ? String(r.expires_at) : null,
       last_used_at: r.last_used_at != null ? String(r.last_used_at) : null,
@@ -1841,6 +3560,24 @@ export class SqliteMetadataStore implements IMetadataStore {
     const sql = `SELECT * FROM meta_config_params WHERE ${conditions.join(" AND ")} ORDER BY scope ASC, param_name ASC`;
     const rows = this.all<Row>(sql, ...params);
     return rows.map((r) => this.mapConfigParam(r)!);
+  }
+
+  deleteConfigParam(
+    scope: "global" | "user",
+    userId: string | null,
+    module: string,
+    paramName: string,
+  ): boolean {
+    const info = scope === "global"
+      ? this.run(
+        `DELETE FROM meta_config_params WHERE scope = 'global' AND module = ? AND param_name = ?`,
+        module, paramName,
+      )
+      : this.run(
+        `DELETE FROM meta_config_params WHERE scope = 'user' AND user_id = ? AND module = ? AND param_name = ?`,
+        userId!, module, paramName,
+      );
+    return (info?.changes ?? 0) > 0;
   }
 
   private mapConfigParam(row: Row | null): ConfigParamEntity | null {

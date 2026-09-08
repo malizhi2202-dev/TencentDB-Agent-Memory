@@ -14,7 +14,7 @@
 [![Hermes](https://img.shields.io/badge/Hermes-Gateway-7B61FF)](https://hermes-agent.nousresearch.com/docs/)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/dJQM6mKMF)
 
-[安装](#安装) · [支持的 Agent](#所有-agent-共享同一个-memory-server) · [项目简介](#tencentdb-agent-memory-是什么) · [团队玩法](#一种玩法给一个人的公司组一支会成长的-agent-队伍) · [技术实现](#技术实现) · [Benchmark](#benchmark) · [Roadmap](#roadmap)
+[安装](#安装) · [支持的 Agent](#所有-agent-共享同一个-memory-server) · [项目简介](#tencentdb-agent-memory-是什么) · [团队玩法](#一种玩法给一个人的公司组一支会成长的-agent-队伍) · [技术实现](#技术实现) · [架构](#架构) · [Benchmark](#benchmark) · [Roadmap](#roadmap)
 
 [English](./README.md) · [**简体中文**](./README_CN.md)
 
@@ -42,6 +42,16 @@ $EDITOR .env       # 填入两组 LLM 参数（memory 组 + proxy 组）
 ```
 
 打开 Panel：[http://localhost:8125](http://localhost:8125)。
+
+### 本地恢复启动脚本
+
+本仓库额外提供本地封装脚本：
+
+```bash
+./scripts/start-local.sh
+```
+
+该脚本调用 `deploy/global-images/start-all.sh`。如果 `deploy/global-images/.env` 不存在，会先从 `.env.example` 创建并停止，等你填好 LLM 配置后再重新执行。脚本不运行包安装；如果本机没有对应 Docker 镜像，官方启动脚本创建容器时仍可能触发 Docker 拉镜像。
 
 完整安装文档（Memory Hub 单独部署 / Proxy + Claude Code / CodeBuddy 用法 / 停止清理 / 端口
 说明等）见 [**INSTALL_CN.md**](./INSTALL_CN.md)（English: [INSTALL.md](./INSTALL.md)）。
@@ -267,6 +277,98 @@ Chat Memory、Skill、Wiki 和 CodeGraph 都被统一登记为 Memory Asset。Me
 文档被整理为可搜索、可沿链接下钻的 Wiki；代码库被索引为包含文件、符号和调用关系的 CodeGraph。Agent 先通过 `/v3/tools/list` 发现能力，再用 `/v3/tools/call` 读取相关页面、源码或影响路径。
 
 这让文档和代码也成为记忆，但它们平时只是可用的工具，只有真正需要时才进入上下文。
+
+## 架构
+
+三个服务，共享一个 Memory Server。Agent 把 base URL 指向 Proxy 即可免费获得记忆；Hub 是面向人的控制台；Core 是元数据与记忆的唯一事实源。
+
+```mermaid
+flowchart TB
+    subgraph AGENTS["Agent 客户端 — 零代码接入，base URL 指向 Proxy"]
+        direction LR
+        A1["Claude Code"]
+        A2["DeepSeek Harness"]
+        A3["Codex"]
+        A4["CodeBuddy / Hermes / ..."]
+    end
+
+    subgraph PROXY["Memory Proxy (:8096) — 协议适配层"]
+        direction TB
+        P1["Auth · user_key 身份锚定"]
+        P2["sessionInit · 记忆注入"]
+        P3["tdai 注入 + 上游转发"]
+        P4["capture · 对话回报"]
+    end
+
+    subgraph CORE["Memory Core (:8420) — 网关 + 记忆流水线"]
+        direction TB
+        M1["元数据：user / team / agent / asset / ACL"]
+        M2["记忆流水线 L0 → L3"]
+        M3["召回：BM25 + 向量 + RRF"]
+        M4["Skill 模块"]
+    end
+
+    subgraph HUB["Memory Hub (:8125 面板 + :8424 知识)"]
+        direction TB
+        H1["Panel UI — 团队 / 资产 / 绑定管理"]
+        H2["Knowledge — Wiki 构建 + CodeGraph 索引"]
+    end
+
+    UPLLM["上游 LLM<br/>(Anthropic / DeepSeek / ...)"]
+    MEMLLM["记忆 LLM<br/>(抽取 / 摘要 / 画像)"]
+    STORE[("本地存储<br/>sqlite + 向量")]
+
+    AGENTS --> PROXY
+    PROXY -->|转发请求| UPLLM
+    PROXY -->|注入 / 回报| CORE
+    HUB -->|元数据 + 资产 CRUD| CORE
+    HUB -->|embed / RAG| CORE
+    CORE --> MEMLLM
+    CORE --> STORE
+```
+
+### 记忆生命周期（流程）
+
+对话先落 L0，再被异步流水线逐级精炼向上；召回则向下走，先 bootstrap、后精确检索。
+
+```mermaid
+flowchart LR
+    CONV["对话 / 事件"] --> CAP["capture 回报"]
+    CAP --> L0["L0 对话原文<br/>(完整上下文)"]
+    L0 -->|异步抽取| L1["L1 原子事实<br/>(事实 · 偏好 · 约束)"]
+    L1 -->|聚合| L2["L2 场景知识块<br/>(按项目 / 场景)"]
+    L2 -->|长期沉淀| L3["L3 核心画像 / Persona"]
+
+    L2 --> RECALL["召回"]
+    L3 --> RECALL
+    RECALL -->|优先 bootstrap| INIT["sessionInit 注入"]
+    L1 -->|精确检索| RECALL
+    L0 -->|溯源| RECALL
+    INIT --> CTX["Agent 上下文"]
+```
+
+### 一次 Agent 会话（时序）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as Agent 客户端
+    participant Proxy as Memory Proxy
+    participant LLM as 上游 LLM
+    participant Core as Memory Core
+
+    Agent->>Proxy: LLM 请求（base URL → Proxy）
+    Proxy->>Core: auth/verify（user_key）
+    Core-->>Proxy: 身份 + team/agent 归属
+    Proxy->>Core: sessionInit（召回）
+    Core-->>Proxy: L2/L3 bootstrap + L1/L0 检索
+    Proxy->>LLM: 注入记忆后的请求
+    LLM-->>Proxy: 模型回复
+    Proxy-->>Agent: 原样返回回复
+    Proxy->>Core: capture（本轮对话）
+    Core->>Core: 异步流水线 L0 → L1 → L2 → L3
+    Note over Core,Agent: 下一轮 sessionInit 即继承本轮经验
+```
 
 ## Benchmark
 

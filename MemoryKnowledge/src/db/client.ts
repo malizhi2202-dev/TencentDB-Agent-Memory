@@ -61,6 +61,7 @@ export function migrate(_db: Db, raw: Database.Database): void {
       user_id         TEXT,
       agent_id        TEXT,
       task_id         TEXT,
+      project_id      TEXT,
       visibility      TEXT NOT NULL DEFAULT 'team',
       status          TEXT NOT NULL DEFAULT 'pending',
       internal_status TEXT,
@@ -91,6 +92,7 @@ export function migrate(_db: Db, raw: Database.Database): void {
       user_id         TEXT,
       agent_id        TEXT,
       task_id         TEXT,
+      project_id      TEXT,
       visibility      TEXT NOT NULL DEFAULT 'team',
       status          TEXT NOT NULL DEFAULT 'draft',
       internal_status TEXT,
@@ -156,8 +158,18 @@ export function migrate(_db: Db, raw: Database.Database): void {
   // so we check PRAGMA table_info first.
   addColumnIfMissing(raw, "knowledge_code_graph", "service_url", "TEXT");
   addColumnIfMissing(raw, "knowledge_code_graph", "summary", "TEXT");
+  addColumnIfMissing(raw, "knowledge_code_graph", "project_id", "TEXT");
+  // 私有仓库认证（password/token/ssh 的 JSON），clone 时读；owner 私有。
+  addColumnIfMissing(raw, "knowledge_code_graph", "git_auth", "TEXT");
+  // 私有仓库认证（password/token/ssh 的 JSON），clone 时读；owner 私有。
+  addColumnIfMissing(raw, "knowledge_code_graph", "git_auth", "TEXT");
+  // 私有仓库认证（password/token/ssh 的 JSON），clone 时读；owner 私有。
+  addColumnIfMissing(raw, "knowledge_code_graph", "git_auth", "TEXT");
+  // 私有仓库认证（password/token/ssh 的 JSON），clone 时读；owner 私有。
+  addColumnIfMissing(raw, "knowledge_code_graph", "git_auth", "TEXT");
   addColumnIfMissing(raw, "knowledge_wiki", "service_url", "TEXT");
   addColumnIfMissing(raw, "knowledge_wiki", "summary", "TEXT");
+  addColumnIfMissing(raw, "knowledge_wiki", "project_id", "TEXT");
   // service_id on audit tables is nullable → safe to add to existing dev DBs.
   addColumnIfMissing(raw, "knowledge_wiki_audit", "service_id", "TEXT");
   addColumnIfMissing(raw, "knowledge_code_graph_audit", "service_id", "TEXT");

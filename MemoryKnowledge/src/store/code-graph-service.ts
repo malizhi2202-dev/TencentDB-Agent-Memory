@@ -27,7 +27,27 @@ import type {
   ListOpts,
   CountOpts,
 } from "./types.js";
+import type { GitAuth } from "../source-fetcher/types.js";
 import { BuildQueue } from "./build-queue.js";
+
+/** 把 git_auth JSON 字符串解析为 GitAuth；非法/缺失返回 null。 */
+function parseGitAuth(raw: string | null): GitAuth | null {
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw) as Record<string, unknown>;
+    const kind = o.kind;
+    if (kind !== "password" && kind !== "token" && kind !== "ssh") return null;
+    if (typeof o.secret !== "string" || !o.secret) return null;
+    return {
+      kind,
+      username: typeof o.username === "string" && o.username ? o.username : null,
+      secret: o.secret,
+      passphrase: typeof o.passphrase === "string" && o.passphrase ? o.passphrase : null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export interface CodeGraphBuildContext {
   codeGraphId: string;
@@ -35,6 +55,8 @@ export interface CodeGraphBuildContext {
   teamId: string;
   repoUrl: string;
   branch: string;
+  /** 私有仓库认证（已从 git_auth JSON 解析）；公开仓库为 null。 */
+  auth: GitAuth | null;
   /** 该资产的本地工作目录（checkout + 索引落此）。 */
   dir: string;
   /** worker 可调用以更新细粒度内部状态（cloning → indexing）。 */
@@ -92,7 +114,10 @@ export interface CreateCodeGraphParams {
   user_id?: string;
   agent_id?: string;
   task_id?: string;
+  project_id?: string | null;
   visibility?: string;
+  /** 私有仓库认证（password/token/ssh 的 JSON 字符串）。 */
+  git_auth?: string | null;
 }
 
 export class CodeGraphService {
@@ -268,7 +293,7 @@ export class CodeGraphService {
 
   private enqueueBuild(row: CodeGraphRow): void {
     this.queue.enqueue(row.code_graph_id, () =>
-      this.runBuild(row.service_id, row.code_graph_id, row.team_id, row.repo_url, row.branch),
+      this.runBuild(row.service_id, row.code_graph_id, row.team_id, row.repo_url, row.branch, parseGitAuth(row.git_auth)),
     );
   }
 
@@ -278,6 +303,7 @@ export class CodeGraphService {
     teamId: string,
     repoUrl: string,
     branch: string,
+    auth: GitAuth | null,
   ): Promise<void> {
     // 入口检查点：pending 期间被删 → 直接跳过，不置 processing、不建图。
     if (this.isDeleted(serviceId, codeGraphId)) {
@@ -296,6 +322,7 @@ export class CodeGraphService {
         teamId,
         repoUrl,
         branch,
+        auth,
         dir: this.dirFor(serviceId, teamId, codeGraphId),
         setInternalStatus: (s) =>
           this.store.updateCodeGraphStatus(serviceId, codeGraphId, { status: "processing", internal_status: s }),

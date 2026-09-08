@@ -6,6 +6,8 @@
  */
 import { z } from "zod";
 import { paginationInputSchema } from "./pagination.js";
+import { isGlobalPermission } from "../global-permissions.js";
+import { isGlobalPermission } from "../global-permissions.js";
 
 // ── 枚举 ──
 const assetType = z.enum(["skill", "llm_wiki", "code_graph", "chat_memory"]);
@@ -91,6 +93,19 @@ export const userCreateWithKeySchema = z.object({
   display_name: z.string().min(1).optional(),
   email: z.string().email().optional(),
 });
+
+/** 用户名+密码登录（免 user-key 路由，见 V3_NO_USER_KEY_ROUTES）。 */
+export const authLoginSchema = z.object({
+  username: nonEmpty,
+  password: z.string().min(1),
+});
+
+/** admin 或本人设置/重置密码。 */
+export const userSetPasswordSchema = z.object({
+  user_id: nonEmpty,
+  password: z.string().min(1),
+});
+
 export const initAdminSchema = z.object({
   username: nonEmpty,
   user_key: z.string().min(1).optional(),
@@ -150,15 +165,63 @@ export const teamMemberAddSchema = z.object({
   user_id: nonEmpty,
   role: teamRole.optional(),
   status: memberStatus.optional(),
+  create_default_agent: z.boolean().optional(),
 });
 export const teamMemberRemoveSchema = z.object({ team_id: nonEmpty, user_id: nonEmpty });
 export const teamMemberListSchema = z.object({ team_id: nonEmpty }).merge(paginationInputSchema);
 export const teamMemberGetSchema = z.object({ team_id: nonEmpty, user_id: nonEmpty });
 
+// ── Project（协作轴，跨 team）──
+const projectVisibility = z.enum(["private", "team", "restricted"]);
+const projectMemberRole = z.enum(["member", "manager"]);
+export const projectCreateSchema = z.object({
+  team_id: nonEmpty,
+  owner_user_id: nonEmpty,
+  name: nonEmpty,
+  description: z.string().optional(),
+  visibility: projectVisibility.optional(),
+  default_agent_id: z.string().optional(),
+  repo_url: z.string().optional(),
+  git_repo_urls: z.array(z.string().min(1)).max(50).optional(),
+  path_globs: z.array(z.string().min(1)).max(50).optional(),
+});
+export const projectGetSchema = z.object({ project_id: nonEmpty });
+export const projectUpdateSchema = z.object({
+  project_id: nonEmpty,
+  name: z.string().optional(),
+  description: z.string().optional(),
+  manager_user_id: z.string().optional(),
+  visibility: projectVisibility.optional(),
+  default_agent_id: z.string().optional(),
+  repo_url: z.string().optional(),
+  git_repo_urls: z.array(z.string().min(1)).max(50).optional(),
+  path_globs: z.array(z.string().min(1)).max(50).optional(),
+});
+export const projectDeleteSchema = z.object({ project_ids: idList });
+export const projectListSchema = z
+  .object({
+    team_id: z.string().min(1).optional(),
+    owner_user_id: z.string().min(1).optional(),
+    member_user_id: z.string().min(1).optional(),
+    visibility: projectVisibility.optional(),
+    name: z.string().min(1).optional(),
+  })
+  .merge(paginationInputSchema);
+export const projectMemberAddSchema = z.object({
+  project_id: nonEmpty,
+  user_id: nonEmpty,
+  role: projectMemberRole.optional(),
+});
+export const projectMemberRemoveSchema = z.object({ project_id: nonEmpty, user_id: nonEmpty });
+export const projectMemberListSchema = z.object({ project_id: nonEmpty }).merge(paginationInputSchema);
+export const projectMemberGetSchema = z.object({ project_id: nonEmpty, user_id: nonEmpty });
+export const projectSetManagerSchema = z.object({ project_id: nonEmpty, user_id: nonEmpty });
+
 // ── Agent ──
 export const agentCreateSchema = z.object({
   team_id: nonEmpty,
   owner_user_id: nonEmpty,
+  project_id: z.string().nullable().optional(),
   name: nonEmpty,
   description: z.string().optional(),
   prompt: z.string().optional(),
@@ -174,6 +237,7 @@ export const agentUpdateSchema = z.object({
   prompt: z.string().optional(),
   visibility: visibility.optional(),
   status: agentStatus.optional(),
+  project_id: z.string().nullable().optional(),
   // owner_user_id 不可改：传入由 zod 默认 strip 静默忽略
   metadata_json: z.string().optional(),
 });
@@ -184,6 +248,8 @@ const agentListFields = z.object({
   owner_user_key: z.string().optional(),
   status: agentStatus.optional(),
   name: z.string().min(1).optional(),
+  /** 协作轴过滤：null 表示只取未挂 project 的 agent。 */
+  project_id: z.string().nullable().optional(),
 });
 const requireAgentListFilter = (v: {
   team_id?: string;
@@ -210,6 +276,7 @@ export const taskCreateSchema = z.object({
   status: taskStatus.optional(),
   auto_assign_floating_assets: z.boolean().optional(),
   risk_level: z.string().optional(),
+  project_id: z.string().nullable().optional(),
   metadata_json: z.string().optional(),
   linked_agents: z.array(linkedAgent).optional(),
 });
@@ -232,6 +299,10 @@ const taskListFields = z.object({
   creator_user_key: z.string().min(1).optional(),
   status: taskStatus.optional(),
   title: z.string().min(1).optional(),
+  /** 关联 agent 过滤：只取绑定了该 agent 的 task。 */
+  agent_id: nonEmpty.optional(),
+  /** 协作轴过滤：精确匹配 project_id；`null` 表示只取未挂 project 的 task。 */
+  project_id: z.string().nullable().optional(),
 });
 const requireTaskListFilter = (d: {
   team_id?: string;
@@ -282,6 +353,7 @@ export const assetCreateSchema = z.object({
   asset_type: assetType,
   name: nonEmpty,
   owner_user_id: nonEmpty,
+  project_id: z.string().nullable().optional(),
   source_type: nonEmpty,
   description: z.string().optional(),
   source_ref: z.string().optional(),
@@ -304,6 +376,7 @@ export const assetUpdateSchema = z.object({
   content_ref: z.string().optional(),
   version: z.number().int().optional(),
   source_ref: z.string().optional(),
+  project_id: z.string().nullable().optional(),
   metadata_json: z.string().optional(),
 });
 export const assetDeleteSchema = z.object({ asset_ids: idList });
@@ -315,6 +388,14 @@ export const assetListSchema = z.object({
   visibility: visibility.optional(),
 }).merge(paginationInputSchema);
 export const assetTouchUsageSchema = z.object({ asset_id: nonEmpty });
+
+/** 协作轴聚合：列出某 project 下的资产（caller 须 project 可见）。 */
+export const assetListByProjectSchema = z
+  .object({
+    project_id: nonEmpty,
+    asset_type: assetType.optional(),
+  })
+  .merge(paginationInputSchema);
 
 // ── AgentFixedAsset ──
 const fixedBinding = z.object({
@@ -378,6 +459,37 @@ export const aclCheckSchema = userIdOrKeyFields
   })
   .refine(requireUserIdOrKey, userIdOrKeyRefine);
 
+export const auditListSchema = z
+  .object({
+    actor_user_id: z.string().min(1).optional(),
+    action: z.string().min(1).optional(),
+    entity_type: z.string().min(1).optional(),
+    entity_id: z.string().min(1).optional(),
+  })
+  .merge(paginationInputSchema);
+
+// ── 全局能力权限项（方案B RBAC）──
+export const permissionName = z
+  .string()
+  .min(1)
+  .refine((v) => isGlobalPermission(v), { message: "unknown permission" });
+
+export const permissionGrantSchema = z.object({
+  user_id: z.string().min(1),
+  permission: permissionName,
+});
+
+export const permissionRevokeSchema = z.object({
+  user_id: z.string().min(1),
+  permission: permissionName,
+});
+
+export const permissionListSchema = z
+  .object({ user_id: z.string().min(1).optional() })
+  .merge(paginationInputSchema);
+
+export const permissionCheckSchema = z.object({ permission: permissionName });
+
 // ── Auth ──
 export const authVerifySchema = z.object({ user_key: nonEmpty });
 
@@ -394,6 +506,10 @@ export const assetListAccessibleSchema = userIdOrKeyFields
     // 关键作用：让前端"团队资产"tab 从 HTTP 层就拿不到自己的 private 数据，
     // 避免\"响应体带全量、前端 JS 过滤\"的信息泄露风险。
     visibility: z.union([visibility, z.array(visibility).min(1).max(5)]).optional(),
+    // 协作轴：额外并入这些 project 里「U 是 member 的」资产（跨 team）。
+    project_ids: z.array(nonEmpty).max(20).optional(),
+    // 用户维度：二次过滤只返回该 owner 的资产（在「可访问」范围内切片）。
+    owner_user_id: z.string().optional(),
   })
   .merge(paginationInputSchema)
   .refine(requireUserIdOrKey, userIdOrKeyRefine);
@@ -428,6 +544,16 @@ export const configUserGetSchema = z.object({
 
 export const configUserSetSchema = z.object({
   user_id: nonEmpty,
+  module: nonEmpty,
+  params: z.record(z.string().min(1), z.string()),
+});
+
+export const configGlobalGetSchema = z.object({
+  module: nonEmpty,
+  param_name: z.string().min(1).optional(),
+});
+
+export const configGlobalSetSchema = z.object({
   module: nonEmpty,
   params: z.record(z.string().min(1), z.string()),
 });
@@ -481,6 +607,26 @@ export const V3_SCHEMAS = {
   "/v3/meta/team-member/remove": teamMemberRemoveSchema,
   "/v3/meta/team-member/list": teamMemberListSchema,
   "/v3/meta/team-member/get": teamMemberGetSchema,
+  "/v3/meta/project/create": projectCreateSchema,
+  "/v3/meta/project/get": projectGetSchema,
+  "/v3/meta/project/update": projectUpdateSchema,
+  "/v3/meta/project/delete": projectDeleteSchema,
+  "/v3/meta/project/list": projectListSchema,
+  "/v3/meta/project-member/add": projectMemberAddSchema,
+  "/v3/meta/project-member/remove": projectMemberRemoveSchema,
+  "/v3/meta/project-member/list": projectMemberListSchema,
+  "/v3/meta/project-member/get": projectMemberGetSchema,
+  "/v3/meta/project/set-manager": projectSetManagerSchema,
+  "/v3/meta/project/create": projectCreateSchema,
+  "/v3/meta/project/get": projectGetSchema,
+  "/v3/meta/project/update": projectUpdateSchema,
+  "/v3/meta/project/delete": projectDeleteSchema,
+  "/v3/meta/project/list": projectListSchema,
+  "/v3/meta/project-member/add": projectMemberAddSchema,
+  "/v3/meta/project-member/remove": projectMemberRemoveSchema,
+  "/v3/meta/project-member/list": projectMemberListSchema,
+  "/v3/meta/project-member/get": projectMemberGetSchema,
+  "/v3/meta/project/set-manager": projectSetManagerSchema,
   "/v3/meta/agent/create": agentCreateSchema,
   "/v3/meta/agent/get": agentGetSchema,
   "/v3/meta/agent/update": agentUpdateSchema,
@@ -504,6 +650,7 @@ export const V3_SCHEMAS = {
   "/v3/meta/asset/delete": assetDeleteSchema,
   "/v3/meta/asset/list": assetListSchema,
   "/v3/meta/asset/list-accessible": assetListAccessibleSchema,
+  "/v3/meta/asset/list-by-project": assetListByProjectSchema,
   "/v3/meta/asset/touch-usage": assetTouchUsageSchema,
   "/v3/meta/agent-fixed-asset/set": fixedAssetSetSchema,
   "/v3/meta/agent-fixed-asset/list": fixedAssetListSchema,
@@ -513,7 +660,14 @@ export const V3_SCHEMAS = {
   "/v3/meta/acl/revoke": aclRevokeSchema,
   "/v3/meta/acl/list": aclListSchema,
   "/v3/meta/acl/check": aclCheckSchema,
+  "/v3/meta/audit/list": auditListSchema,
+  "/v3/meta/permission/grant": permissionGrantSchema,
+  "/v3/meta/permission/revoke": permissionRevokeSchema,
+  "/v3/meta/permission/list": permissionListSchema,
+  "/v3/meta/permission/check": permissionCheckSchema,
   "/v3/meta/auth/verify": authVerifySchema,
+  "/v3/meta/auth/login": authLoginSchema,
+  "/v3/meta/user/set-password": userSetPasswordSchema,
   "/v3/meta/instance-quota/get": instanceQuotaGetSchema,
   "/v3/meta/config/user/get": configUserGetSchema,
   "/v3/meta/config/user/set": configUserSetSchema,

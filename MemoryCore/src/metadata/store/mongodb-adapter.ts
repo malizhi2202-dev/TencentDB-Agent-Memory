@@ -30,8 +30,25 @@ import type {
   TeamEntity,
   TeamMemberEntity,
   TeamMemberView,
+  ProjectEntity,
+  ProjectMemberEntity,
+  ProjectMemberView,
   AgentEntity,
+  AgentSpaceEntity,
   TaskEntity,
+  KnowledgeEntryEntity,
+  KnowledgeEntryFilter,
+  ToolSourceEntity,
+  ToolSourceFilter,
+  AgentTeamEntity,
+  AgentTeamMemberEntity,
+  AgentTeamFilter,
+  AutomationEntity,
+  AutomationFilter,
+  RunTraceEntity,
+  RunTraceFilter,
+  WriteApprovalEntity,
+  WriteApprovalFilter,
   TaskAgentEntity,
   ParticipationLogEntity,
   AppendParticipationLogInput,
@@ -43,7 +60,17 @@ import type {
   CreateUserKeyInput,
   CreateTeamInput,
   AddTeamMemberInput,
+  CreateProjectInput,
+  AddProjectMemberInput,
   CreateAgentInput,
+  CreateAgentSpaceInput,
+  CreateKnowledgeEntryInput,
+  CreateToolSourceInput,
+  CreateAgentTeamInput,
+  AgentTeamMemberInput,
+  CreateAutomationInput,
+  CreateRunTraceInput,
+  CreateWriteApprovalInput,
   CreateTaskInput,
   CreateAssetInput,
   FixedAssetBindingInput,
@@ -51,6 +78,8 @@ import type {
   AgentFilter,
   TaskFilter,
   AssetFilter,
+  ProjectFilter,
+  ProjectFilter,
   BatchDeleteResult,
   ListPage,
   PaginationParams,
@@ -688,6 +717,18 @@ export class MongoMetadataStore implements IMetadataStore {
     );
   }
 
+  async listTeams(filter?: { name?: string }, pagination?: PaginationParams | null): Promise<ListPage<TeamEntity>> {
+    const match: Document = {};
+    if (filter?.name) match.name = filter.name;
+    return this.paginatedFind("meta_teams", match, pagination, { created_at: -1 }, (d) => d as TeamEntity);
+  }
+
+  async listTeams(filter?: { name?: string }, pagination?: PaginationParams | null): Promise<ListPage<TeamEntity>> {
+    const match: Document = {};
+    if (filter?.name) match.name = filter.name;
+    return this.paginatedFind("meta_teams", match, pagination, { created_at: -1 }, (d) => d as TeamEntity);
+  }
+
   // ============================================================
   // TeamMember
   // ============================================================
@@ -762,6 +803,100 @@ export class MongoMetadataStore implements IMetadataStore {
   }
 
   // ============================================================
+  // Project（M1：Mongo 后端暂未实现，SQLite 为默认后端）
+  // ============================================================
+  async createProject(_input: CreateProjectInput): Promise<ProjectEntity> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async getProjectById(_projectId: string): Promise<ProjectEntity | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async updateProject(_projectId: string, _patch: Partial<ProjectEntity>): Promise<ProjectEntity | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async deleteProjects(_projectIds: string[]): Promise<BatchDeleteResult> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async listProjects(_filter?: ProjectFilter, _pagination?: PaginationParams | null): Promise<ListPage<ProjectEntity>> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async addProjectMember(_input: AddProjectMemberInput): Promise<ProjectMemberEntity> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async removeProjectMember(_projectId: string, _userId: string): Promise<void> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async listProjectMembers(_projectId: string, _pagination?: PaginationParams | null): Promise<ListPage<ProjectMemberEntity>> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async getProjectMember(_projectId: string, _userId: string): Promise<ProjectMemberEntity | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async listProjectMembersWithProfile(_projectId: string, _pagination?: PaginationParams | null): Promise<ListPage<ProjectMemberView>> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async getProjectMemberWithProfile(_projectId: string, _userId: string): Promise<ProjectMemberView | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  // ============================================================
+  // Project（M1：Mongo 后端暂未实现，SQLite 为默认后端）
+  // ============================================================
+  async createProject(_input: CreateProjectInput): Promise<ProjectEntity> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async getProjectById(_projectId: string): Promise<ProjectEntity | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async updateProject(_projectId: string, _patch: Partial<ProjectEntity>): Promise<ProjectEntity | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async deleteProjects(_projectIds: string[]): Promise<BatchDeleteResult> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async listProjects(_filter?: ProjectFilter, _pagination?: PaginationParams | null): Promise<ListPage<ProjectEntity>> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async addProjectMember(_input: AddProjectMemberInput): Promise<ProjectMemberEntity> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async removeProjectMember(_projectId: string, _userId: string): Promise<void> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async listProjectMembers(_projectId: string, _pagination?: PaginationParams | null): Promise<ListPage<ProjectMemberEntity>> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async getProjectMember(_projectId: string, _userId: string): Promise<ProjectMemberEntity | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async listProjectMembersWithProfile(_projectId: string, _pagination?: PaginationParams | null): Promise<ListPage<ProjectMemberView>> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  async getProjectMemberWithProfile(_projectId: string, _userId: string): Promise<ProjectMemberView | null> {
+    throw new Error("project not supported on mongodb backend");
+  }
+
+  // ============================================================
   // Agent
   // ============================================================
   async createAgent(input: CreateAgentInput): Promise<AgentEntity> {
@@ -771,6 +906,7 @@ export class MongoMetadataStore implements IMetadataStore {
         agent_id: input.agent_id ?? generateId(ID_PREFIX.agent),
         team_id: input.team_id,
         owner_user_id: input.owner_user_id,
+        project_id: input.project_id ?? null,
         name: input.name,
         description: input.description ?? null,
         prompt: input.prompt ?? null,
@@ -795,8 +931,508 @@ export class MongoMetadataStore implements IMetadataStore {
     return this.col<AgentEntity>("meta_agents").findOne({ agent_id: agentId } as Document, PROJECT_NO_ID) as Promise<AgentEntity | null>;
   }
 
+  async createAgentSpaces(spaces: CreateAgentSpaceInput[]): Promise<void> {
+    if (spaces.length === 0) return;
+    const now = nowIso();
+    for (const s of spaces) {
+      // (agent_id, space_id) 幂等 upsert：重复调用只 setOnInsert，不改已有记录
+      await this.col("meta_agent_spaces").updateOne(
+        { agent_id: s.agent_id, space_id: s.space_id } as Document,
+        {
+          $setOnInsert: {
+            id: generateRelationId(),
+            agent_id: s.agent_id,
+            space_id: s.space_id,
+            owner_type: s.owner_type,
+            owner_id: s.owner_id,
+            domain: s.domain,
+            write_policy: s.write_policy,
+            source: s.source ?? "default_mount",
+            created_at: now,
+          },
+        },
+        { upsert: true },
+      );
+    }
+  }
+
+  async getAgentSpaces(agentId: string): Promise<AgentSpaceEntity[]> {
+    const docs = await this.col("meta_agent_spaces")
+      .find({ agent_id: agentId } as Document, { projection: PROJECT_NO_ID })
+      .sort({ created_at: 1 })
+      .toArray();
+    return docs as unknown as AgentSpaceEntity[];
+  }
+
+  async deleteAgentSpaces(agentId: string): Promise<void> {
+    await this.col("meta_agent_spaces").deleteMany({ agent_id: agentId } as Document);
+  }
+
+  async createAgentSpaces(spaces: CreateAgentSpaceInput[]): Promise<void> {
+    if (spaces.length === 0) return;
+    const now = nowIso();
+    for (const s of spaces) {
+      // (agent_id, space_id) 幂等 upsert：重复调用只 setOnInsert，不改已有记录
+      await this.col("meta_agent_spaces").updateOne(
+        { agent_id: s.agent_id, space_id: s.space_id } as Document,
+        {
+          $setOnInsert: {
+            id: generateRelationId(),
+            agent_id: s.agent_id,
+            space_id: s.space_id,
+            owner_type: s.owner_type,
+            owner_id: s.owner_id,
+            domain: s.domain,
+            write_policy: s.write_policy,
+            source: s.source ?? "default_mount",
+            created_at: now,
+          },
+        },
+        { upsert: true },
+      );
+    }
+  }
+
+  async getAgentSpaces(agentId: string): Promise<AgentSpaceEntity[]> {
+    const docs = await this.col("meta_agent_spaces")
+      .find({ agent_id: agentId } as Document, { projection: PROJECT_NO_ID })
+      .sort({ created_at: 1 })
+      .toArray();
+    return docs as unknown as AgentSpaceEntity[];
+  }
+
+  async listAgentSpacesByAgentIds(agentIds: string[]): Promise<AgentSpaceEntity[]> {
+    if (agentIds.length === 0) return [];
+    const docs = await this.col("meta_agent_spaces")
+      .find({ agent_id: { $in: agentIds } } as Document, { projection: PROJECT_NO_ID })
+      .sort({ created_at: 1 })
+      .toArray();
+    return docs as unknown as AgentSpaceEntity[];
+  }
+
+  async deleteAgentSpaces(agentId: string): Promise<void> {
+    await this.col("meta_agent_spaces").deleteMany({ agent_id: agentId } as Document);
+  }
+
+  // ============================================================
+  // KnowledgeEntry（项目级五类 + 团队级工作模式）
+  // ============================================================
+  async createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<KnowledgeEntryEntity> {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const entryId = input.entry_id ?? generateId(ID_PREFIX.knowledge);
+      const doc = {
+        entry_id: entryId,
+        scope: input.scope,
+        scope_id: input.scope_id,
+        kind: input.kind,
+        title: input.title,
+        content: input.content ?? null,
+        status: input.status ?? null,
+        source: input.source,
+        owner_user_id: input.owner_user_id,
+        meta_json: input.meta_json ?? "{}",
+        created_at: now,
+        updated_at: now,
+      };
+      try {
+        await this.col("meta_knowledge_entries").insertOne(doc as unknown as Document);
+        return (await this.getKnowledgeEntry(entryId))!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.entry_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  async getKnowledgeEntry(entryId: string): Promise<KnowledgeEntryEntity | null> {
+    const doc = await this.col("meta_knowledge_entries").findOne({ entry_id: entryId } as Document, { projection: PROJECT_NO_ID });
+    return (doc as unknown as KnowledgeEntryEntity) ?? null;
+  }
+
+  async updateKnowledgeEntry(entryId: string, patch: Partial<KnowledgeEntryEntity>): Promise<KnowledgeEntryEntity | null> {
+    const merged = { ...patch, updated_at: nowIso() } as Record<string, unknown>;
+    await this.patchOne("meta_knowledge_entries", { entry_id: entryId }, merged, ["title", "content", "status", "source", "kind", "meta_json", "updated_at"], true);
+    return this.getKnowledgeEntry(entryId);
+  }
+
+  async deleteKnowledgeEntries(entryIds: string[]): Promise<BatchDeleteResult> {
+    return this.batchDelete("meta_knowledge_entries", "entry_id", entryIds);
+  }
+
+  async listKnowledgeEntries(filter: KnowledgeEntryFilter, pagination?: PaginationParams | null): Promise<ListPage<KnowledgeEntryEntity>> {
+    const q: Record<string, unknown> = {};
+    if (filter.scope) q.scope = filter.scope;
+    if (filter.scope_id) q.scope_id = filter.scope_id;
+    if (filter.kind) q.kind = filter.kind;
+    if (filter.source) q.source = filter.source;
+    if (filter.status) q.status = filter.status;
+    return this.paginatedFind(
+      "meta_knowledge_entries",
+      q as Document,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as unknown as KnowledgeEntryEntity,
+    );
+  }
+
+  // ============================================================
+  // ToolSource（MCP Server / REST API）
+  // ============================================================
+  async createToolSource(input: CreateToolSourceInput): Promise<ToolSourceEntity> {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const toolId = input.tool_id ?? generateId(ID_PREFIX.toolSource);
+      const doc = {
+        tool_id: toolId,
+        kind: input.kind,
+        team_id: input.team_id,
+        name: input.name,
+        description: input.description ?? null,
+        endpoint_url: input.endpoint_url ?? null,
+        transport: input.transport ?? null,
+        auth_config_json: input.auth_config_json ?? "{}",
+        status: input.status ?? null,
+        source: input.source,
+        owner_user_id: input.owner_user_id,
+        meta_json: input.meta_json ?? "{}",
+        created_at: now,
+        updated_at: now,
+      };
+      try {
+        await this.col("meta_tool_sources").insertOne(doc as unknown as Document);
+        return (await this.getToolSource(toolId))!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.tool_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  async getToolSource(toolId: string): Promise<ToolSourceEntity | null> {
+    const doc = await this.col("meta_tool_sources").findOne({ tool_id: toolId } as Document, { projection: PROJECT_NO_ID });
+    return (doc as unknown as ToolSourceEntity) ?? null;
+  }
+
+  async updateToolSource(toolId: string, patch: Partial<ToolSourceEntity>): Promise<ToolSourceEntity | null> {
+    const merged = { ...patch, updated_at: nowIso() } as Record<string, unknown>;
+    await this.patchOne("meta_tool_sources", { tool_id: toolId }, merged, ["name", "description", "endpoint_url", "transport", "auth_config_json", "status", "source", "kind", "meta_json", "updated_at"], true);
+    return this.getToolSource(toolId);
+  }
+
+  async deleteToolSources(toolIds: string[]): Promise<BatchDeleteResult> {
+    return this.batchDelete("meta_tool_sources", "tool_id", toolIds);
+  }
+
+  async listToolSources(filter: ToolSourceFilter, pagination?: PaginationParams | null): Promise<ListPage<ToolSourceEntity>> {
+    const q: Record<string, unknown> = {};
+    if (filter.team_id) q.team_id = filter.team_id;
+    if (filter.kind) q.kind = filter.kind;
+    if (filter.source) q.source = filter.source;
+    if (filter.status) q.status = filter.status;
+    return this.paginatedFind(
+      "meta_tool_sources",
+      q as Document,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as unknown as ToolSourceEntity,
+    );
+  }
+
+  // ============================================================
+  // AgentTeam（多 Agent 编排）
+  // ============================================================
+  async createAgentTeam(input: CreateAgentTeamInput): Promise<AgentTeamEntity> {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const agentTeamId = input.agent_team_id ?? generateId(ID_PREFIX.agentTeam);
+      const doc = {
+        agent_team_id: agentTeamId,
+        team_id: input.team_id,
+        name: input.name,
+        description: input.description ?? null,
+        owner_user_id: input.owner_user_id,
+        status: input.status ?? null,
+        source: input.source,
+        meta_json: input.meta_json ?? "{}",
+        created_at: now,
+        updated_at: now,
+      };
+      try {
+        await this.col("meta_agent_teams").insertOne(doc as unknown as Document);
+        for (const link of input.linked_agents ?? []) {
+          await this.col("meta_agent_team_members").updateOne(
+            { agent_team_id: agentTeamId, agent_id: link.agent_id } as Document,
+            { $set: { role: link.role ?? null, created_at: now } },
+            { upsert: true },
+          );
+        }
+        return (await this.getAgentTeam(agentTeamId))!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.agent_team_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  async getAgentTeam(agentTeamId: string): Promise<AgentTeamEntity | null> {
+    const doc = await this.col("meta_agent_teams").findOne({ agent_team_id: agentTeamId } as Document, { projection: PROJECT_NO_ID });
+    return (doc as unknown as AgentTeamEntity) ?? null;
+  }
+
+  async updateAgentTeam(agentTeamId: string, patch: Partial<AgentTeamEntity>): Promise<AgentTeamEntity | null> {
+    const merged = { ...patch, updated_at: nowIso() } as Record<string, unknown>;
+    await this.patchOne("meta_agent_teams", { agent_team_id: agentTeamId }, merged, ["name", "description", "status", "source", "meta_json", "updated_at"], true);
+    return this.getAgentTeam(agentTeamId);
+  }
+
+  async deleteAgentTeams(agentTeamIds: string[]): Promise<BatchDeleteResult> {
+    const result = await this.batchDelete("meta_agent_teams", "agent_team_id", agentTeamIds);
+    if (result.deleted_ids.length > 0) {
+      await this.col("meta_agent_team_members").deleteMany({ agent_team_id: { $in: result.deleted_ids } } as Document);
+    }
+    return result;
+  }
+
+  async listAgentTeams(filter: AgentTeamFilter, pagination?: PaginationParams | null): Promise<ListPage<AgentTeamEntity>> {
+    const q: Record<string, unknown> = {};
+    if (filter.team_id) q.team_id = filter.team_id;
+    if (filter.source) q.source = filter.source;
+    if (filter.status) q.status = filter.status;
+    return this.paginatedFind(
+      "meta_agent_teams",
+      q as Document,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as unknown as AgentTeamEntity,
+    );
+  }
+
+  async addAgentTeamMember(input: AgentTeamMemberInput): Promise<AgentTeamMemberEntity> {
+    const now = nowIso();
+    await this.col("meta_agent_team_members").updateOne(
+      { agent_team_id: input.agent_team_id, agent_id: input.agent_id } as Document,
+      { $set: { role: input.role ?? null, created_at: now } },
+      { upsert: true },
+    );
+    const doc = await this.col("meta_agent_team_members").findOne(
+      { agent_team_id: input.agent_team_id, agent_id: input.agent_id } as Document,
+      { projection: PROJECT_NO_ID },
+    );
+    return doc as unknown as AgentTeamMemberEntity;
+  }
+
+  async removeAgentTeamMember(agentTeamId: string, agentId: string): Promise<void> {
+    await this.col("meta_agent_team_members").deleteOne({ agent_team_id: agentTeamId, agent_id: agentId } as Document);
+  }
+
+  async listAgentTeamMembers(agentTeamId: string, pagination?: PaginationParams | null): Promise<ListPage<AgentTeamMemberEntity>> {
+    return this.paginatedFind(
+      "meta_agent_team_members",
+      { agent_team_id: agentTeamId } as Document,
+      pagination,
+      { created_at: 1 },
+      (doc) => doc as unknown as AgentTeamMemberEntity,
+    );
+  }
+
+  // ============================================================
+  // Automation（自动化编排）
+  // ============================================================
+  async createAutomation(input: CreateAutomationInput): Promise<AutomationEntity> {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const automationId = input.automation_id ?? generateId(ID_PREFIX.automation);
+      const doc = {
+        automation_id: automationId,
+        team_id: input.team_id,
+        name: input.name,
+        description: input.description ?? null,
+        trigger_type: input.trigger_type,
+        trigger_config_json: input.trigger_config_json ?? "{}",
+        action_type: input.action_type,
+        action_config_json: input.action_config_json ?? "{}",
+        target_id: input.target_id ?? null,
+        status: input.status ?? null,
+        source: input.source,
+        owner_user_id: input.owner_user_id,
+        meta_json: input.meta_json ?? "{}",
+        created_at: now,
+        updated_at: now,
+      };
+      try {
+        await this.col("meta_automations").insertOne(doc as unknown as Document);
+        return (await this.getAutomation(automationId))!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.automation_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  async getAutomation(automationId: string): Promise<AutomationEntity | null> {
+    const doc = await this.col("meta_automations").findOne({ automation_id: automationId } as Document, { projection: PROJECT_NO_ID });
+    return (doc as unknown as AutomationEntity) ?? null;
+  }
+
+  async updateAutomation(automationId: string, patch: Partial<AutomationEntity>): Promise<AutomationEntity | null> {
+    const merged = { ...patch, updated_at: nowIso() } as Record<string, unknown>;
+    await this.patchOne("meta_automations", { automation_id: automationId }, merged, ["name", "description", "trigger_type", "trigger_config_json", "action_type", "action_config_json", "target_id", "status", "source", "meta_json", "updated_at"], true);
+    return this.getAutomation(automationId);
+  }
+
+  async deleteAutomations(automationIds: string[]): Promise<BatchDeleteResult> {
+    return this.batchDelete("meta_automations", "automation_id", automationIds);
+  }
+
+  async listAutomations(filter: AutomationFilter, pagination?: PaginationParams | null): Promise<ListPage<AutomationEntity>> {
+    const q: Record<string, unknown> = {};
+    if (filter.team_id) q.team_id = filter.team_id;
+    if (filter.trigger_type) q.trigger_type = filter.trigger_type;
+    if (filter.action_type) q.action_type = filter.action_type;
+    if (filter.status) q.status = filter.status;
+    return this.paginatedFind(
+      "meta_automations",
+      q as Document,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as unknown as AutomationEntity,
+    );
+  }
+
+  // ============================================================
+  // RunTrace（会话回放）
+  // ============================================================
+  async createRunTrace(input: CreateRunTraceInput): Promise<RunTraceEntity> {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const runId = input.run_id ?? generateId(ID_PREFIX.runTrace);
+      const doc = {
+        run_id: runId,
+        team_id: input.team_id,
+        agent_id: input.agent_id ?? null,
+        task_id: input.task_id ?? null,
+        kind: input.kind,
+        title: input.title,
+        status: input.status ?? null,
+        input_summary: input.input_summary ?? null,
+        output_summary: input.output_summary ?? null,
+        trace_json: input.trace_json ?? "[]",
+        source: input.source,
+        owner_user_id: input.owner_user_id,
+        meta_json: input.meta_json ?? "{}",
+        created_at: now,
+        updated_at: now,
+      };
+      try {
+        await this.col("meta_run_traces").insertOne(doc as unknown as Document);
+        return (await this.getRunTrace(runId))!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.run_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  async getRunTrace(runId: string): Promise<RunTraceEntity | null> {
+    const doc = await this.col("meta_run_traces").findOne({ run_id: runId } as Document, { projection: PROJECT_NO_ID });
+    return (doc as unknown as RunTraceEntity) ?? null;
+  }
+
+  async updateRunTrace(runId: string, patch: Partial<RunTraceEntity>): Promise<RunTraceEntity | null> {
+    const merged = { ...patch, updated_at: nowIso() } as Record<string, unknown>;
+    await this.patchOne("meta_run_traces", { run_id: runId }, merged, ["title", "status", "input_summary", "output_summary", "trace_json", "source", "kind", "meta_json", "updated_at"], true);
+    return this.getRunTrace(runId);
+  }
+
+  async deleteRunTraces(runIds: string[]): Promise<BatchDeleteResult> {
+    return this.batchDelete("meta_run_traces", "run_id", runIds);
+  }
+
+  async listRunTraces(filter: RunTraceFilter, pagination?: PaginationParams | null): Promise<ListPage<RunTraceEntity>> {
+    const q: Record<string, unknown> = {};
+    if (filter.team_id) q.team_id = filter.team_id;
+    if (filter.agent_id) q.agent_id = filter.agent_id;
+    if (filter.kind) q.kind = filter.kind;
+    if (filter.status) q.status = filter.status;
+    return this.paginatedFind(
+      "meta_run_traces",
+      q as Document,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as unknown as RunTraceEntity,
+    );
+  }
+
+  // ============================================================
+  // WriteApproval（记忆写入审批）
+  // ============================================================
+  async createWriteApproval(input: CreateWriteApprovalInput): Promise<WriteApprovalEntity> {
+    const now = nowIso();
+    for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const approvalId = input.approval_id ?? generateId(ID_PREFIX.writeApproval);
+      const doc = {
+        approval_id: approvalId,
+        team_id: input.team_id,
+        agent_id: input.agent_id ?? null,
+        task_id: input.task_id ?? null,
+        session_id: input.session_id ?? null,
+        write_policy: input.write_policy,
+        risk: input.risk ?? null,
+        plans_json: input.plans_json,
+        status: input.status ?? "pending",
+        decided_by_user_id: null,
+        decision_note: null,
+        created_at: now,
+        updated_at: now,
+      };
+      try {
+        await this.col("meta_write_approvals").insertOne(doc as unknown as Document);
+        return (await this.getWriteApproval(approvalId))!;
+      } catch (err) {
+        if (isStorePkCollision(err) && !input.approval_id) continue;
+        throw err;
+      }
+    }
+    throw new Error("PK collision after max retries");
+  }
+
+  async getWriteApproval(approvalId: string): Promise<WriteApprovalEntity | null> {
+    const doc = await this.col("meta_write_approvals").findOne({ approval_id: approvalId } as Document, { projection: PROJECT_NO_ID });
+    return (doc as unknown as WriteApprovalEntity) ?? null;
+  }
+
+  async updateWriteApproval(approvalId: string, patch: Partial<WriteApprovalEntity>): Promise<WriteApprovalEntity | null> {
+    const merged = { ...patch, updated_at: nowIso() } as Record<string, unknown>;
+    await this.patchOne("meta_write_approvals", { approval_id: approvalId }, merged, ["status", "decided_by_user_id", "decision_note", "write_policy", "risk", "updated_at"], true);
+    return this.getWriteApproval(approvalId);
+  }
+
+  async deleteWriteApprovals(approvalIds: string[]): Promise<BatchDeleteResult> {
+    return this.batchDelete("meta_write_approvals", "approval_id", approvalIds);
+  }
+
+  async listWriteApprovals(filter: WriteApprovalFilter, pagination?: PaginationParams | null): Promise<ListPage<WriteApprovalEntity>> {
+    const q: Record<string, unknown> = {};
+    if (filter.team_id) q.team_id = filter.team_id;
+    if (filter.agent_id) q.agent_id = filter.agent_id;
+    if (filter.status) q.status = filter.status;
+    return this.paginatedFind(
+      "meta_write_approvals",
+      q as Document,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as unknown as WriteApprovalEntity,
+    );
+  }
+
   async updateAgent(agentId: string, patch: Partial<AgentEntity>): Promise<AgentEntity | null> {
-    await this.patchOne("meta_agents", { agent_id: agentId }, patch, ["name", "description", "prompt", "visibility", "status", "metadata_json"], true);
+    await this.patchOne("meta_agents", { agent_id: agentId }, patch, ["name", "description", "prompt", "visibility", "status", "project_id", "metadata_json"], true);
     return this.getAgentById(agentId);
   }
 
@@ -812,6 +1448,8 @@ export class MongoMetadataStore implements IMetadataStore {
     if (result.deleted_ids.length > 0) {
       await this.col("meta_task_agents").deleteMany({ agent_id: { $in: result.deleted_ids } } as Document);
       await this.col("meta_agent_fixed_assets").deleteMany({ agent_id: { $in: result.deleted_ids } } as Document);
+      await this.col("meta_agent_spaces").deleteMany({ agent_id: { $in: result.deleted_ids } } as Document);
+      await this.col("meta_agent_spaces").deleteMany({ agent_id: { $in: result.deleted_ids } } as Document);
       const selfMemoryAssetIds = result.deleted_ids
         .map((agentId) => selfMemoryByAgent.get(agentId))
         .filter((assetId): assetId is string => !!assetId);
@@ -827,6 +1465,7 @@ export class MongoMetadataStore implements IMetadataStore {
     if (filter?.status) q.status = filter.status;
     if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
     if (filter?.name) q.name = filter.name;
+    if (filter?.project_id !== undefined) q.project_id = filter.project_id;
     return this.paginatedFind("meta_agents", q, pagination, { created_at: -1 }, (d) => d as AgentEntity);
   }
 
@@ -834,6 +1473,7 @@ export class MongoMetadataStore implements IMetadataStore {
     const q: Document = { owner_user_id: userId };
     if (filter?.status) q.status = filter.status;
     if (filter?.name) q.name = filter.name;
+    if (filter?.project_id !== undefined) q.project_id = filter.project_id;
     return this.paginatedFind("meta_agents", q, pagination, { created_at: -1 }, (d) => d as AgentEntity);
   }
 
@@ -854,6 +1494,7 @@ export class MongoMetadataStore implements IMetadataStore {
         status: input.status ?? "running",
         auto_assign_floating_assets: input.auto_assign_floating_assets ?? false,
         risk_level: input.risk_level ?? null,
+        project_id: input.project_id ?? null,
         created_at: now,
         updated_at: now,
         metadata_json: input.metadata_json ?? "{}",
@@ -908,6 +1549,8 @@ export class MongoMetadataStore implements IMetadataStore {
     if (filter?.status) q.status = filter.status;
     if (filter?.creator_user_id) q.creator_user_id = filter.creator_user_id;
     if (filter?.title) q.title = filter.title;
+    if (filter?.project_id !== undefined) q.project_id = filter.project_id;
+    await this.applyTaskAgentFilter(q, filter);
     return this.paginatedFind("meta_tasks", q, pagination, { created_at: -1 }, (d) => d as TaskEntity);
   }
 
@@ -916,7 +1559,18 @@ export class MongoMetadataStore implements IMetadataStore {
     if (filter.status) q.status = filter.status;
     if (filter.creator_user_id) q.creator_user_id = filter.creator_user_id;
     if (filter.title) q.title = filter.title;
+    if (filter.project_id !== undefined) q.project_id = filter.project_id;
+    await this.applyTaskAgentFilter(q, filter);
     return this.paginatedFind("meta_tasks", q, pagination, { created_at: -1 }, (d) => d as TaskEntity);
+  }
+
+  /** agent_id 过滤：先查该 agent 绑定的 task_id，再收窄到这批 task。 */
+  private async applyTaskAgentFilter(q: Document, filter?: TaskFilter): Promise<void> {
+    if (!filter?.agent_id) return;
+    const rows = await this.col<{ task_id: string }>("meta_task_agents")
+      .find({ agent_id: filter.agent_id, status: "active" }, { projection: { task_id: 1, _id: 0 } })
+      .toArray();
+    q.task_id = { $in: rows.map((r) => r.task_id) };
   }
 
   // ============================================================
@@ -1035,6 +1689,7 @@ export class MongoMetadataStore implements IMetadataStore {
       name: input.name,
       description: input.description ?? null,
       owner_user_id: input.owner_user_id,
+      project_id: input.project_id ?? null,
       source_type: input.source_type,
       source_ref: input.source_ref ?? null,
       version: 1,
@@ -1058,7 +1713,7 @@ export class MongoMetadataStore implements IMetadataStore {
   }
 
   async updateAsset(assetId: string, patch: Partial<AssetEntity>): Promise<AssetEntity | null> {
-    await this.patchOne("meta_assets", { asset_id: assetId }, patch, ["name", "description", "visibility", "status", "confidence", "expires_at", "content_ref", "version", "source_ref", "metadata_json"], true);
+    await this.patchOne("meta_assets", { asset_id: assetId }, patch, ["name", "description", "visibility", "status", "confidence", "expires_at", "content_ref", "version", "source_ref", "project_id", "metadata_json"], true);
     return this.getAssetById(assetId);
   }
 
@@ -1084,6 +1739,50 @@ export class MongoMetadataStore implements IMetadataStore {
 
   async listAssetsByTeam(teamId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
     const q: Document = { team_id: teamId };
+    if (filter?.asset_type) q.asset_type = filter.asset_type;
+    if (filter?.status) q.status = filter.status;
+    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
+    if (filter?.visibility) q.visibility = filter.visibility;
+    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
+  }
+
+  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
+    const q: Document = { project_id: projectId };
+    if (filter?.asset_type) q.asset_type = filter.asset_type;
+    if (filter?.status) q.status = filter.status;
+    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
+    if (filter?.visibility) q.visibility = filter.visibility;
+    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
+  }
+
+  async listAssetsByOwner(ownerUserId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
+    const q: Document = { owner_user_id: ownerUserId };
+    if (filter?.asset_type) q.asset_type = filter.asset_type;
+    if (filter?.status) q.status = filter.status;
+    if (filter?.visibility) q.visibility = filter.visibility;
+    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
+  }
+
+  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
+    const q: Document = { project_id: projectId };
+    if (filter?.asset_type) q.asset_type = filter.asset_type;
+    if (filter?.status) q.status = filter.status;
+    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
+    if (filter?.visibility) q.visibility = filter.visibility;
+    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
+  }
+
+  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
+    const q: Document = { project_id: projectId };
+    if (filter?.asset_type) q.asset_type = filter.asset_type;
+    if (filter?.status) q.status = filter.status;
+    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
+    if (filter?.visibility) q.visibility = filter.visibility;
+    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
+  }
+
+  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
+    const q: Document = { project_id: projectId };
     if (filter?.asset_type) q.asset_type = filter.asset_type;
     if (filter?.status) q.status = filter.status;
     if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;

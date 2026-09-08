@@ -19,6 +19,7 @@ export const enum EntityType {
   Asset = "asset",
   UserKey = "userKey",
   Acl = "acl",
+  Project = "project",
 }
 
 const LOOKUP: Record<EntityType, (svc: MetadataService, id: string) => Promise<unknown>> = {
@@ -29,6 +30,7 @@ const LOOKUP: Record<EntityType, (svc: MetadataService, id: string) => Promise<u
   [EntityType.Asset]: (svc, id) => svc.getAssetById(id),
   [EntityType.UserKey]: (svc, id) => svc.rawStore.getUserKeyById(id),
   [EntityType.Acl]: (svc, id) => svc.rawStore.getAclById(id),
+  [EntityType.Project]: (svc, id) => svc.getProjectById(id),
 };
 
 const ERROR_CODE: Record<EntityType, string> = {
@@ -39,6 +41,7 @@ const ERROR_CODE: Record<EntityType, string> = {
   [EntityType.Asset]: "asset_not_found",
   [EntityType.UserKey]: "user_key_not_found",
   [EntityType.Acl]: "acl_not_found",
+  [EntityType.Project]: "project_not_found",
 };
 
 /**

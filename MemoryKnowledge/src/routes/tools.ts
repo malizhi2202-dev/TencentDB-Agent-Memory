@@ -17,6 +17,7 @@ import type { WikiService, CodeGraphService } from "../store/index.js";
 import type { CodeGraphInstancePool } from "../module.js";
 import type { WikiSourceManager } from "../engines/wiki/index.js";
 import { executeTool as executeCodeTool } from "../engines/code/index.js";
+import { executeGitNexusTool } from "../engines/gitnexus/bridge.js";
 import { wrapOk, wrapError, isValidIdSegment } from "../api-helpers.js";
 import { isWikiId, isCodeGraphId } from "../store/ids.js";
 
@@ -177,9 +178,31 @@ const CODE_GRAPH_TOOLS: HttpToolDef[] = [
   },
 ];
 
+/** GitNexus 工具 (17) — 高级代码分析工具，基于 Code-Graph 数据。 */
+const GITNEXUS_TOOLS: HttpToolDef[] = [
+  { name: "gitnexus_list_repos",     description: "列出已索引的仓库", params: {} },
+  { name: "gitnexus_query",          description: "混合 BM25 + 语义搜索代码符号和流程", params: { search_query: { type: "string", required: true, description: "搜索查询词" }, task_context: { type: "string", required: false, description: "任务上下文，用于语义搜索" }, limit: { type: "integer", required: false, default: 5, description: "返回结果数上限" } } },
+  { name: "gitnexus_cypher",         description: "类 Cypher 图查询语言（MATCH WHERE RETURN）", params: { query: { type: "string", required: true, description: "Cypher 查询语句" } } },
+  { name: "gitnexus_context",        description: "360° 符号上下文：调用者、被调用者、定义", params: { name: { type: "string", required: false, description: "符号名" }, uid: { type: "string", required: false, description: "符号 UID（零歧义查找）" }, include_content: { type: "boolean", required: false, default: false, description: "是否包含完整源码" } } },
+  { name: "gitnexus_detect_changes", description: "分析 git 未提交变更的影响范围", params: { scope: { type: "string", required: false, description: "unstaged 或 staged" } } },
+  { name: "gitnexus_check",          description: "代码质量检查（TODO/FIXME/console.log/any 类型等）", params: { file: { type: "string", required: false, description: "按文件过滤" }, symbol: { type: "string", required: false, description: "按符号过滤" } } },
+  { name: "gitnexus_rename",         description: "图辅助安全重命名（dry_run 预览影响面）", params: { symbol: { type: "string", required: true, description: "要重命名的符号" }, new_name: { type: "string", required: true, description: "新名称" }, dry_run: { type: "boolean", required: false, default: true, description: "试运行模式（默认 true）" } } },
+  { name: "gitnexus_impact",         description: "爆炸半径分析：修改一个符号会影响什么", params: { symbol: { type: "string", required: false, description: "符号名" }, uid: { type: "string", required: false, description: "符号 UID" }, depth: { type: "integer", required: false, default: 2, description: "分析深度" } } },
+  { name: "gitnexus_explain",        description: "污点分析解释：判断符号是数据源还是数据汇", params: { symbol: { type: "string", required: false, description: "符号名" }, uid: { type: "string", required: false, description: "符号 UID" } } },
+  { name: "gitnexus_pdg_query",      description: "程序依赖图（PDG）查询", params: { symbol: { type: "string", required: false, description: "符号名" }, file: { type: "string", required: false, description: "按文件过滤" }, limit: { type: "integer", required: false, default: 50, description: "返回上限" } } },
+  { name: "gitnexus_route_map",      description: "API 路由发现：自动扫描项目中的 HTTP 路由定义", params: {} },
+  { name: "gitnexus_tool_map",       description: "CLI/工具发现：自动扫描项目中的命令行工具和脚本", params: {} },
+  { name: "gitnexus_shape_check",    description: "接口/类型一致性检查", params: { file: { type: "string", required: false, description: "按文件过滤" }, interface: { type: "string", required: false, description: "按接口名过滤" } } },
+  { name: "gitnexus_api_impact",     description: "API 变更影响分析：修改某个 API 端点会影响哪些消费者", params: { path: { type: "string", required: false, description: "API 路径" }, method: { type: "string", required: false, description: "HTTP 方法" } } },
+  { name: "gitnexus_group_list",     description: "跨仓库组列表", params: {} },
+  { name: "gitnexus_group_sync",     description: "跨仓库组同步", params: { groupName: { type: "string", required: false, description: "组名" } } },
+  { name: "gitnexus_trace",          description: "执行流追踪：从符号出发追踪上下游调用链", params: { symbol: { type: "string", required: false, description: "符号名" }, uid: { type: "string", required: false, description: "符号 UID" }, direction: { type: "string", required: false, description: "upstream / downstream / both" }, maxDepth: { type: "integer", required: false, default: 5, description: "最大深度" } } },
+];
+
 /** Agent read-only whitelist — management ops NOT included. */
 const WIKI_TOOL_NAMES = new Set(WIKI_TOOLS.map((t) => t.name));
 const CODE_GRAPH_TOOL_NAMES = new Set(CODE_GRAPH_TOOLS.map((t) => t.name));
+const GITNEXUS_TOOL_NAMES = new Set(GITNEXUS_TOOLS.map((t) => t.name));
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Route Factory
@@ -187,7 +210,7 @@ const CODE_GRAPH_TOOL_NAMES = new Set(CODE_GRAPH_TOOLS.map((t) => t.name));
 
 export function createToolsRoutes(deps: ToolsRouteDeps): Hono {
   const app = new Hono();
-  const { wikiService, wikiMgr, cgService, instancePool } = deps;
+  const { wikiService, wikiMgr, cgService, instancePool, resolveLlm } = deps;
 
   // ── POST /tools/list ──
 
@@ -218,7 +241,7 @@ export function createToolsRoutes(deps: ToolsRouteDeps): Hono {
       status = row.status;
     } else if (isCodeGraphId(knowledgeId)) {
       type = "code-graph";
-      tools = CODE_GRAPH_TOOLS;
+      tools = [...CODE_GRAPH_TOOLS, ...GITNEXUS_TOOLS];
       const row = cgService.getById(serviceId, knowledgeId);
       if (!row) return c.json(wrapError(404, "knowledge resource not found"), 404);
       name = row.repo_name || row.repo_url;
@@ -278,15 +301,15 @@ export function createToolsRoutes(deps: ToolsRouteDeps): Hono {
     }
 
     if (isCodeGraphId(knowledgeId)) {
-      // Whitelist check
-      if (!CODE_GRAPH_TOOL_NAMES.has(toolName)) {
+      // Whitelist check — allow both code-graph and gitnexus tools
+      if (!CODE_GRAPH_TOOL_NAMES.has(toolName) && !GITNEXUS_TOOL_NAMES.has(toolName)) {
         return c.json(wrapError(403, `unknown tool: '${toolName}' for code-graph resource '${knowledgeId}'. Use tools/list to discover available tools.`), 403);
       }
 
       const row = cgService.getById(serviceId, knowledgeId);
       if (!row) return c.json(wrapError(404, "code graph not found"), 404);
 
-      return executeCodeGraphTool(serviceId, toolName, row, toolParams, cgService, instancePool);
+      return executeCodeGraphTool(serviceId, toolName, row, toolParams, cgService, instancePool, resolveLlm);
     }
 
     return c.json(wrapError(400, `invalid knowledge_id format: ${knowledgeId}`), 400);
@@ -416,6 +439,23 @@ async function executeCodeGraphTool(
     return Response.json(wrapOk({ text: "", isError: false }));
   }
 
+  // Load instance
+  let instance = instancePool.get(code_graph_id);
+  if (!instance && instancePool.loadIfMissing) {
+    const dir = cgService.dirFor(serviceId, team_id, code_graph_id);
+    instance = await instancePool.loadIfMissing(code_graph_id, dir);
+  }
+  if (!instance) {
+    return Response.json(wrapError(503, "code graph instance not loaded"), { status: 503 });
+  }
+
+  // Route to GitNexus or code-graph executor
+  if (toolName.startsWith("gitnexus_")) {
+    const gitnexusToolName = toolName.slice("gitnexus_".length);
+    const result = await executeGitNexusTool(instance, gitnexusToolName, params);
+    return Response.json(wrapOk(result), { status: result.isError ? 500 : 200 });
+  }
+
   // Map tool name to internal codegraph action
   const cgToolName = toCodeGraphToolName(toolName);
   if (!cgToolName) {
@@ -428,15 +468,171 @@ async function executeCodeGraphTool(
     toolParams[k] = v;
   }
 
-  let instance = instancePool.get(code_graph_id);
-  if (!instance && instancePool.loadIfMissing) {
-    const dir = cgService.dirFor(serviceId, team_id, code_graph_id);
-    instance = await instancePool.loadIfMissing(code_graph_id, dir);
-  }
-  if (!instance) {
-    return Response.json(wrapError(503, "code graph instance not loaded"), { status: 503 });
-  }
-
   const result = await executeCodeTool(instance, cgToolName, toolParams);
   return Response.json(wrapOk(result), { status: result.isError ? 500 : 200 });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  AI 分析 (analysis_ask)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * analysis_ask：RAG 式代码问答。
+ *
+ *   1. 用引擎 `query` 工具（BM25 + 语义混合检索）拉取与问题相关的代码符号/流程；
+ *   2. 将检索上下文交给 LLM（复用 wiki ingest 的 binding-aware 配置链：
+ *      resolveLlm → createLlmClient，协议 openai/anthropic 自动选择）；
+ *   3. 返回 { text, isError }（text 为 LLM 答案）。
+ *
+ * 这一步**不**转发给 engine（engine 没有 `ask` 工具）——LLM 调用在 KS 侧完成。
+ */
+async function executeAnalysisAsk(
+  serviceId: string,
+  teamId: string,
+  codeGraphId: string,
+  params: Record<string, unknown>,
+  cgService: CodeGraphService,
+  resolveLlm: (serviceId: string) => LlmConfig,
+): Promise<Response> {
+  const question = typeof params.question === "string" ? params.question.trim() : "";
+  if (!question) {
+    return Response.json(wrapError(400, "question is required"), { status: 400 });
+  }
+
+  const limit = typeof params.limit === "number" && Number.isFinite(params.limit)
+    ? Math.max(1, Math.min(30, Math.floor(params.limit)))
+    : 8;
+
+  const dir = cgService.dirFor(serviceId, teamId, codeGraphId);
+
+  // Step 1 — retrieve code context from the engine index.
+  const queryParams: Record<string, unknown> = {
+    search_query: question,
+    limit,
+    include_content: true,
+  };
+  if (typeof params.task_context === "string" && params.task_context.trim()) {
+    queryParams.task_context = params.task_context;
+  }
+  const search = await executeEngineAnalysisTool(dir, "query", queryParams);
+  const contextText = search.isError
+    ? `[代码上下文检索失败] ${safeStringify(search.content)}`
+    : formatAnalysisContext(search.content);
+
+  // Step 2 — resolve LLM client (binding-aware; throws when unconfigured).
+  let client: LlmClient;
+  try {
+    client = createLlmClient(resolveLlm(serviceId));
+  } catch (err) {
+    return Response.json(wrapError(503, `LLM 未配置：${err instanceof Error ? err.message : String(err)}`), { status: 503 });
+  }
+
+  // Step 3 — answer with the LLM.
+  const system = [
+    "你是 TencentDB-Agent-Memory 的代码分析助手（AI 分析）。",
+    "你会收到一段来自代码知识图谱的检索上下文（BM25 + 向量混合检索的结果），请严格基于该上下文回答用户关于代码的问题。",
+    "要求：",
+    "1. 只依据提供的上下文回答；若上下文不足以回答，请明确说明「代码图谱中未找到足够信息」，不要编造。",
+    "2. 使用中文回答；引用代码符号时标注 filePath 与行号（如 startLine-endLine）。",
+    "3. 简明扼要、条理清晰，直接回答用户问题。",
+  ].join("\n");
+
+  try {
+    const answer = await client.chat({
+      system,
+      prompt: `用户问题：${question}\n\n相关代码上下文：\n${contextText}`,
+      label: "analysis_ask",
+    });
+    return Response.json(wrapOk({ text: answer, isError: false }), { status: 200 });
+  } catch (err) {
+    return Response.json(wrapError(500, `AI 分析失败：${err instanceof Error ? err.message : String(err)}`), { status: 500 });
+  }
+}
+
+/** 把引擎 `query` 的结构化结果压成紧凑、LLM 友好的一段文本。 */
+function formatAnalysisContext(content: unknown): string {
+  if (content == null) return "(空上下文)";
+  if (typeof content === "string") return content.slice(0, 24_000);
+  if (typeof content !== "object") return String(content).slice(0, 24_000);
+
+  const c = content as Record<string, unknown>;
+  const parts: string[] = [];
+
+  const processes = Array.isArray(c.processes) ? c.processes : [];
+  if (processes.length > 0) {
+    parts.push("### 相关流程 (processes)");
+    for (const p of processes.slice(0, 10)) {
+      const o = p as Record<string, unknown>;
+      const bits = [
+        String(o.id ?? ""),
+        String(o.summary ?? ""),
+        o.process_type != null ? `类型=${String(o.process_type)}` : "",
+        o.step_count != null ? `步骤数=${String(o.step_count)}` : "",
+        o.symbol_count != null ? `符号数=${String(o.symbol_count)}` : "",
+      ].filter(Boolean);
+      parts.push(`- ${bits.join(" | ")}`);
+    }
+  }
+
+  const symbols = Array.isArray(c.process_symbols) ? c.process_symbols : [];
+  if (symbols.length > 0) {
+    parts.push("### 相关符号 (symbols)");
+    for (const s of symbols.slice(0, 30)) {
+      const o = s as Record<string, unknown>;
+      const loc = `${String(o.filePath ?? "")}${o.startLine != null ? `:${String(o.startLine)}-${String(o.endLine ?? "")}` : ""}`;
+      const meta = [
+        String(o.name ?? ""),
+        `[${String(o.type ?? "symbol")}]`,
+        loc,
+        o.module ? `模块=${String(o.module)}` : "",
+        o.step_index != null ? `step=${String(o.step_index)}` : "",
+      ].filter(Boolean);
+      parts.push(`- ${meta.join(" ")}`);
+      const body = typeof o.content === "string" ? o.content.trim() : "";
+      if (body) {
+        parts.push("  ```\n" + body.slice(0, 2500).replace(/\n/g, "\n  ") + "\n  ```");
+      }
+    }
+  }
+
+  const definitions = Array.isArray(c.definitions) ? c.definitions : [];
+  if (definitions.length > 0) {
+    parts.push("### 定义 (definitions)");
+    for (const d of definitions.slice(0, 20)) {
+      const o = d as Record<string, unknown>;
+      const body = typeof o.content === "string" ? `\n  ${o.content.slice(0, 2000).replace(/\n/g, "\n  ")}` : "";
+      parts.push(`- ${String(o.name ?? "")} [${String(o.type ?? "symbol")}] ${String(o.filePath ?? "")}${body}`);
+    }
+  }
+
+  if (typeof c.warning === "string" && c.warning) {
+    parts.push(`### 检索警告\n${c.warning}`);
+  }
+  if (c.partial) {
+    parts.push("(检索结果可能不完整 partial=true)");
+  }
+
+  return parts.length > 0 ? parts.join("\n\n") : "(检索无结果)";
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  AI 分析 (analysis_ask)
+// ═══════════════════════════════════════════════════════════════════════
+    const answer = await client.chat({
+      system,
+      prompt: `用户问题：${question}\n\n相关代码上下文：\n${contextText}`,
+      label: "analysis_ask",
+    });
+    return Response.json(wrapOk({ text: answer, isError: false }), { status: 200 });
+  } catch (err) {
+    return Response.json(wrapError(500, `AI 分析失败：${err instanceof Error ? err.message : String(err)}`), { status: 500 });
+  }
 }

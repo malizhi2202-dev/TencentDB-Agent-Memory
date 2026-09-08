@@ -25,6 +25,7 @@ export const knowledgeCreateRequestSchema = z.object({
   user_id: z.string().min(1).optional(),
   repo_url: z.string().min(1).optional(),
   branch: z.string().optional(),
+  project_id: z.string().min(1).nullable().optional(),
 });
 
 export const knowledgeGetRequestSchema = z.object({
@@ -40,6 +41,7 @@ export const knowledgeUpdateRequestSchema = z.object({
   service_url: z.string().url().optional(),
   repo_url: z.string().min(1).optional(),
   branch: z.string().optional(),
+  project_id: z.string().min(1).nullable().optional(),
 });
 
 export const knowledgeBatchDeleteRequestSchema = z.object({

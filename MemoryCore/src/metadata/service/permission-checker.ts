@@ -35,8 +35,12 @@ export interface PermCheckResult {
   reason: string;
 }
 
-const ADMIN_ACTIONS: Permission[] = ["read", "write", "assign", "share"];
-const MEMBER_ACTIONS: Permission[] = ["read"];
+/** owner 默认全权（对应 checkPermission 第 2 步 owner 短路）。 */
+export const OWNER_ACTIONS: Permission[] = ["read", "write", "delete", "assign", "share", "use"];
+/** team admin 角色默认。 */
+export const ADMIN_ACTIONS: Permission[] = ["read", "write", "assign", "share"];
+/** team member（含 reviewer）角色默认。 */
+export const MEMBER_ACTIONS: Permission[] = ["read"];
 
 const noopLogger: PermCheckLogger = { debug: () => {} };
 

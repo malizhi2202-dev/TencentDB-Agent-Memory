@@ -69,6 +69,8 @@ export interface AgentEntity {
   prompt?: string | null;
   visibility?: string;
   status?: string;
+  /** 后端透传 JSON（含 `ui.llm` 每-agent 模型配置）。 */
+  metadata_json?: string;
 }
 
 export interface TaskEntity {
@@ -79,6 +81,19 @@ export interface TaskEntity {
   description?: string | null;
   status?: string;
   source_type?: string;
+}
+
+/** project/list 返回的子集（用于 M3b 多信号锚定：repo_url / git_repo_urls / path_globs）。 */
+export interface ProjectSummary {
+  project_id: string;
+  team_id: string;
+  name: string;
+  owner_user_id?: string;
+  manager_user_id?: string | null;
+  visibility?: string;
+  repo_url?: string | null;
+  git_repo_urls?: string | null;
+  path_globs?: string | null;
 }
 
 /**
@@ -208,6 +223,10 @@ export interface ListAccessibleAssetsInput {
    */
   visibility?: string;
   agent_id?: string;
+  /** 协作轴：额外并入这些 project 里「U 是 member 的」资产（跨 team）。 */
+  project_ids?: string[];
+  /** 用户维度：二次过滤只返回该 owner 的资产。 */
+  owner_user_id?: string;
 }
 
 // ── NotFoundError ────────────────────────────────────────────────────────────
@@ -290,9 +309,69 @@ export class MetadataClient {
     );
   }
 
+  /**
+   * List projects where the user is a member (owner 含在内 —— create 时自动加为 manager)。
+   * 内核 listProjectsForCaller 对非 admin 返回「member ∪ 所属 team 公共」。
+   */
+  async listProjects(userId: string): Promise<ProjectSummary[]> {
+    return this.fetchAll<ProjectSummary>(
+      "/v3/meta/project/list",
+      { member_user_id: userId },
+      LIST_PAGE_SIZE,
+    );
+  }
+
+  /**
+   * List projects where the user is a member (owner 含在内 —— create 时自动加为 manager)。
+   * 内核 listProjectsForCaller 对非 admin 返回「member ∪ 所属 team 公共」。
+   */
+  async listProjects(userId: string): Promise<ProjectSummary[]> {
+    return this.fetchAll<ProjectSummary>(
+      "/v3/meta/project/list",
+      { member_user_id: userId },
+      LIST_PAGE_SIZE,
+    );
+  }
+
   /** Get a single agent by ID. Throws NotFoundError on 404. */
   async getAgent(agentId: string): Promise<AgentEntity> {
     return this.getOne<AgentEntity>("/v3/meta/agent/get", { agent_id: agentId }, "agent");
+  }
+
+  /**
+   * 公共默认 LLM 配置（内核 /v3/meta/config/global/get，module=llm_default）。
+   *
+   * 返回 model / provider / protocol 三字段；空 model 表示「未配置、沿用客户端模型」。
+   * 调用侧应自行加 TTL 缓存，避免每请求一次内核往返。
+   */
+  async getGlobalLlmDefault(): Promise<{ model: string; provider: string; protocol: string }> {
+    interface Item { param_name: string; effective_value: string; }
+    interface View { items: Item[]; }
+    const view = await this.fetch<View>("/v3/meta/config/global/get", { module: "llm_default" });
+    const byName = new Map(view.items.map((it) => [it.param_name, it.effective_value]));
+    return {
+      model: byName.get("model") ?? "",
+      provider: byName.get("provider") ?? "",
+      protocol: byName.get("protocol") ?? "",
+    };
+  }
+
+  /**
+   * 公共默认 LLM 配置（内核 /v3/meta/config/global/get，module=llm_default）。
+   *
+   * 返回 model / provider / protocol 三字段；空 model 表示「未配置、沿用客户端模型」。
+   * 调用侧应自行加 TTL 缓存，避免每请求一次内核往返。
+   */
+  async getGlobalLlmDefault(): Promise<{ model: string; provider: string; protocol: string }> {
+    interface Item { param_name: string; effective_value: string; }
+    interface View { items: Item[]; }
+    const view = await this.fetch<View>("/v3/meta/config/global/get", { module: "llm_default" });
+    const byName = new Map(view.items.map((it) => [it.param_name, it.effective_value]));
+    return {
+      model: byName.get("model") ?? "",
+      provider: byName.get("provider") ?? "",
+      protocol: byName.get("protocol") ?? "",
+    };
   }
 
   /** Get a single task by ID. Throws NotFoundError on 404. */
@@ -362,6 +441,8 @@ export class MetadataClient {
         action: input.action ?? "read",
         visibility: input.visibility,
         agent_id: input.agent_id,
+        project_ids: input.project_ids,
+        owner_user_id: input.owner_user_id,
       },
       LIST_PAGE_SIZE,
     );

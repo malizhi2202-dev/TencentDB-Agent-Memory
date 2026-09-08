@@ -17,9 +17,9 @@ data:
 
 # ── LLM (必填) ──
 llm:
-  baseUrl: "https://api.openai.com/v1"
+  baseUrl: "https://api.360.cn/v1"
   apiKey: "${TDAI_LLM_API_KEY}"    # 通过环境变量注入
-  model: "gpt-4o"
+  model: "deepseek/deepseek-v4-flash-internal"
   maxTokens: 4096
   timeoutMs: 120000
 

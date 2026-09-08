@@ -131,6 +131,12 @@ export interface L1RecordRow {
   created_time: string;
   updated_time: string;
   metadata_json: string;
+  /** Brain 域（P0.1）。空串 = 旧数据未设置，需从 type 推导。 */
+  domain: string;
+  /** 写入策略（P0.1）。空串 = 旧数据未设置，需从 domain 推导。 */
+  write_policy: string;
+  /** 记忆空间 ID（P0.1 阶段 C）。空串 = 旧数据未设置。 */
+  space_id: string;
 }
 
 // ============================
@@ -503,6 +509,8 @@ export interface KnowledgeEntity {
   user_id: string | null;
   repo_url?: string;
   branch?: string;
+  /** 可空：挂到某 project（协作轴）；null = 团队级 wiki/code-graph。 */
+  project_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -752,7 +760,7 @@ export interface IMemoryStore extends MemoryPromptStore, MemoryGenerationRefStor
   // ── Knowledge entity (wiki / code-graph metadata) ───────────
   createKnowledge?(input: Omit<KnowledgeEntity, "created_at" | "updated_at">): MaybePromise<KnowledgeEntity>;
   getKnowledge?(knowledgeId: string): MaybePromise<KnowledgeEntity | null>;
-  updateKnowledge?(knowledgeId: string, patch: Partial<Pick<KnowledgeEntity, "name" | "summary" | "service_url" | "repo_url" | "branch">>): MaybePromise<KnowledgeEntity | null>;
+  updateKnowledge?(knowledgeId: string, patch: Partial<Pick<KnowledgeEntity, "name" | "summary" | "service_url" | "repo_url" | "branch" | "project_id">>): MaybePromise<KnowledgeEntity | null>;
   deleteKnowledge?(knowledgeIds: string[], teamId?: string): MaybePromise<BatchDeleteResult>;
   listKnowledge?(input: { team_id: string; type?: KnowledgeType; knowledge_ids?: string[]; limit?: number; offset?: number }): MaybePromise<KnowledgeListResult>;
 

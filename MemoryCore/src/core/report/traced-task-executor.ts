@@ -27,6 +27,19 @@ const TASK_SPAN_NAMES: Record<string, string> = {
 };
 
 /**
+ * TaskCompletionInfo — 单次任务执行结束后的可观测信息。
+ * 供 onComplete 钩子（如 RunTrace 自动落库）消费；与 OTel Span 解耦。
+ */
+export interface TaskCompletionInfo {
+  taskType: string;
+  task: TaskPayload;
+  status: "completed" | "failed";
+  error?: string;
+  startedAt: number;
+  durationMs: number;
+}
+
+/**
  * TracedTaskExecutor — 装饰器模式包装 TaskExecutor。
  *
  * 对每个 executeL1/L2/L3 调用：
@@ -38,9 +51,11 @@ const TASK_SPAN_NAMES: Record<string, string> = {
  */
 export class TracedTaskExecutor implements TaskExecutor {
   private readonly inner: TaskExecutor;
+  private readonly onComplete?: (info: TaskCompletionInfo) => void | Promise<void>;
 
-  constructor(inner: TaskExecutor) {
+  constructor(inner: TaskExecutor, onComplete?: (info: TaskCompletionInfo) => void | Promise<void>) {
     this.inner = inner;
+    this.onComplete = onComplete;
   }
 
   async executeL1(task: TaskPayload): Promise<void> {
@@ -94,6 +109,7 @@ export class TracedTaskExecutor implements TaskExecutor {
     task: TaskPayload,
     fn: () => Promise<void>,
   ): Promise<void> {
+    const startedAt = Date.now();
     const backend = getObservabilityBackend();
     const spanName = TASK_SPAN_NAMES[taskType] ?? `core.task.${taskType.toLowerCase()}`;
 
@@ -118,6 +134,7 @@ export class TracedTaskExecutor implements TaskExecutor {
         try {
           await fn();
           span.setStatus({ code: 0 /* SpanStatusCode.OK */ });
+          this.notifyComplete(taskType, task, "completed", startedAt);
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
           span.setStatus({ code: 2 /* SpanStatusCode.ERROR */, message: errMsg });
@@ -131,6 +148,7 @@ export class TracedTaskExecutor implements TaskExecutor {
             error: errMsg,
           }, err instanceof Error ? err : undefined);
 
+          this.notifyComplete(taskType, task, "failed", startedAt, errMsg);
           throw err;
         }
       });
@@ -143,6 +161,7 @@ export class TracedTaskExecutor implements TaskExecutor {
     try {
       await fn();
       span.setStatus({ code: 0 /* SpanStatusCode.UNSET → OK */ });
+      this.notifyComplete(taskType, task, "completed", startedAt);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       span.setStatus({ code: 2 /* SpanStatusCode.ERROR */, message: errMsg });
@@ -156,9 +175,36 @@ export class TracedTaskExecutor implements TaskExecutor {
         error: errMsg,
       }, err instanceof Error ? err : undefined);
 
+      this.notifyComplete(taskType, task, "failed", startedAt, errMsg);
       throw err;
     } finally {
       span.end();
+    }
+  }
+
+  /**
+   * 通知任务完成（成功或失败）。fire-and-forget：onComplete 的异常被吞掉并记日志，
+   * 绝不向上游传播，保证可观测性钩子不改变业务语义。
+   */
+  private notifyComplete(
+    taskType: string,
+    task: TaskPayload,
+    status: "completed" | "failed",
+    startedAt: number,
+    error?: string,
+  ): void {
+    if (!this.onComplete) return;
+    const info: TaskCompletionInfo = { taskType, task, status, error, startedAt, durationMs: Date.now() - startedAt };
+    const fail = (e: unknown) => {
+      obsLogger.error("core.task.complete-notify.failed", {
+        task_type: taskType,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    };
+    try {
+      void Promise.resolve(this.onComplete(info)).catch(fail);
+    } catch (e) {
+      fail(e);
     }
   }
 }

@@ -17,7 +17,11 @@ import type {
   TeamEntity,
   TeamMemberEntity,
   TeamMemberView,
+  ProjectEntity,
+  ProjectMemberEntity,
+  ProjectMemberView,
   AgentEntity,
+  AgentSpaceEntity,
   TaskEntity,
   TaskAgentEntity,
   ParticipationLogEntity,
@@ -31,14 +35,38 @@ import type {
   CreateUserKeyInput,
   CreateTeamInput,
   AddTeamMemberInput,
+  CreateProjectInput,
+  AddProjectMemberInput,
   CreateAgentInput,
+  CreateAgentSpaceInput,
+  CreateKnowledgeEntryInput,
+  CreateToolSourceInput,
+  CreateAgentTeamInput,
+  AgentTeamMemberInput,
+  CreateAutomationInput,
+  CreateRunTraceInput,
+  CreateWriteApprovalInput,
   CreateTaskInput,
   CreateAssetInput,
   FixedAssetBindingInput,
   GrantAclInput,
   AgentFilter,
   TaskFilter,
+  KnowledgeEntryEntity,
+  KnowledgeEntryFilter,
+  ToolSourceEntity,
+  ToolSourceFilter,
+  AgentTeamEntity,
+  AgentTeamMemberEntity,
+  AgentTeamFilter,
+  AutomationEntity,
+  AutomationFilter,
+  RunTraceEntity,
+  RunTraceFilter,
+  WriteApprovalEntity,
+  WriteApprovalFilter,
   TeamFilter,
+  ProjectFilter,
   AssetFilter,
   BatchDeleteResult,
   ListPage,
@@ -113,6 +141,8 @@ export interface IMetadataStore {
   updateTeam(teamId: string, patch: Partial<TeamEntity>): MaybePromise<TeamEntity | null>;
   deleteTeams(teamIds: string[]): MaybePromise<BatchDeleteResult>;
   listTeamsByUser(userId: string, pagination?: PaginationParams | null, filter?: TeamFilter): MaybePromise<ListPage<TeamEntity>>;
+  listTeams(filter?: TeamFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<TeamEntity>>;
+  listTeams(filter?: TeamFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<TeamEntity>>;
 
   // ── TeamMember ──
   addTeamMember(input: AddTeamMemberInput): MaybePromise<TeamMemberEntity>;
@@ -125,6 +155,24 @@ export interface IMetadataStore {
   ): MaybePromise<ListPage<TeamMemberView>>;
   getTeamMemberWithProfile(teamId: string, userId: string): MaybePromise<TeamMemberView | null>;
 
+  // ── Project ──（createProject 自动把 owner 加为 manager 成员）
+  createProject(input: CreateProjectInput): MaybePromise<ProjectEntity>;
+  getProjectById(projectId: string): MaybePromise<ProjectEntity | null>;
+  updateProject(projectId: string, patch: Partial<ProjectEntity>): MaybePromise<ProjectEntity | null>;
+  deleteProjects(projectIds: string[]): MaybePromise<BatchDeleteResult>;
+  listProjects(filter?: ProjectFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<ProjectEntity>>;
+
+  // ── ProjectMember ──
+  addProjectMember(input: AddProjectMemberInput): MaybePromise<ProjectMemberEntity>;
+  removeProjectMember(projectId: string, userId: string): MaybePromise<void>;
+  listProjectMembers(projectId: string, pagination?: PaginationParams | null): MaybePromise<ListPage<ProjectMemberEntity>>;
+  getProjectMember(projectId: string, userId: string): MaybePromise<ProjectMemberEntity | null>;
+  listProjectMembersWithProfile(
+    projectId: string,
+    pagination?: PaginationParams | null,
+  ): MaybePromise<ListPage<ProjectMemberView>>;
+  getProjectMemberWithProfile(projectId: string, userId: string): MaybePromise<ProjectMemberView | null>;
+
   // ── Agent ──
   createAgent(input: CreateAgentInput): MaybePromise<AgentEntity>;
   getAgentById(agentId: string): MaybePromise<AgentEntity | null>;
@@ -132,6 +180,111 @@ export interface IMetadataStore {
   deleteAgents(agentIds: string[]): MaybePromise<BatchDeleteResult>;
   listAgentsByTeam(teamId: string, pagination?: PaginationParams | null, filter?: AgentFilter): MaybePromise<ListPage<AgentEntity>>;
   listAgentsByOwner(userId: string, pagination?: PaginationParams | null, filter?: AgentFilter): MaybePromise<ListPage<AgentEntity>>;
+
+  // ── AgentSpace（agent ↔ memory space 多对多挂载，创建 agent 时默认挂载）──
+  /** 批量落库挂载空间（(agent_id, space_id) 幂等 upsert）。 */
+  createAgentSpaces(spaces: CreateAgentSpaceInput[]): MaybePromise<void>;
+  getAgentSpaces(agentId: string): MaybePromise<AgentSpaceEntity[]>;
+  /** 批量拉取多个 agent 的挂载空间（按 agent_id 过滤，供组合筛选聚合）。 */
+  listAgentSpacesByAgentIds(agentIds: string[]): MaybePromise<AgentSpaceEntity[]>;
+  deleteAgentSpaces(agentId: string): MaybePromise<void>;
+
+  // ── AgentSpace（agent ↔ memory space 多对多挂载，创建 agent 时默认挂载）──
+  /** 批量落库挂载空间（(agent_id, space_id) 幂等 upsert）。 */
+  createAgentSpaces(spaces: CreateAgentSpaceInput[]): MaybePromise<void>;
+  getAgentSpaces(agentId: string): MaybePromise<AgentSpaceEntity[]>;
+  /** 批量拉取多个 agent 的挂载空间（按 agent_id 过滤，供组合筛选聚合）。 */
+  listAgentSpacesByAgentIds(agentIds: string[]): MaybePromise<AgentSpaceEntity[]>;
+  deleteAgentSpaces(agentId: string): MaybePromise<void>;
+
+  // ── KnowledgeEntry（项目级五类 + 团队级工作模式，通用结构体）──
+  createKnowledgeEntry(input: CreateKnowledgeEntryInput): MaybePromise<KnowledgeEntryEntity>;
+  getKnowledgeEntry(entryId: string): MaybePromise<KnowledgeEntryEntity | null>;
+  updateKnowledgeEntry(entryId: string, patch: Partial<KnowledgeEntryEntity>): MaybePromise<KnowledgeEntryEntity | null>;
+  deleteKnowledgeEntries(entryIds: string[]): MaybePromise<BatchDeleteResult>;
+  listKnowledgeEntries(
+    filter: KnowledgeEntryFilter,
+    pagination?: PaginationParams | null,
+  ): MaybePromise<ListPage<KnowledgeEntryEntity>>;
+
+  // ── ToolSource（能力资产类：MCP Server / REST API）──
+  createToolSource(input: CreateToolSourceInput): MaybePromise<ToolSourceEntity>;
+  getToolSource(toolId: string): MaybePromise<ToolSourceEntity | null>;
+  updateToolSource(toolId: string, patch: Partial<ToolSourceEntity>): MaybePromise<ToolSourceEntity | null>;
+  deleteToolSources(toolIds: string[]): MaybePromise<BatchDeleteResult>;
+  listToolSources(filter: ToolSourceFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<ToolSourceEntity>>;
+
+  // ── AgentTeam（多 Agent 编排）──
+  createAgentTeam(input: CreateAgentTeamInput): MaybePromise<AgentTeamEntity>;
+  getAgentTeam(agentTeamId: string): MaybePromise<AgentTeamEntity | null>;
+  updateAgentTeam(agentTeamId: string, patch: Partial<AgentTeamEntity>): MaybePromise<AgentTeamEntity | null>;
+  deleteAgentTeams(agentTeamIds: string[]): MaybePromise<BatchDeleteResult>;
+  listAgentTeams(filter: AgentTeamFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<AgentTeamEntity>>;
+  addAgentTeamMember(input: AgentTeamMemberInput): MaybePromise<AgentTeamMemberEntity>;
+  removeAgentTeamMember(agentTeamId: string, agentId: string): MaybePromise<void>;
+  listAgentTeamMembers(agentTeamId: string, pagination?: PaginationParams | null): MaybePromise<ListPage<AgentTeamMemberEntity>>;
+
+  // ── Automation（自动化编排）──
+  createAutomation(input: CreateAutomationInput): MaybePromise<AutomationEntity>;
+  getAutomation(automationId: string): MaybePromise<AutomationEntity | null>;
+  updateAutomation(automationId: string, patch: Partial<AutomationEntity>): MaybePromise<AutomationEntity | null>;
+  deleteAutomations(automationIds: string[]): MaybePromise<BatchDeleteResult>;
+  listAutomations(filter: AutomationFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<AutomationEntity>>;
+
+  // ── RunTrace（会话回放）──
+  createRunTrace(input: CreateRunTraceInput): MaybePromise<RunTraceEntity>;
+  getRunTrace(runId: string): MaybePromise<RunTraceEntity | null>;
+  updateRunTrace(runId: string, patch: Partial<RunTraceEntity>): MaybePromise<RunTraceEntity | null>;
+  deleteRunTraces(runIds: string[]): MaybePromise<BatchDeleteResult>;
+  listRunTraces(filter: RunTraceFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<RunTraceEntity>>;
+
+  // ── WriteApproval（记忆写入审批）──
+  createWriteApproval(input: CreateWriteApprovalInput): MaybePromise<WriteApprovalEntity>;
+  getWriteApproval(approvalId: string): MaybePromise<WriteApprovalEntity | null>;
+  updateWriteApproval(approvalId: string, patch: Partial<WriteApprovalEntity>): MaybePromise<WriteApprovalEntity | null>;
+  deleteWriteApprovals(approvalIds: string[]): MaybePromise<BatchDeleteResult>;
+  listWriteApprovals(filter: WriteApprovalFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<WriteApprovalEntity>>;
+
+  // ── KnowledgeEntry（项目级五类 + 团队级工作模式，通用结构体）──
+  createKnowledgeEntry(input: CreateKnowledgeEntryInput): MaybePromise<KnowledgeEntryEntity>;
+  getKnowledgeEntry(entryId: string): MaybePromise<KnowledgeEntryEntity | null>;
+  updateKnowledgeEntry(entryId: string, patch: Partial<KnowledgeEntryEntity>): MaybePromise<KnowledgeEntryEntity | null>;
+  deleteKnowledgeEntries(entryIds: string[]): MaybePromise<BatchDeleteResult>;
+  listKnowledgeEntries(
+    filter: KnowledgeEntryFilter,
+    pagination?: PaginationParams | null,
+  ): MaybePromise<ListPage<KnowledgeEntryEntity>>;
+
+  // ── ToolSource（能力资产类：MCP Server / REST API）──
+  createToolSource(input: CreateToolSourceInput): MaybePromise<ToolSourceEntity>;
+  getToolSource(toolId: string): MaybePromise<ToolSourceEntity | null>;
+  updateToolSource(toolId: string, patch: Partial<ToolSourceEntity>): MaybePromise<ToolSourceEntity | null>;
+  deleteToolSources(toolIds: string[]): MaybePromise<BatchDeleteResult>;
+  listToolSources(filter: ToolSourceFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<ToolSourceEntity>>;
+
+  // ── AgentTeam（多 Agent 编排）──
+  createAgentTeam(input: CreateAgentTeamInput): MaybePromise<AgentTeamEntity>;
+  getAgentTeam(agentTeamId: string): MaybePromise<AgentTeamEntity | null>;
+  updateAgentTeam(agentTeamId: string, patch: Partial<AgentTeamEntity>): MaybePromise<AgentTeamEntity | null>;
+  deleteAgentTeams(agentTeamIds: string[]): MaybePromise<BatchDeleteResult>;
+  listAgentTeams(filter: AgentTeamFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<AgentTeamEntity>>;
+  addAgentTeamMember(input: AgentTeamMemberInput): MaybePromise<AgentTeamMemberEntity>;
+  removeAgentTeamMember(agentTeamId: string, agentId: string): MaybePromise<void>;
+  listAgentTeamMembers(agentTeamId: string, pagination?: PaginationParams | null): MaybePromise<ListPage<AgentTeamMemberEntity>>;
+
+  // ── Automation（自动化编排）──
+  createAutomation(input: CreateAutomationInput): MaybePromise<AutomationEntity>;
+  getAutomation(automationId: string): MaybePromise<AutomationEntity | null>;
+  updateAutomation(automationId: string, patch: Partial<AutomationEntity>): MaybePromise<AutomationEntity | null>;
+  deleteAutomations(automationIds: string[]): MaybePromise<BatchDeleteResult>;
+  listAutomations(filter: AutomationFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<AutomationEntity>>;
+
+  // ── RunTrace（会话回放）──
+  createRunTrace(input: CreateRunTraceInput): MaybePromise<RunTraceEntity>;
+  getRunTrace(runId: string): MaybePromise<RunTraceEntity | null>;
+  updateRunTrace(runId: string, patch: Partial<RunTraceEntity>): MaybePromise<RunTraceEntity | null>;
+  deleteRunTraces(runIds: string[]): MaybePromise<BatchDeleteResult>;
+  listRunTraces(filter: RunTraceFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<RunTraceEntity>>;
 
   // ── Task ──（createTask 可同时 linkAgents）
   createTask(input: CreateTaskInput): MaybePromise<TaskEntity>;
@@ -159,6 +312,8 @@ export interface IMetadataStore {
   updateAsset(assetId: string, patch: Partial<AssetEntity>): MaybePromise<AssetEntity | null>;
   deleteAssets(assetIds: string[]): MaybePromise<BatchDeleteResult>;
   listAssetsByTeam(teamId: string, pagination?: PaginationParams | null, filter?: AssetFilter): MaybePromise<ListPage<AssetEntity>>;
+  listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): MaybePromise<ListPage<AssetEntity>>;
+  listAssetsByOwner(ownerUserId: string, pagination?: PaginationParams | null, filter?: AssetFilter): MaybePromise<ListPage<AssetEntity>>;
   touchAssetUsage(assetId: string): MaybePromise<void>;
 
   // ── AgentFixedAsset ──（setAgentFixedAssets 全量替换）

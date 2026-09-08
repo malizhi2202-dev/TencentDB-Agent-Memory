@@ -29,6 +29,8 @@ export const knowledgeCodeGraph = sqliteTable(
     userId: text("user_id"),
     agentId: text("agent_id"),
     taskId: text("task_id"),
+    // R4 协作轴：挂到某 project（跨 team 多人协作同一仓库/代码分析）。
+    projectId: text("project_id"),
     visibility: text("visibility").notNull().default("team"),
     status: text("status").notNull().default("pending"),
     internalStatus: text("internal_status"),
@@ -36,6 +38,8 @@ export const knowledgeCodeGraph = sqliteTable(
     statsJson: text("stats_json"),
     serviceUrl: text("service_url"),
     summary: text("summary"),
+    // 私有仓库认证（password/token/ssh 的 JSON 字符串），clone 时读。
+    gitAuth: text("git_auth"),
     version: integer("version").notNull().default(0),
     lastSyncAt: text("last_sync_at"),
     createdAt: text("created_at").notNull(),
@@ -65,6 +69,8 @@ export const knowledgeWiki = sqliteTable(
     userId: text("user_id"),
     agentId: text("agent_id"),
     taskId: text("task_id"),
+    // R4 协作轴：挂到某 project（跨 team 多人协作）。
+    projectId: text("project_id"),
     visibility: text("visibility").notNull().default("team"),
     // draft = 建壳未加工（仅 create 一次性出现）；code-graph 仍用 pending（create 即建图）。
     status: text("status").notNull().default("draft"),

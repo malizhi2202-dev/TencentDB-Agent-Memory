@@ -151,6 +151,46 @@ export interface CodeGraphToolResult {
   isError: boolean;
 }
 
+export interface CodeGraphData {
+  nodes: any[];
+  edges: any[];
+  communities?: any[];
+}
+
+export interface CodeGraphAnalysis {
+  language: string;
+  languageVersion?: string;
+  webFramework?: { name: string; details: string };
+  databases: { name: string; type: string; details: string }[];
+  components: { name: string; category: string; details: string }[];
+  apis: { method: string; path: string; description: string; requestBody?: string; responseBody?: string }[];
+  architectureDiagram: string;
+  summary: string;
+  logs?: { format: string; location: string };
+  fileStats: { total: number; byExtension: Record<string, number> };
+  codeMetrics?: {
+    totalLines: number;
+    testFiles: number;
+    functionCount: number;
+    classCount: number;
+    largestFiles: { path: string; lines: number }[];
+  };
+  dependencies?: {
+    name: string;
+    version: string;
+    type: "production" | "dev" | "peer" | "optional";
+    category: string;
+  }[];
+  /** 图谱实体类型统计 */
+  nodeTypes?: Record<string, number>;
+  /** 图谱关系总数 */
+  edgeCount?: number;
+  /** 热点文件 */
+  hotspots?: { path: string; entityCount: number; kindBreakdown: Record<string, number> }[];
+  /** 高耦合文件 */
+  coupling?: { path: string; fanIn: number; fanOut: number; totalEdges: number }[];
+}
+
 // ── Port ──
 
 export interface KnowledgeClientPort {
@@ -179,11 +219,20 @@ export interface KnowledgeClientPort {
   wikiSearch(wikiId: string, query: string, limit?: number, graph?: { hop?: number; decay?: number; minScore?: number }): Promise<WikiSearchResult>;
 
   // Code-Graph（create/list 带 IdFields；get/sync/delete/查询 仅资产 id 寻址）
-  codeGraphCreate(teamId: string, repoUrl: string, branch?: string, userId?: string, repoName?: string): Promise<CodeGraphDetail>;
+  codeGraphCreate(
+    teamId: string,
+    repoUrl: string,
+    branch?: string,
+    userId?: string,
+    repoName?: string,
+    auth?: { kind: 'password' | 'token' | 'ssh'; username?: string | null; secret: string; passphrase?: string | null },
+  ): Promise<CodeGraphDetail>;
   codeGraphList(teamId: string, opts?: { status?: string; limit?: number; offset?: number }): Promise<CodeGraphListResult>;
   codeGraphGet(codeGraphId: string): Promise<CodeGraphDetail>;
   codeGraphSync(codeGraphId: string): Promise<CodeGraphSyncResult>;
   codeGraphDelete(codeGraphIds: string[]): Promise<BatchDeleteResult>;
   codeGraphUpdateMeta(codeGraphId: string, patch: { repo_name?: string; summary?: string | null }): Promise<CodeGraphDetail>;
   codeGraphQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<CodeGraphToolResult>;
+  codeGraphGraph(codeGraphId: string): Promise<CodeGraphData>;
+  codeGraphAnalyze(codeGraphId: string): Promise<CodeGraphAnalysis>;
 }

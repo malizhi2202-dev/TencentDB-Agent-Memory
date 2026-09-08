@@ -68,6 +68,9 @@ interface ListWithAgentsBody {
   offset?: number;
   status?: string;
   title?: string;
+  agent_id?: string;
+  project_id?: string;
+  creator_user_id?: string;
 }
 
 // ── 路由注册 ──────────────────────────────────────────────────────────────────
@@ -86,7 +89,7 @@ export function registerTaskRoutes(api: Hono, deps: PanelDeps): void {
       const body = await c.req
         .json<ListWithAgentsBody>()
         .catch(() => ({ team_id: "" }) as ListWithAgentsBody);
-      const { team_id: teamId, limit, offset, status, title } = body;
+      const { team_id: teamId, limit, offset, status, title, agent_id, project_id, creator_user_id } = body;
 
       if (!teamId) {
         return respondControlError(c, 400, "MISSING_TEAM_ID");
@@ -102,6 +105,9 @@ export function registerTaskRoutes(api: Hono, deps: PanelDeps): void {
         listPayload.offset = offset;
       if (status) listPayload.status = status;
       if (title) listPayload.title = title;
+      if (agent_id) listPayload.agent_id = agent_id;
+      if (project_id) listPayload.project_id = project_id;
+      if (creator_user_id) listPayload.creator_user_id = creator_user_id;
 
       const taskEnv = await deps.metaKernel.invoke(
         "task/list",

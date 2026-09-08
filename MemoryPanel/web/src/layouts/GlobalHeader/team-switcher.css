@@ -33,6 +33,34 @@
   border-color: var(--tea-color-border-secondary-default);
 }
 
+/* ===== 侧边栏「团队」分组内的切换器条目 =====
+ * TeamSwitcher 已从全局顶栏下沉到侧边栏团队分组：铺满宽度、对齐 Menu.Item 高度。 */
+._memory-team-switcher-menu-item {
+  margin: 0 8px 4px;
+  list-style: none;
+}
+
+._memory-team-switcher-menu-item ._memory-team-switcher-trigger {
+  width: 100%;
+  max-width: none;
+  height: 36px;
+  padding: 0 8px;
+}
+
+/* ===== 侧边栏「团队」分组内的切换器条目 =====
+ * TeamSwitcher 已从全局顶栏下沉到侧边栏团队分组：铺满宽度、对齐 Menu.Item 高度。 */
+._memory-team-switcher-menu-item {
+  margin: 0 8px 4px;
+  list-style: none;
+}
+
+._memory-team-switcher-menu-item ._memory-team-switcher-trigger {
+  width: 100%;
+  max-width: none;
+  height: 36px;
+  padding: 0 8px;
+}
+
 ._memory-team-switcher-avatar,
 ._memory-team-switcher-item-avatar {
   flex-shrink: 0;
@@ -186,6 +214,12 @@
 }
 
 ._memory-team-switcher-item-avatar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--tea-color-text-on-bg-brand-default);
+  font-weight: 600;
+  border-radius: 4px;
   width: 32px;
   height: 32px;
   font-size: 14px;

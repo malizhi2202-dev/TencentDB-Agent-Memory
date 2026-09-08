@@ -574,6 +574,7 @@ export class SessionStore {
           name: agentR.value.name,
           description: agentR.value.description ?? undefined,
           prompt: agentR.value.prompt ?? undefined,
+          metadata_json: agentR.value.metadata_json,
         };
       }
     } else {

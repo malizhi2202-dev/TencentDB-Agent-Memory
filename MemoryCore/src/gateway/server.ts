@@ -49,6 +49,8 @@ import type {
   GatewayErrorResponse,
 } from "./types.js";
 import type { Logger } from "../core/types.js";
+import type { IsolationFilter } from "../core/store/types.js";
+import type { IsolationFilter } from "../core/store/types.js";
 import { InstanceConfigProvider } from "../core/instance-config-provider.js";
 import type { VdbConfig, MongoConfig } from "../core/instance-config-provider.js";
 import { wrapWithTrace } from "../core/report/trace-middleware.js";
@@ -63,9 +65,13 @@ import type { SeedProgress } from "../core/seed/types.js";
 import { handleV2Route, errorEnvelope, makeRequestId } from "./v2-router.js";
 import type { V2RouterDeps } from "./v2-router.js";
 import { handleV3MetaRoute, V3_PREFIX } from "../metadata/router/v3-meta-router.js";
+import { handleV3MemoryRoute, V3_MEMORY_PREFIX } from "./v3-memory-router.js";
+import { handleV3MemoryRoute, V3_MEMORY_PREFIX } from "./v3-memory-router.js";
 import { handleInternalMetaRoute, V3_INTERNAL_PREFIX } from "../metadata/router/internal-meta-router.js";
 import { MetadataService } from "../metadata/service/metadata-service.js";
 import { ConfigParamService } from "../metadata/service/config-param-service.js";
+import { GitCredentialService } from "../metadata/service/git-credential-service.js";
+import { GitCredentialService } from "../metadata/service/git-credential-service.js";
 import { loadDefaultRegistry } from "../metadata/config/param-registry.js";
 import type { IMetadataStore } from "../metadata/store/interface.js";
 import {
@@ -81,6 +87,10 @@ import type { MemorySystemUserConfig } from "../metadata/system-user.js";
 import { validateLlmProviderConfig, LlmResolveError } from "./llm-resolver.js";
 import type { StandaloneLLMConfig } from "../adapters/standalone/llm-runner.js";
 import { resolveStandaloneLlmForRuntime } from "../adapters/standalone/llm-provider-resolver.js";
+import { buildProvidersFromConfig } from "../adapters/standalone/llm-runner.js";
+import { ModelRuntime, OpenAICompatibleAdapter } from "../model/index.js";
+import { buildProvidersFromConfig } from "../adapters/standalone/llm-runner.js";
+import { ModelRuntime, OpenAICompatibleAdapter } from "../model/index.js";
 import { resolveReportedCredit } from "./quota-credit-policy.js";
 import {
   initApiTraceConfig,
@@ -496,6 +506,8 @@ export class TdaiGateway {
       const configSvc = new ConfigParamService(store, registry);
       await configSvc.initDefaults(registry, this.config.metadata);
       rawSvc.setConfigParamService(configSvc);
+      rawSvc.setGitCredentialService(new GitCredentialService(store));
+      rawSvc.setGitCredentialService(new GitCredentialService(store));
 
       // 归档 Agent 时连带清掉它的 chat_memory 内容（L0–L3 + 向量 + 文件）。
       // metadata 层拿不到 IMemoryStore / StorageAdapter，所以这里把清理能力
@@ -945,6 +957,44 @@ export class TdaiGateway {
         if (handledV3) return;
       }
 
+      // ── /v3/memory/* — 记忆能力端点（feedback/审批/剧本/质量/评测/指标等）──
+      // 纯计算端点无租户；consolidation/execute、space/list 依赖 store/metadata。Bearer apiKey 同 /v3/meta。
+      if (pathname.startsWith(`${V3_MEMORY_PREFIX}/`)) {
+        if (!this.checkAuthForV2(req, res)) return;
+        const handledMemory = await handleV3MemoryRoute(req, res, pathname, method, parseJsonBody, sendJson, {
+          getStore: () => this.core.getVectorStore(),
+          getMetadataService: (instanceId) => this.ensureMetadataService(instanceId),
+          logger: this.logger,
+        });
+        if (handledMemory) return;
+      }
+
+      // ── /v3/llm/* — 模型层端点（添加模型 / 适配层 / 运行模型）──
+      // Bearer apiKey 鉴权同 v3/meta；无 x-tdai-user-key（host 级资源，非租户级）。
+      if (pathname.startsWith("/v3/llm/")) {
+        if (!this.checkAuthForV2(req, res)) return;
+        return await this.handleLlmRoute(req, res, pathname, method);
+      }
+
+      // ── /v3/memory/* — 记忆能力端点（feedback/审批/剧本/质量/评测/指标等）──
+      // 纯计算端点无租户；consolidation/execute、space/list 依赖 store/metadata。Bearer apiKey 同 /v3/meta。
+      if (pathname.startsWith(`${V3_MEMORY_PREFIX}/`)) {
+        if (!this.checkAuthForV2(req, res)) return;
+        const handledMemory = await handleV3MemoryRoute(req, res, pathname, method, parseJsonBody, sendJson, {
+          getStore: () => this.core.getVectorStore(),
+          getMetadataService: (instanceId) => this.ensureMetadataService(instanceId),
+          logger: this.logger,
+        });
+        if (handledMemory) return;
+      }
+
+      // ── /v3/llm/* — 模型层端点（添加模型 / 适配层 / 运行模型）──
+      // Bearer apiKey 鉴权同 v3/meta；无 x-tdai-user-key（host 级资源，非租户级）。
+      if (pathname.startsWith("/v3/llm/")) {
+        if (!this.checkAuthForV2(req, res)) return;
+        return await this.handleLlmRoute(req, res, pathname, method);
+      }
+
       // ── v3 analytics routes (/v3/analytics/*) ──
       // Layer 1 (Bearer apiKey): checked here explicitly. The /v3/meta/*
       // guard above ONLY covers `V3_PREFIX = "/v3/meta"`, it does not
@@ -1344,6 +1394,75 @@ export class TdaiGateway {
   }
 
   /**
+   * 模型层：惰性构建 ModelRuntime（从 config.llm 推导 provider 路由）。
+   * 供 /v3/llm/* 端点使用；亦被运行模型调用链复用。
+   */
+  private getModelRuntime(): ModelRuntime {
+    if (!this.modelRuntime) {
+      const { providers } = buildProvidersFromConfig(this.config.llm);
+      const adapter = new OpenAICompatibleAdapter(providers, this.logger);
+      const runtime = new ModelRuntime();
+      runtime.registerAdapter(providers.map((p) => p.id), adapter);
+      this.modelRuntime = runtime;
+      this.logger.info(
+        `[LLM] model runtime ready: providers=[${providers.map((p) => p.id).join(", ") || "无"}]`,
+      );
+    }
+    return this.modelRuntime;
+  }
+
+  /**
+   * /v3/llm/* 端点分发：
+   *   - /v3/llm/providers          → 列出已注册 provider 路由
+   *   - /v3/llm/models             → 聚合模型目录（"添加模型"的静态目录）
+   *   - /v3/llm/models/discover    → 探测 endpoint 通告的模型（运行时发现）
+   */
+  private async handleLlmRoute(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    pathname: string,
+    method: string,
+  ): Promise<void> {
+    try {
+      const runtime = this.getModelRuntime();
+
+      if (pathname === "/v3/llm/providers") {
+        const providers = runtime.listProviders();
+        sendJson(res, 200, { code: 0, message: "ok", data: { providers } });
+        return;
+      }
+
+      if (pathname === "/v3/llm/models") {
+        const models = await runtime.listModels();
+        sendJson(res, 200, { code: 0, message: "ok", data: { models } });
+        return;
+      }
+
+      if (pathname === "/v3/llm/models/discover") {
+        if (method !== "POST") {
+          sendJson(res, 405, { code: 405, message: "Method not allowed (use POST)" });
+          return;
+        }
+        const body = await parseJsonBody<{ baseURL?: string; apiKey?: string }>(req);
+        const baseURL = body?.baseURL?.trim();
+        if (!baseURL) {
+          sendJson(res, 400, { code: 400, message: "Missing required field: baseURL" });
+          return;
+        }
+        const models = await runtime.discoverModels({ baseURL, apiKey: body?.apiKey });
+        sendJson(res, 200, { code: 0, message: "ok", data: { models } });
+        return;
+      }
+
+      sendJson(res, 404, { code: 404, message: `Unknown /v3/llm path: ${pathname}` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`[LLM] /v3/llm failed: ${msg}`);
+      sendJson(res, 500, { code: 500, message: msg });
+    }
+  }
+
+  /**
    * 通用清理步骤（state / store / cos / quota），v2 与 v3 共用。
    * @param source 仅用于日志前缀，便于分辨调用方。
    */
@@ -1482,8 +1601,30 @@ export class TdaiGateway {
       return;
     }
 
+    // P0 #C2: resolve tenant identity from body / x-tdai-* headers so context
+    // injection recall is scoped the same way as data-plane search. Only the
+    // explicitly-supplied dimensions are narrowed (no "default" filling), and
+    // sessionId is intentionally omitted — L1 recall is agent-scoped across
+    // sessions, not per-session.
+    const headerStr = (key: string): string | undefined => {
+      const raw = req.headers?.[key] ?? req.headers?.[key.toLowerCase()];
+      if (Array.isArray(raw)) return raw[0];
+      return typeof raw === "string" ? raw : undefined;
+    };
+    const teamId = body.team_id ?? headerStr("x-tdai-team-id");
+    const userId = body.user_id ?? headerStr("x-tdai-user-id");
+    const agentId = body.agent_id ?? headerStr("x-tdai-agent-id");
+    const isolation: IsolationFilter | undefined =
+      userId || agentId || teamId
+        ? {
+            ...(teamId ? { teamId } : {}),
+            ...(userId ? { userId } : {}),
+            ...(agentId ? { agentId } : {}),
+          }
+        : undefined;
+
     const startMs = Date.now();
-    const result = await this.core.handleBeforeRecall(body.query, body.session_key);
+    const result = await this.core.handleBeforeRecall(body.query, body.session_key, isolation);
     const elapsed = Date.now() - startMs;
 
     // H-15: distinguish "no recall content to inject" from "recall failed".
@@ -1958,7 +2099,45 @@ export class TdaiGateway {
     const { PipelineWorker } = await import("../services/pipeline-worker.js");
     const rawExecutor = this.buildTaskExecutor();
     // 用 TracedTaskExecutor 装饰器包装，为 L1/L2/L3 任务添加 Trace Span
-    const executor = new TracedTaskExecutor(rawExecutor);
+    // 并注入 onComplete 钩子：真实 pipeline 运行自动落库到 meta_run_traces（运行回放）。
+    const runTraceTaskLabels: Record<string, string> = {
+      L1: "L1 记忆提取",
+      L2: "L2 场景提取",
+      L3: "L3 persona 生成",
+      flush: "Flush",
+      "offload-l1": "Offload L1",
+      "offload-l15": "Offload L1.5",
+      "offload-l2": "Offload L2",
+    };
+    const executor = new TracedTaskExecutor(rawExecutor, (info) => {
+      const task = info.task;
+      // 仅记录具备 team 上下文的运行；instance 级旧任务无 team 则跳过。
+      if (!task.teamId) return;
+      void (async () => {
+        try {
+          const svc = await this.ensureMetadataService(task.instanceId);
+          await svc.recordRunAuto({
+            team_id: task.teamId,
+            agent_id: task.agentId ?? null,
+            task_id: task.id ?? null,
+            kind: "run",
+            title: runTraceTaskLabels[task.type] ?? `${task.type} 任务`,
+            status: info.status,
+            input_summary: `session=${task.sessionId} type=${task.type}`,
+            output_summary: info.error ? `error: ${info.error}` : "ok",
+            trace_json: JSON.stringify({
+              task_type: info.taskType,
+              task_id: task.id,
+              session_id: task.sessionId,
+              duration_ms: info.durationMs,
+              error: info.error,
+            }),
+          });
+        } catch (e) {
+          this.logger.error(`[RUN-TRACE] auto-record failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      })();
+    });
     this.pipelineWorker = new PipelineWorker(this.stateBackend, executor, {
       pollIntervalMs: this.config.worker.pollMs,
       concurrency: this.config.worker.concurrency,

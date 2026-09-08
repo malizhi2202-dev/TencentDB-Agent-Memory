@@ -7,6 +7,8 @@ import type { PanelDeps } from '../panel-deps.js';
 import { registerHealthRoutes, registerMetaInstanceRoutes } from './routes/meta/instances.js';
 import { registerMetaProxyRoutes } from './routes/meta/proxy.js';
 import { registerSkillProxyRoutes } from './routes/skill/proxy.js';
+import { registerMemoryProxyRoutes } from './routes/memory/proxy.js';
+import { registerMemoryProxyRoutes } from './routes/memory/proxy.js';
 import { registerAnalyticsProxyRoutes } from './routes/analytics/proxy.js';
 import { registerChatMemoryRoutes } from './routes/chat-memory.js';
 import { registerTaskRoutes } from './routes/task.js';
@@ -33,6 +35,10 @@ export function buildPanelApp(deps: PanelDeps): Hono {
   registerMetaProxyRoutes(api, deps);
   // Skill 数据面透明代理：/api/v1/skill/* → 内核 /v3/skill/*
   registerSkillProxyRoutes(api, deps);
+  // 记忆能力透明代理：/api/v1/memory/* → 内核 /v3/memory/*
+  registerMemoryProxyRoutes(api, deps);
+  // 记忆能力透明代理：/api/v1/memory/* → 内核 /v3/memory/*
+  registerMemoryProxyRoutes(api, deps);
   // Analytics 查询面透明代理：/api/v1/analytics/* → 内核 /v3/analytics/*
   registerAnalyticsProxyRoutes(api, deps);
   // Chat Memory 面板 3-tab 专属业务路由（12.3 决策例外，见 chat-memory.ts 顶注释）

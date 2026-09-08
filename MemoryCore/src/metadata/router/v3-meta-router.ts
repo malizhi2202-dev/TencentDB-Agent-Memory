@@ -29,7 +29,7 @@ import {
 import { extractInstanceId } from "./instance.js";
 import { resolvePagination } from "./pagination.js";
 import { resolveUserId } from "../service/resolve-user-id.js";
-import type { AgentFilter, TaskFilter, ParticipationLogFilter } from "../types.js";
+import type { AgentFilter, TaskFilter, ParticipationLogFilter, ProjectFilter, ProjectEntity, KnowledgeEntryFilter, ToolSourceFilter, AgentTeamFilter, AutomationFilter, RunTraceFilter } from "../types.js";
 import * as S from "./v3-meta-schemas.js";
 import {
   createMetaApiTraceContext,
@@ -78,20 +78,32 @@ function orNotFound<T>(entity: T | null, code: string, id: string): T {
   return entity;
 }
 
+/** 校验 Caller 已认证并返回其 user_id（git 凭据等 owner-私有资源需要）。 */
+function requireCallerUserId(ctx: Ctx): string {
+  if (!ctx.userId) {
+    throw new MetadataError("permission_denied", "authenticated user required");
+  }
+  return ctx.userId;
+}
+
 const OK = { ok: true } as const;
 
 // ── Route table（55 接口）──
 const routeTable: Record<string, Handler> = {
   // User
   [`${V3_PREFIX}/user/create`]: bind(S.userCreateSchema, async (d, c, s) => {
-    s.assertCanManageUsers(c);
+    await s.assertPermission(c, "user.create");
     return s.createNormalUser(d);
   }),
   // 姊妹接口：允许 system_admin 建号时显式指定 user_key。鉴权与 /user/create 完全对称。
   // Zod 只校验 username + user_key 非空，user_id 若被传入会被 zod strip 忽略。
   [`${V3_PREFIX}/user/create-with-key`]: bind(S.userCreateWithKeySchema, async (d, c, s) => {
-    s.assertCanManageUsers(c);
+    await s.assertPermission(c, "user.create");
     return s.createNormalUserWithKey(d);
+  }),
+  [`${V3_PREFIX}/user/set-password`]: bind(S.userSetPasswordSchema, async (d, c, s) => {
+    await s.setUserPasswordForCaller(d.user_id, d.password, c);
+    return OK;
   }),
   // 外部认证（如 WOA）登录后判断是否初次：按 (auth_provider, external_id) 查 user。
   // 查 core 既有的 meta_users.external_id；无匹配=初次。
@@ -153,21 +165,34 @@ const routeTable: Record<string, Handler> = {
     const { team_id, ...patch } = d;
     return s.updateTeamForCaller(team_id, patch, c);
   }),
-  [`${V3_PREFIX}/team/delete`]: bind(S.teamDeleteSchema, (d, c, s) => s.deleteTeamsForCaller(d.team_ids, c)),
-  [`${V3_PREFIX}/team/list`]: bind(S.teamListSchema, async (d, _c, s) => {
-    const userId = await resolveUserId(s, d);
+  [`${V3_PREFIX}/team/delete`]: bind(S.teamDeleteSchema, async (d, c, s) => {
+    const result = await s.deleteTeamsForCaller(d.team_ids, c);
+    for (const id of d.team_ids) {
+      s.recordAuditLog({ actor_user_id: c.userId ?? "", action: "team.delete", entity_type: "team", entity_id: id });
+    }
+    return result;
+  }),
+  [`${V3_PREFIX}/team/list`]: bind(S.teamListSchema, async (d, c, s) => {
     const filter = d.name ? { name: d.name } : undefined;
+    // admin 看全部团队；普通用户只看自己加入的团队。
+    if (c.isSystemAdmin) {
+      return s.listTeams(filter, resolvePagination(d));
+    }
+    const userId = await resolveUserId(s, d);
     return s.listTeamsByUser(userId, resolvePagination(d), filter);
   }),
 
   // TeamMember
   [`${V3_PREFIX}/team-member/add`]: bind(S.teamMemberAddSchema, async (d, c, s) => {
     await requireEntity(s, EntityType.User, d.user_id);
-    return s.addTeamMemberForCaller(d, c);
+    const result = await s.addTeamMemberForCaller(d, c);
+    s.recordAuditLog({ actor_user_id: c.userId ?? "", action: "team_member.add", entity_type: "team", entity_id: d.team_id, detail: { user_id: d.user_id, role: d.role } });
+    return result;
   }),
   [`${V3_PREFIX}/team-member/remove`]: bind(S.teamMemberRemoveSchema, async (d, c, s) => {
     await requireEntity(s, EntityType.User, d.user_id);
     await s.removeTeamMemberForCaller(d.team_id, d.user_id, c);
+    s.recordAuditLog({ actor_user_id: c.userId ?? "", action: "team_member.remove", entity_type: "team", entity_id: d.team_id, detail: { user_id: d.user_id } });
     return OK;
   }),
   [`${V3_PREFIX}/team-member/list`]: bind(S.teamMemberListSchema, (d, c, s) =>
@@ -175,6 +200,56 @@ const routeTable: Record<string, Handler> = {
   ),
   [`${V3_PREFIX}/team-member/get`]: bind(S.teamMemberGetSchema, async (d, c, s) =>
     s.getTeamMemberForCaller(d.team_id, d.user_id, c)),
+
+  // Project
+  [`${V3_PREFIX}/project/create`]: bind(S.projectCreateSchema, (d, c, s) => s.createProjectForCaller(d, c)),
+  [`${V3_PREFIX}/project/get`]: bind(S.projectGetSchema, (d, c, s) => s.getProjectForCaller(d.project_id, c)),
+  [`${V3_PREFIX}/project/update`]: bind(S.projectUpdateSchema, async (d, c, s) => {
+    const patch: Partial<ProjectEntity> = {};
+    if (d.name !== undefined) patch.name = d.name;
+    if (d.description !== undefined) patch.description = d.description;
+    if (d.manager_user_id !== undefined) patch.manager_user_id = d.manager_user_id;
+    if (d.visibility !== undefined) patch.visibility = d.visibility;
+    if (d.default_agent_id !== undefined) patch.default_agent_id = d.default_agent_id;
+    if (d.repo_url !== undefined) patch.repo_url = d.repo_url;
+    if (d.git_repo_urls !== undefined) patch.git_repo_urls = JSON.stringify(d.git_repo_urls);
+    if (d.path_globs !== undefined) patch.path_globs = JSON.stringify(d.path_globs);
+    return s.updateProjectForCaller(d.project_id, patch, c);
+  }),
+  [`${V3_PREFIX}/project/delete`]: bind(S.projectDeleteSchema, async (d, c, s) => {
+    const result = await s.deleteProjectsForCaller(d.project_ids, c);
+    for (const id of d.project_ids) {
+      s.recordAuditLog({ actor_user_id: c.userId ?? "", action: "project.delete", entity_type: "project", entity_id: id });
+    }
+    return result;
+  }),
+  [`${V3_PREFIX}/project/list`]: bind(S.projectListSchema, (d, c, s) => {
+    const filter: ProjectFilter = {};
+    if (d.team_id !== undefined) filter.team_id = d.team_id;
+    if (d.owner_user_id !== undefined) filter.owner_user_id = d.owner_user_id;
+    if (d.member_user_id !== undefined) filter.member_user_id = d.member_user_id;
+    if (d.visibility !== undefined) filter.visibility = d.visibility;
+    if (d.name !== undefined) filter.name = d.name;
+    return s.listProjectsForCaller(filter, c, resolvePagination(d));
+  }),
+  [`${V3_PREFIX}/project/set-manager`]: bind(S.projectSetManagerSchema, (d, c, s) =>
+    s.setProjectManagerForCaller(d.project_id, d.user_id, c)),
+
+  // ProjectMember
+  [`${V3_PREFIX}/project-member/add`]: bind(S.projectMemberAddSchema, async (d, c, s) => {
+    await requireEntity(s, EntityType.User, d.user_id);
+    return s.addProjectMemberForCaller(d, c);
+  }),
+  [`${V3_PREFIX}/project-member/remove`]: bind(S.projectMemberRemoveSchema, async (d, c, s) => {
+    await requireEntity(s, EntityType.User, d.user_id);
+    await s.removeProjectMemberForCaller(d.project_id, d.user_id, c);
+    return OK;
+  }),
+  [`${V3_PREFIX}/project-member/list`]: bind(S.projectMemberListSchema, (d, c, s) =>
+    s.listProjectMembersForCaller(d.project_id, c, resolvePagination(d)),
+  ),
+  [`${V3_PREFIX}/project-member/get`]: bind(S.projectMemberGetSchema, (d, c, s) =>
+    s.getProjectMemberForCaller(d.project_id, d.user_id, c)),
 
   // Agent
   [`${V3_PREFIX}/agent/create`]: bind(S.agentCreateSchema, (d, c, s) => s.createAgentForCaller(d, c)),
@@ -193,12 +268,14 @@ const routeTable: Record<string, Handler> = {
       if (d.status) filter.status = d.status;
       if (d.owner_user_id) filter.owner_user_id = d.owner_user_id;
       if (d.name) filter.name = d.name;
+      if (d.project_id !== undefined) filter.project_id = d.project_id;
       return s.listAgentsByTeam(d.team_id, pagination, filter);
     }
     const ownerId = d.owner_user_id ?? await resolveUserId(s, { user_key: d.owner_user_key });
     const filter2: AgentFilter = {};
     if (d.status) filter2.status = d.status;
     if (d.name) filter2.name = d.name;
+    if (d.project_id !== undefined) filter2.project_id = d.project_id;
     return s.listAgentsByOwner(ownerId, pagination, Object.keys(filter2).length ? filter2 : undefined);
   }),
   [`${V3_PREFIX}/agent/archive`]: bind(S.agentArchiveSchema, (d, c, s) => s.archiveAgentForCaller(d.agent_id, c)),
@@ -215,6 +292,8 @@ const routeTable: Record<string, Handler> = {
     const filter: TaskFilter = {};
     if (d.status) filter.status = d.status;
     if (d.title) filter.title = d.title;
+    if (d.agent_id) filter.agent_id = d.agent_id;
+    if (d.project_id !== undefined) filter.project_id = d.project_id;
     if (d.creator_user_id) {
       filter.creator_user_id = d.creator_user_id;
     } else if (d.creator_user_key) {
@@ -268,6 +347,14 @@ const routeTable: Record<string, Handler> = {
   }),
   [`${V3_PREFIX}/asset/list-accessible`]: bind(S.assetListAccessibleSchema, (d, _c, s) =>
     s.listAccessibleAssets(d)),
+  [`${V3_PREFIX}/asset/list-by-project`]: bind(S.assetListByProjectSchema, (d, c, s) => {
+    const { project_id, limit, offset, ...filter } = d;
+    return s.listAssetsByProjectForCaller(project_id, c, resolvePagination({ limit, offset }), filter);
+  }),
+  [`${V3_PREFIX}/asset/list-by-project`]: bind(S.assetListByProjectSchema, (d, c, s) => {
+    const { project_id, limit, offset, ...filter } = d;
+    return s.listAssetsByProjectForCaller(project_id, c, resolvePagination({ limit, offset }), filter);
+  }),
 
   [`${V3_PREFIX}/asset/touch-usage`]: bind(S.assetTouchUsageSchema, async (d, c, s) => {
     await s.touchAssetUsageForCaller(d.asset_id, c);
@@ -293,10 +380,13 @@ const routeTable: Record<string, Handler> = {
     else if (d.subject_type === "agent") await requireEntity(s, EntityType.Agent, d.subject_id);
     const granted_by = d.granted_by ?? await resolveUserId(s, { user_key: d.granted_by_key });
     const { granted_by_key: _k, ...rest } = d;
-    return s.grantAclForCaller({ ...rest, granted_by }, c);
+    const result = await s.grantAclForCaller({ ...rest, granted_by }, c);
+    s.recordAuditLog({ actor_user_id: c.userId ?? "", action: "acl.grant", entity_type: "asset", entity_id: d.asset_id, detail: { subject_type: d.subject_type, subject_id: d.subject_id, permission: d.permission } });
+    return result;
   }),
   [`${V3_PREFIX}/acl/revoke`]: bind(S.aclRevokeSchema, async (d, c, s) => {
     await s.revokeAclForCaller(d.id, c);
+    s.recordAuditLog({ actor_user_id: c.userId ?? "", action: "acl.revoke", entity_type: "acl", entity_id: d.id });
     return OK;
   }),
   [`${V3_PREFIX}/acl/list`]: bind(S.aclListSchema, (d, c, s) =>
@@ -307,8 +397,66 @@ const routeTable: Record<string, Handler> = {
     return s.checkAssetPermission(d);
   }),
 
+  [`${V3_PREFIX}/audit/list`]: bind(S.auditListSchema, async (d, c, s) => {
+    if (!(await s.hasPermission(c, "audit.view"))) {
+      throw new MetadataError("permission_denied", "audit list requires audit.view");
+    }
+    return s.listAuditLogs(
+      {
+        actor_user_id: d.actor_user_id,
+        action: d.action,
+        entity_type: d.entity_type,
+        entity_id: d.entity_id,
+      },
+      resolvePagination(d),
+    );
+  }),
+
+  [`${V3_PREFIX}/audit/list`]: bind(S.auditListSchema, async (d, c, s) => {
+    if (!(await s.hasPermission(c, "audit.view"))) {
+      throw new MetadataError("permission_denied", "audit list requires audit.view");
+    }
+    return s.listAuditLogs(
+      {
+        actor_user_id: d.actor_user_id,
+        action: d.action,
+        entity_type: d.entity_type,
+        entity_id: d.entity_id,
+      },
+      resolvePagination(d),
+    );
+  }),
+
+  // 全局能力权限项（方案B RBAC）
+  [`${V3_PREFIX}/permission/grant`]: bind(S.permissionGrantSchema, async (d, c, s) => {
+    return s.grantPermissionForCaller({ user_id: d.user_id, permission: d.permission }, c);
+  }),
+  [`${V3_PREFIX}/permission/revoke`]: bind(S.permissionRevokeSchema, async (d, c, s) => {
+    return { ok: await s.revokePermissionForCaller(d.user_id, d.permission, c) };
+  }),
+  [`${V3_PREFIX}/permission/list`]: bind(S.permissionListSchema, async (d, c, s) => {
+    return s.listPermissionsForCaller({ user_id: d.user_id }, c, resolvePagination(d));
+  }),
+  [`${V3_PREFIX}/permission/check`]: bind(S.permissionCheckSchema, async (d, c, s) => {
+    return { allowed: await s.hasPermission(c, d.permission) };
+  }),
+
   // Auth
   [`${V3_PREFIX}/auth/verify`]: bind(S.authVerifySchema, async (d, c, s) => s.verifyAuthForCaller(d.user_key, c)),
+  [`${V3_PREFIX}/auth/login`]: bind(S.authLoginSchema, async (d, _c, s) => {
+    const result = await s.loginWithPassword(d.username, d.password);
+    if (!result) {
+      throw new MetadataError("invalid_credentials", "invalid username or password");
+    }
+    return { valid: true, user_key: result.default_key_value, user: result.user };
+  }),
+  [`${V3_PREFIX}/auth/login`]: bind(S.authLoginSchema, async (d, _c, s) => {
+    const result = await s.loginWithPassword(d.username, d.password);
+    if (!result) {
+      throw new MetadataError("invalid_credentials", "invalid username or password");
+    }
+    return { valid: true, user_key: result.default_key_value, user: result.user };
+  }),
 
   // ConfigParam (v3.2)
   [`${V3_PREFIX}/instance-quota/get`]: bind(S.instanceQuotaGetSchema, async (_d, _c, s) => {

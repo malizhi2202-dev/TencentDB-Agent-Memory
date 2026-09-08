@@ -9,15 +9,12 @@
  *
  * 本路由的做法（业务级联收口在 control 层，不改内核）：
  *   1. auth/verify 反查 caller
- *   2. agent/get 拿到 agent，强校验 owner_user_id === caller（本期不允许 admin 代删）
+ *   2. agent/get 拿到 agent，强校验 owner_user_id === caller（system_admin 可跳过）
  *   3. skill/list 按 owner_agent_id + active 分页拉全
  *   4. 逐条 skill/delete —— 任一失败立即中断，返回 500 + 已删列表 + 失败 skill_id
  *      + 内核错误 message；此时 agent/archive 不会被调用，caller 需要修复后重试
  *   5. 全部 skill 成功归档后调 meta/agent/archive
  *      —— 内核在同一次 archive 里顺手清 chat_memory（这部分保持原样）
- *
- * 为什么不做 admin 代删：内核 skill/delete 要求 caller 是 owner_agent 的 owner；
- * admin 代删需要 impersonation 或 control 层拿到 owner 的 user_key，本期先不做。
  *
  * 前端配套：agentsApi.delete 需从 meta/agent/archive 切到本路由；如果要跳过级联走
  * 老逻辑（例如迁移工具），可继续直接调 /api/v1/meta/agent/archive（保留逃生舱）。
@@ -33,6 +30,7 @@ import {
   extractListItems,
   okEnvelope,
   readJson,
+  resolveCallerIsAdmin,
   resolveCallerUserId,
   str,
 } from './knowledge/common.js';
@@ -98,15 +96,16 @@ export function registerAgentLifecycleRoutes(api: Hono, deps: PanelDeps): void {
     // 1. caller
     const callerId = await resolveCallerUserId(deps, ctx);
     if (!callerId) return respondControlError(c, 401, 'INVALID_USER_KEY');
+    const isAdmin = await resolveCallerIsAdmin(deps, ctx);
 
-    // 2. agent + owner 强校验
+    // 2. agent + owner 强校验（system_admin 可跳过）
     const agentEnv = await deps.metaKernel.invoke('agent/get', { agent_id: agentId }, ctx);
     if (agentEnv.code === 404 || (agentEnv.code === 0 && !agentEnv.data)) {
       return respondControlError(c, 404, 'AGENT_NOT_FOUND');
     }
     if (agentEnv.code !== 0) return respondEnvelope(c, agentEnv);
     const agent = agentEnv.data as AgentRaw;
-    if (agent.owner_user_id !== callerId) {
+    if (agent.owner_user_id !== callerId && !isAdmin) {
       return respondControlError(c, 403, 'NOT_YOUR_AGENT');
     }
 

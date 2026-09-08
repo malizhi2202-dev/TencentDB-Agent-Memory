@@ -39,6 +39,7 @@ export interface CodeGraphRow {
   user_id: string | null;
   agent_id: string | null;
   task_id: string | null;
+  project_id: string | null;
   visibility: string;
   status: SyncStatus;
   internal_status: string | null;
@@ -46,6 +47,8 @@ export interface CodeGraphRow {
   stats_json: string | null;
   service_url: string | null;
   summary: string | null;
+  /** 私有仓库认证（password/token/ssh 的 JSON 字符串）。 */
+  git_auth: string | null;
   version: number;
   last_sync_at: string | null;
   created_at: string;
@@ -63,8 +66,11 @@ export interface CreateCodeGraphInput {
   user_id?: string;
   agent_id?: string;
   task_id?: string;
+  project_id?: string | null;
   visibility?: string;
   service_url?: string;
+  /** 私有仓库认证（password/token/ssh 的 JSON 字符串）。 */
+  git_auth?: string | null;
 }
 
 export interface CodeGraphStatusPatch {
@@ -97,6 +103,7 @@ export interface WikiRow {
   user_id: string | null;
   agent_id: string | null;
   task_id: string | null;
+  project_id: string | null;
   visibility: string;
   status: WikiStatus;
   internal_status: string | null;
@@ -121,6 +128,7 @@ export interface CreateWikiInput {
   user_id?: string;
   agent_id?: string;
   task_id?: string;
+  project_id?: string | null;
   visibility?: string;
   service_url?: string;
 }
@@ -177,12 +185,15 @@ export interface CreateResult<T> {
 export interface ListOpts {
   // Wiki 用 WikiStatus（含 draft）；code-graph 只用 SyncStatus，传 draft 会得到空集（无副作用）。
   syncStatus?: WikiStatus;
+  /** R4 协作轴：只取挂到该 project 的资产。 */
+  projectId?: string | null;
   limit?: number;
   offset?: number;
 }
 
 export interface CountOpts {
   syncStatus?: WikiStatus;
+  projectId?: string | null;
 }
 
 /** Restart-recovery projection — carries service_id so dirs can be rebuilt per-tenant. */

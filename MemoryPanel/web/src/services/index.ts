@@ -16,6 +16,7 @@ export type {
   TaskStatus,
   TaskSourceType,
   Agent,
+  AgentLlmConfig,
 } from './backendStore';
 export type { AgentTemplate } from './agent-template-store';
 export type { AssetKind, AssetConfigScope, AssetScopeRecord } from './asset-scope-store';
@@ -40,6 +41,7 @@ export {
   clearBackendCache,
   invalidateTeamCache,
   writeAgentUiMeta,
+  EMPTY_AGENT_LLM,
   createTaskAsync as createTask,
   deleteTaskAsync as deleteTask,
   updateTaskAsync as updateTask,

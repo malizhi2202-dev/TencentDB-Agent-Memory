@@ -1,0 +1,6 @@
+# dsh-rate-limit-retry bundle patch
+# Adds a rate-limit-aware retry handler that waits several minutes
+# when the DeepSeek API returns a token-per-minute rate limit error.
+- insert:
+    - id: rate-limit-retry
+      name: 'dsh-rate-limit-retry'

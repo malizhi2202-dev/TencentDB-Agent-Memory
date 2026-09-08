@@ -1,7 +1,7 @@
 /**
  * GlobalHeader — 全局顶栏（跨越侧边栏 + 内容区，最外层通栏）
  *
- *   左侧：品牌 Logo「Memory Hub」 + 分隔线 + 团队切换器（TeamSwitcher）
+ *   左侧：品牌 Logo「Memory Hub」
  *   右侧：同步状态指示 + 语言切换 + 用户头像菜单
  */
 import { useState } from 'react';
@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { type TeamRole } from '@/services/useCurrentRole';
-import { TeamSwitcher } from './TeamSwitcher';
+import { usePermission } from '@/lib/usePermission';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import './style.css';
 
@@ -49,13 +49,12 @@ export function GlobalHeader({
 
   return (
     <header className="_memory-global-header">
-      {/* 左侧：品牌 + 团队切换器 */}
+      {/* 左侧：品牌 Logo（团队切换器已下沉到侧边栏「团队」分组，避免团队抢占第一资源位） */}
       <div className="_memory-global-header-left">
         <div className="_memory-global-header-brand">
           <img src="/logo.png" alt="Memory Hub" className="_memory-global-header-logo" />
           <span className="_memory-global-header-brand-text">{t('header.brand')}</span>
         </div>
-        <TeamSwitcher userRole={userRole} />
       </div>
 
       {/* 右侧：同步状态 + 语言切换 + 用户菜单 */}
@@ -98,6 +97,59 @@ export function GlobalHeader({
         >
           {(close) => (
             <List type="option">
+              <List.Item
+                onClick={() => {
+                  close();
+                  navigate('/team/api-keys');
+                }}
+              >
+                <LockOnIcon size={14} style={{ marginRight: 8 }} />
+                {t('menu.api_keys')}
+              </List.Item>
+              {canManageUsers && (
+                <List.Item
+                  onClick={() => {
+                    close();
+                    navigate('/admin/users');
+                  }}
+                >
+                  <UserIcon size={14} style={{ marginRight: 8 }} />
+                  {t('menu.user_management')}
+                </List.Item>
+              )}
+              {canConfig && (
+                <List.Item
+                  onClick={() => {
+                    close();
+                    navigate('/admin/model-config');
+                  }}
+                >
+                  <SettingIcon size={14} style={{ marginRight: 8 }} />
+                  {t('menu.model_config')}
+                </List.Item>
+              )}
+              {canGrant && (
+                <List.Item
+                  onClick={() => {
+                    close();
+                    navigate('/admin/permissions');
+                  }}
+                >
+                  <LockOnIcon size={14} style={{ marginRight: 8 }} />
+                  权限管理
+                </List.Item>
+              )}
+              {canAudit && (
+                <List.Item
+                  onClick={() => {
+                    close();
+                    navigate('/admin/audit-log');
+                  }}
+                >
+                  <LockOnIcon size={14} style={{ marginRight: 8 }} />
+                  审计日志
+                </List.Item>
+              )}
               <List.Item
                 onClick={() => {
                   close();

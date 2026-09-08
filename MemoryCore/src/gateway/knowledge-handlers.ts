@@ -39,7 +39,7 @@ function formatZodErr(err: ZodError): string {
 type EntityStore = {
   createKnowledge?(input: Omit<KnowledgeEntity, "created_at" | "updated_at">): KnowledgeEntity | Promise<KnowledgeEntity>;
   getKnowledge?(knowledgeId: string): KnowledgeEntity | null | Promise<KnowledgeEntity | null>;
-  updateKnowledge?(knowledgeId: string, patch: Partial<Pick<KnowledgeEntity, "name" | "summary" | "service_url" | "repo_url" | "branch">>): KnowledgeEntity | null | Promise<KnowledgeEntity | null>;
+  updateKnowledge?(knowledgeId: string, patch: Partial<Pick<KnowledgeEntity, "name" | "summary" | "service_url" | "repo_url" | "branch" | "project_id">>): KnowledgeEntity | null | Promise<KnowledgeEntity | null>;
   deleteKnowledge?(knowledgeIds: string[], teamId?: string): BatchDeleteResult | Promise<BatchDeleteResult>;
   listKnowledge?(input: { team_id: string; type?: "wiki" | "code-graph"; knowledge_ids?: string[]; limit?: number; offset?: number }): KnowledgeListResult | Promise<KnowledgeListResult>;
 };

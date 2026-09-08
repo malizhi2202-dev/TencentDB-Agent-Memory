@@ -848,6 +848,8 @@ export async function handleChatCompletions(
 
   // ── Session Init (before injection pipeline) ─────────────────────────────
   let sessionInfo: Record<string, unknown> | null | undefined;
+  let agentDetail: import("./session/types.js").AgentDetail | null = null;
+  let metadataClient: import("./meta/client.js").MetadataClient | null = null;
   let assetCapabilities: import("./injection/types.js").AssetCapabilityFlags | undefined;
   let injectedSkipped = !conversationId || isAuxiliary || _dshHeadless;
   let sessionJustRegistered = false;
@@ -869,7 +871,7 @@ export async function handleChatCompletions(
       //   - 只有客户端未提供 apiKey 时（例如某些内部脚本），才回退到 config。
       // 与 workbuddyHandler.ts 里的 kernelUserKey 逻辑对齐（那里也是客户端优先）。
       const kernelUserKey = apiKey || config.tdai?.apiKey || "";
-      const metadataClient = getMetadataClient(config.coreSkill, spaceId, kernelUserKey);
+      metadataClient = getMetadataClient(config.coreSkill, spaceId, kernelUserKey);
       const presetIdentity = parsePresetIdentity(config.sessionInit, lcHeaders);
 
       // ── Session Recovery: try L2b binding before falling into session-init form ──
@@ -1088,6 +1090,7 @@ export async function handleChatCompletions(
       }
 
       sessionInfo = initResult.sessionInfo as Record<string, unknown> | null | undefined;
+      agentDetail = initResult.agentDetail ?? null;
       // Belt-and-suspenders: also restore on the local `sessionInfo` alias.
       // In practice this is the same object reference as
       // `initResult.sessionInfo` (already restored above), but the second
@@ -1320,6 +1323,9 @@ export async function handleChatCompletions(
               session: sessionInfo,
               assetCapabilities,
               userKey: apiKey || undefined,
+              // 方案 B 可信身份头 = 自带记忆镜像的客户端（penguin-harness），
+              // L1 由本地 MEMORY.md 镜像索引提供，tools 指南裁剪 L1 部分。
+              mirrorManaged: trustedResolve.trusted !== undefined,
             }
           : undefined,
       });
@@ -1331,6 +1337,32 @@ export async function handleChatCompletions(
   }
 
   const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
+
+  // ── Per-agent LLM model override ──────────────────────────────────────────
+  // 创建 agent 时若显式配置了 llm（存 agent 的 metadata_json.ui.llm），覆盖客户端
+  // 的 `model`；未配置（空）则回退到公共默认（llm_default.model）；公共默认也为空
+  // 则沿用客户端模型 —— 既有链路行为完全不变。
+  // 仅 model 覆盖；provider（换 URL）/ protocol（切 anthropic 线）本轮不做。
+  let agentLlmModel: string | undefined;
+  try {
+    const metaJson = agentDetail?.metadata_json ? JSON.parse(agentDetail.metadata_json) : null;
+    const llm = (metaJson as Record<string, unknown> | null)?.ui as Record<string, unknown> | undefined;
+    const llmObj = llm?.llm as Record<string, unknown> | undefined;
+    const rawModel = llmObj?.model;
+    agentLlmModel =
+      typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : undefined;
+  } catch {
+    agentLlmModel = undefined;
+  }
+  // 公共默认回退（fail-open，读取失败 = 不覆盖）
+  if (!agentLlmModel && metadataClient) {
+    const { getLlmDefaultModel } = await import("./llm-default.js");
+    agentLlmModel = await getLlmDefaultModel(metadataClient);
+  }
+  if (agentLlmModel) {
+    body.model = agentLlmModel;
+    modelId = agentLlmModel;
+  }
 
   // ── Resolve forward target (opaque extension — no routing logic here) ──
   // upstream.agents[agent] is a single map keyed by agent name — same lookup

@@ -42,11 +42,12 @@ export const agentsApi = {
    *   如 Skill 面板固定资产 tab）；不传则返 team 全量。`agent/list` 支持
    *   `team_id + owner_user_id` 组合过滤。
    */
-  list: (teamId: string, params?: { owner_user_id?: string }) =>
+  list: (teamId: string, params?: { owner_user_id?: string; project_id?: string }) =>
     metaListAll<Agent>('agent/list', {
       team_id: teamId,
       status: 'active',
       owner_user_id: params?.owner_user_id,
+      project_id: params?.project_id,
     }),
 
   /** agent 详情 */
@@ -64,7 +65,7 @@ export const agentsApi = {
       name: data.name,
       description: data.description,
       prompt: data.prompt,
-      visibility: data.visibility ?? 'team',
+      visibility: data.visibility ?? 'private',
     });
   },
 

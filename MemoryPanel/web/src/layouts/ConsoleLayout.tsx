@@ -44,7 +44,7 @@ function legacyHashToPath(): string | null {
   if (leaf === 'skills' || leaf === 'skill') return '/skills';
   if (leaf === 'chat_memory' || leaf === 'memory' || leaf === 'chat-memory') return '/memory';
   if (leaf === 'agents' || leaf === 'team_agents') return '/team/agents';
-  if (leaf === 'team' || leaf === 'members' || leaf === 'team_members') return '/team/members';
+  if (leaf === 'team' || leaf === 'members' || leaf === 'team_members') return '/team';
   if (leaf === 'api_keys' || leaf === 'apikey' || leaf === 'api-keys') return '/team/api-keys';
   return null;
 }
@@ -210,11 +210,17 @@ export function ConsoleLayout() {
             {/* 品牌已在全局 Header 展示，侧栏只承载导航（与 Memory项目公共壳层一致）。 */}
             <Menu collapsable collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed}>
               {pinnedGroup?.items.map((item) => renderMenuItem(item))}
-              {restGroups.map((group) => (
-                <Menu.Group key={group.title} title={group.title}>
-                  {group.items.map((item) => renderMenuItem(item))}
-                </Menu.Group>
-              ))}
+              {restGroups.map((group) =>
+                // 单菜单项分组不再套一层同名的分组标题（协作项目 / 组织），
+                // 与「wiki知识库」等普通菜单项保持一致的扁平风格。
+                group.items.length === 1 ? (
+                  group.items.map((item) => renderMenuItem(item))
+                ) : (
+                  <Menu.Group key={group.title} title={group.title}>
+                    {group.items.map((item) => renderMenuItem(item))}
+                  </Menu.Group>
+                ),
+              )}
             </Menu>
           </Sider>
           <Content>

@@ -31,6 +31,7 @@ import { VersionPinRepo } from "./version-pin-repo.js";
 import { KvVersionPinRepo } from "./kv-version-pin-repo.js";
 import { getProxyStorage } from "../storage/factory.js";
 import { getMetadataClient } from "../meta/client.js";
+import { resolveProjectAnchor } from "../session/project-anchor.js";
 import type { ProxyConfig } from "../types.js";
 import { emitBridgeToolCallTelemetry, emitBridgeRejectTelemetry, agentSourceFromSessionKey } from "../memory/bridge-telemetry.js";
 import { getCoreSkillClient, type CoreSkillClient } from "./core-client.js";
@@ -360,6 +361,12 @@ export type VisibleSkillIdsResolver = (input: {
   team_id: string;
   user_key: string;
   space_id?: string;
+  /** 显式声明的 project_id（`x-tdai-project-id` header）→ 多信号锚定第 1 优先级。 */
+  project_id?: string;
+  /** 自研 harness 上报 git remote（`x-tdai-git-remote`）→ 锚定第 2 优先级。 */
+  git_remote?: string;
+  /** 自研 harness 上报 workspace cwd（`x-tdai-cwd`）→ 锚定第 3 优先级。 */
+  cwd?: string;
 }) => Promise<{ ids: string[] }>;
 
 export interface SkillBridgeDeps {
@@ -415,24 +422,49 @@ const DEFAULT_SEARCH_TOPK = 10;
 function defaultVisibleSkillIdsResolver(
   config: ProxyConfig,
 ): VisibleSkillIdsResolver {
-  return async ({ user_id, team_id, user_key, space_id }) => {
+  return async ({ user_id, team_id, user_key, space_id, project_id, git_remote, cwd }) => {
     // Use the real space_id from the request (kernel routes tenants by
     // x-tdai-service-id header) — fall back to config only for legacy sessions.
     const serviceId = space_id || config.coreSkill.serviceId;
     const client = getMetadataClient(config.coreSkill, serviceId, user_key);
+
+    // 公共(team) 维度：strictly visibility='team'（前端"团队资产"tab 对齐，
+    // 隐藏他人 private / ACL 受限 skill）。
     const assets = await client.listAccessibleAssets({
       user_id,
       team_id,
       asset_type: "skill",
       action: "read",
-      // Aligns with the frontend "team assets" tab (SkillsPanel.tsx:132-136):
-      // strictly visibility='team'. Private/ACL-restricted skills are hidden
-      // from LLM-driven search, same as they're hidden from other members
-      // in the panel.
       visibility: "team",
     });
     // For skill assets, asset_id === skill_id by kernel convention.
-    return { ids: assets.map((a) => a.asset_id) };
+    const ids = new Set(assets.map((a) => a.asset_id));
+
+    // 项目维维度（M3b）：多信号锚定（显式 > git remote > cwd > member 兜底）
+    // → 并入「U 是 member 的」project skill。失败降级为 team-only。
+    try {
+      const projects = await client.listProjects(user_id);
+      const anchored = resolveProjectAnchor(
+        { explicitProjectId: project_id, gitRemote: git_remote, cwdPath: cwd },
+        projects,
+      );
+      if (anchored.length > 0) {
+        const projectAssets = await client.listAccessibleAssets({
+          user_id,
+          team_id,
+          asset_type: "skill",
+          action: "read",
+          project_ids: anchored,
+        });
+        for (const a of projectAssets) ids.add(a.asset_id);
+      }
+    } catch (err) {
+      console.warn(
+        `${TAG} project anchor resolve failed, team-only whitelist: ${(err as Error).message}`,
+      );
+    }
+
+    return { ids: Array.from(ids) };
   };
 }
 
@@ -768,6 +800,9 @@ export function createSkillBridgeHandler(
           team_id: ids.team_id,
           user_key: ids.user_key,
           space_id: ids.space_id,
+          project_id: c.req.header("x-tdai-project-id"),
+          git_remote: c.req.header("x-tdai-git-remote"),
+          cwd: c.req.header("x-tdai-cwd"),
         }).then(r => ({ ok: true as const, ids: r.ids }))
           .catch(err => ({ ok: false as const, err: err as Error }));
 

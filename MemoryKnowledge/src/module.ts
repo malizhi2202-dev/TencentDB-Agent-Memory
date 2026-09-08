@@ -64,6 +64,8 @@ export interface KnowledgeModule {
   instancePool: CodeGraphInstancePool;
   /** Per-instance LLM routing binding (proxy/byo), keyed by service_id. */
   llmBindingStore: ILlmBindingStore;
+  /** Resolve the effective LLM config for a service_id (binding-aware). */
+  resolveLlm: (serviceId: string) => LlmConfig;
   /** 定时自动同步调度器（需显式 start/stop）。 */
   autoSyncScheduler: AutoSyncScheduler;
   /** 定时自动同步的解析后配置（挂载 admin 路由时透出）。 */
@@ -117,9 +119,9 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
 
   // ── Real code-graph worker: fetch/sync via SourceFetcher + index ──
   const realCodeWorker: CodeGraphWorker = async (ctx) => {
-    const { dir, repoUrl, branch, codeGraphId, setInternalStatus } = ctx;
+    const { dir, repoUrl, branch, codeGraphId, setInternalStatus, auth } = ctx;
 
-    // Resolve protocol-specific fetcher (validates url: https-only + SSRF blocklist).
+    // Resolve protocol-specific fetcher (validates url: https/ssh + SSRF blocklist).
     const fetcher = fetcherRegistry.resolve(repoUrl);
 
     const isExistingRepo = existsSync(join(dir, ".git"));
@@ -129,7 +131,7 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
     if (isExistingRepo) {
       try {
         setInternalStatus("fetching");
-        const res = await fetcher.sync(repoUrl, branch, dir);
+        const res = await fetcher.sync(repoUrl, branch, dir, auth ?? undefined);
         version = res.version;
 
         setInternalStatus("indexing");
@@ -151,7 +153,7 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
     if (!didIncrementalSync) {
       mkdirSync(dir, { recursive: true });
       setInternalStatus("cloning");
-      const res = await fetcher.fetch(repoUrl, branch, dir);
+      const res = await fetcher.fetch(repoUrl, branch, dir, auth ?? undefined);
       version = res.version;
 
       setInternalStatus("indexing");
@@ -293,5 +295,5 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
   });
   autoSyncScheduler.start();
 
-  return { wikiService, cgService, wikiMgr, store, instancePool, llmBindingStore, autoSyncScheduler, autoSyncConfig };
+  return { wikiService, cgService, wikiMgr, store, instancePool, llmBindingStore, resolveLlm, autoSyncScheduler, autoSyncConfig };
 }

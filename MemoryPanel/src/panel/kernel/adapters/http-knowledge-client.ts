@@ -26,10 +26,13 @@ import type {
   WikiPageWriteItem,
   WikiPageWriteResultItem,
   WikiPageRmResult,
+  CodeGraphData,
+  CodeGraphData,
   CodeGraphDetail,
   CodeGraphListResult,
   CodeGraphSyncResult,
   CodeGraphToolResult,
+  CodeGraphAnalysis,
 } from '../ports/knowledge-client-port.js';
 
 export interface KnowledgeClientConfig {
@@ -154,13 +157,21 @@ export class HttpKnowledgeClient implements KnowledgeClientPort {
 
   // ═══════════════ Code-Graph ═══════════════
 
-  async codeGraphCreate(teamId: string, repoUrl: string, branch?: string, userId?: string, repoName?: string): Promise<CodeGraphDetail> {
+  async codeGraphCreate(
+    teamId: string,
+    repoUrl: string,
+    branch?: string,
+    userId?: string,
+    repoName?: string,
+    auth?: { kind: 'password' | 'token' | 'ssh'; username?: string | null; secret: string; passphrase?: string | null },
+  ): Promise<CodeGraphDetail> {
     return this.post('/v3/code-graph/create', {
       team_id: teamId,
       user_id: userId,
       repo_url: repoUrl,
       branch: branch ?? 'main',
       repo_name: repoName,
+      ...(auth ? { auth } : {}),
     });
   }
 
@@ -186,5 +197,17 @@ export class HttpKnowledgeClient implements KnowledgeClientPort {
 
   async codeGraphQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<CodeGraphToolResult> {
     return this.post(`/v3/code-graph/${tool}`, { code_graph_id: codeGraphId, ...params });
+  }
+
+  async codeGraphGraph(codeGraphId: string): Promise<CodeGraphData> {
+    return this.post('/v3/code-graph/graph', { code_graph_id: codeGraphId });
+  }
+
+  async codeGraphGraph(codeGraphId: string): Promise<CodeGraphData> {
+    return this.post('/v3/code-graph/graph', { code_graph_id: codeGraphId });
+  }
+
+  async codeGraphAnalyze(codeGraphId: string): Promise<CodeGraphAnalysis> {
+    return this.post('/v3/code-graph/analyze', { code_graph_id: codeGraphId });
   }
 }

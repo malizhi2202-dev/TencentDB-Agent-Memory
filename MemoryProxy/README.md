@@ -317,6 +317,396 @@ npm run test:watch
 
 `__tests__/` live under each submodule: `session/__tests__` (session flow), `skill/__tests__` (archival trigger, version pin), `storage/__tests__` (backend contracts), `db/__tests__` (repo consistency), etc. `docs/` also provides several end-to-end runbooks (`e2e-runbook.md` / `e2e-full-coverage-runbook.md`, ...) for verifying the memory pipeline against a real MemoryCore + Redis + storage backend.
 
+## PenguinHarness Integration
+
+MemoryProxy is the primary integration surface for [PenguinHarness](https://github.com/.../penguin-harness), a self-evolving coding agent framework. The integration enables PenguinHarness to use TencentDB Agent Memory as its persistent memory backend — covering **memory bidirectional sync, per-project identity, Skill publishing, trace import, and knowledge access**.
+
+### Architecture
+
+```text
+PenguinHarness (7368)                 TencentDB Agent Memory
+  ├─ L1 mirror (tencentdb-*.md) ──┐   MemoryCore Gateway (8420)
+  │   (方案 3: L1 from penguin)   │     ├─ L0–L3 memory pipeline
+  │                               │     ├─ Skill management
+  ├─ L2/L3 injection ─────────────┼──► MemoryProxy (8096)
+  │   (via proxy)                 │       ├─ injection: skill,knowledge,tdai-memory
+  │                               │       ├─ auth verify → gateway
+  ├─ Skill publish ───────────────┤       └─ write-back: conversation/add
+  │                               │
+  ├─ Trace import ────────────────┤     MemoryKnowledge (8421)
+  │                               │       ├─ Wiki / CodeGraph tools
+  └─ Knowledge tools ─────────────┘       └─ tools/list → tools/call
+                                  MemoryPanel (8123)
+                                    ├─ Asset management
+                                    └─ Knowledge resource creation
+```
+
+### 集成事项总览
+
+| 事项 | 说明 | 状态 |
+|------|------|------|
+| 1. 记忆双向回写 | penguin 原生记忆 push 到 TDAI | ✅ |
+| 2. 会话级身份 | 每项目独立 TDAI team/agent/user | ✅ |
+| 3. Skill 沉淀 | penguin skill → TDAI 资产库 | ✅ |
+| 4. Trace 批量导入 | 历史会话导入 TDAI 冷启动 | ✅ |
+| 5. 删除语义 | 本地删除同步远端 atomic/delete | ✅ |
+| 6. Knowledge 知识库 | Wiki/CodeGraph 通过 proxy 注入 | ✅ 基础设施就绪 |
+| 7. 镜像即时同步 | Task 启动时 auto-pull L1 | ✅ |
+| 8. 用户管理 | penguin 用户 ↔ TDAI ACL | 🛑 阻塞（网关缺 API） |
+
+### 启动所有服务
+
+```bash
+# 1. 启动 MemoryCore Gateway（Node 22）
+cd MemoryCore
+export PATH="../MemoryProxy/.tools/node22/bin:$PATH"
+export TDAI_LLM_API_KEY="sk-your-llm-key"
+export TDAI_LLM_BASE_URL="https://api.deepseek.com/v1"
+export TDAI_LLM_MODEL="deepseek-chat"
+node --import tsx src/gateway/server.ts > /tmp/tdai-gateway.log 2>&1 &
+
+# 2. 启动 MemoryProxy（Node 22）
+cd MemoryProxy
+export PATH=".tools/node22/bin:$PATH"
+pnpm dev > /tmp/proxy-dev.log 2>&1 &
+
+# 3. 启动 MemoryKnowledge（Node 22）
+cd MemoryKnowledge
+export PATH="../MemoryProxy/.tools/node22/bin:$PATH"
+pnpm dev > /tmp/knowledge-dev.log 2>&1 &
+
+# 4. 启动 MemoryPanel（Node 22）
+cd MemoryPanel
+export PATH="../MemoryProxy/.tools/node22/bin:$PATH"
+pnpm dev > /tmp/panel-dev.log 2>&1 &
+
+# 5. 启动 PenguinHarness（Node 24）
+cd penguin-harness
+export PATH=".tools/node24/bin:$PATH"
+TENCENTDB_MEMORY_ENABLED=1 \
+TENCENTDB_MEMORY_CORE_URL="http://127.0.0.1:8420/v1" \
+TENCENTDB_MEMORY_PROXY_URL="http://127.0.0.1:8096" \
+TENCENTDB_MEMORY_TEAM_ID="team-xxx" \
+TENCENTDB_MEMORY_AGENT_ID="agent-xxx" \
+TENCENTDB_MEMORY_TASK_ID="task-xxx" \
+TENCENTDB_MEMORY_USER_ID="user-xxx" \
+TENCENTDB_MEMORY_USER_KEY="sk-user-key" \
+TENCENTDB_MEMORY_AUTO_PULL=1 \
+TENCENTDB_MEMORY_PUSH_NATIVE=1 \
+TENCENTDB_MEMORY_DELETE_REMOTE=1 \
+pnpm dev > /tmp/penguin-dev.log 2>&1 &
+```
+
+### 验证命令
+
+启动后逐项验证：
+
+```bash
+# ── 所有服务健康检查 ──
+for port in 8420 8096 8421 8123 7368; do
+  echo "port $port: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$port/health)"
+done
+# 预期: 8420=200, 8096=200, 8421=200, 8123=200, 7368=302
+
+# ── 事项 1: 记忆双向回写 ──
+# Push 原生记忆（通过 penguin memory sync push）
+curl -s -X POST http://127.0.0.1:7368/api/tencentdb/sync/push \
+  -H "Cookie: session=<valid-session>"
+
+# ── 事项 2: 会话级身份 ──
+# 在 .project_config.toml 中配置:
+#   [tencentdb_memory]
+#   team_id = "team-xxx"
+#   agent_id = "agent-xxx"
+# 验证: 不同项目各自请求携带不同身份头
+
+# ── 事项 3: Skill 管理 ──
+# 查看 TDAI 侧已有 Skill
+curl -s -X POST http://127.0.0.1:8420/v3/skill/list \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-mem-admin-key-xxx" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"team_id":"team-xxx"}' | python3 -m json.tool
+
+# ── 事项 4: 会话/对话查询 ──
+curl -s -X POST http://127.0.0.1:8420/v3/conversation/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-mem-admin-key-xxx" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"team_id":"team-xxx","limit":3}' | python3 -m json.tool
+
+# ── 事项 5: 删除语义 ──
+# 删除镜像文件后 push → 网关 atomic/delete 被调用
+# 开关: TENCENTDB_MEMORY_DELETE_REMOTE=1
+
+# ── 事项 6: Knowledge 知识库 ──
+# 查看知识资源列表
+curl -s -X POST http://127.0.0.1:8420/v3/knowledge/list \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-mem-admin-key-xxx" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"team_id":"team-xxx"}' | python3 -m json.tool
+# 预期: items=[], total=0（无资源时优雅降级，不注入空块）
+
+# 查看 tools/list（需要 knowledge_id）
+curl -s -X POST http://127.0.0.1:8421/v3/tools/list \
+  -H "Content-Type: application/json" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"knowledge_ids":[]}' | python3 -m json.tool
+# 预期: 400, "knowledge_id is required"
+
+# ── 事项 7: 镜像即时同步 ──
+# 确认 auto-pull 代码已加载
+grep "auto-pull on task start" penguin-harness/packages/server/src/http/routes/sessions.ts
+# 预期: 2 occurrences（goal 模式 + 普通 task 各一处）
+
+# 确认环境变量已设置
+ps aux | grep penguin | grep -o "TENCENTDB_MEMORY_AUTO_PULL=[^ ]*"
+# 预期: TENCENTDB_MEMORY_AUTO_PULL=1
+
+# ── Proxy 注入管线验证 ──
+grep "injection" /tmp/proxy-dev.log | grep "skill,knowledge,tdai-memory"
+# 预期: injection: skill,knowledge,tdai-memory
+```
+
+### 配置参考
+
+#### MemoryProxy config.yaml（关键段）
+
+```yaml
+# 注入管线：必须包含 knowledge 才能启用知识工具注入
+injection:
+  injectors: ["skill", "knowledge", "tdai-memory"]
+
+# TDAI Gateway 连接
+tdai:
+  endpoint: "http://127.0.0.1:8420"
+
+# Knowledge 独立服务
+knowledge:
+  enabled: true
+  serviceId: "memory-proxy"
+  endpoint: "http://127.0.0.1:8421"
+```
+
+#### PenguinHarness 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `TENCENTDB_MEMORY_ENABLED` | 总开关 | `0` |
+| `TENCENTDB_MEMORY_CORE_URL` | TDAI Gateway 地址 | — |
+| `TENCENTDB_MEMORY_PROXY_URL` | MemoryProxy 地址 | — |
+| `TENCENTDB_MEMORY_TEAM_ID` | 团队 ID | — |
+| `TENCENTDB_MEMORY_AGENT_ID` | Agent ID | — |
+| `TENCENTDB_MEMORY_TASK_ID` | Task ID | — |
+| `TENCENTDB_MEMORY_USER_ID` | 用户 ID | — |
+| `TENCENTDB_MEMORY_USER_KEY` | 用户密钥 | — |
+| `TENCENTDB_MEMORY_AUTO_PULL` | 自动拉取镜像 (1=开启) | `1` |
+| `TENCENTDB_MEMORY_PUSH_NATIVE` | 推送原生记忆 (1=开启) | `1` |
+| `TENCENTDB_MEMORY_DELETE_REMOTE` | 删除同步远端 (1=开启) | `1` |
+
+各项也可在 `.project_config.toml` 的 `[tencentdb_memory]` 段中按项目配置，优先级高于环境变量。
+
+### 已知限制
+
+- **事项 6**：Knowledge 完整链路需要 Panel 侧创建知识资源（Wiki/CodeGraph）并完成 LLM 抽取，当前 gateway 返回 0 items，注入器优雅降级为不注入。
+- **事项 8**：TDAI 网关 `/v3/internal/meta/` 仅提供 `user/init-admin` 和 `user/list-by-instance`，不支持通用用户 CRUD，penguin 用户管理暂无法同步到 TDAI ACL。需在网关侧扩展接口或 penguin 侧维护独立映射表。
+
+## PenguinHarness Integration
+
+MemoryProxy is the primary integration surface for [PenguinHarness](https://github.com/.../penguin-harness), a self-evolving coding agent framework. The integration enables PenguinHarness to use TencentDB Agent Memory as its persistent memory backend — covering **memory bidirectional sync, per-project identity, Skill publishing, trace import, and knowledge access**.
+
+### Architecture
+
+```text
+PenguinHarness (7368)                 TencentDB Agent Memory
+  ├─ L1 mirror (tencentdb-*.md) ──┐   MemoryCore Gateway (8420)
+  │   (方案 3: L1 from penguin)   │     ├─ L0–L3 memory pipeline
+  │                               │     ├─ Skill management
+  ├─ L2/L3 injection ─────────────┼──► MemoryProxy (8096)
+  │   (via proxy)                 │       ├─ injection: skill,knowledge,tdai-memory
+  │                               │       ├─ auth verify → gateway
+  ├─ Skill publish ───────────────┤       └─ write-back: conversation/add
+  │                               │
+  ├─ Trace import ────────────────┤     MemoryKnowledge (8421)
+  │                               │       ├─ Wiki / CodeGraph tools
+  └─ Knowledge tools ─────────────┘       └─ tools/list → tools/call
+                                  MemoryPanel (8123)
+                                    ├─ Asset management
+                                    └─ Knowledge resource creation
+```
+
+### 集成事项总览
+
+| 事项 | 说明 | 状态 |
+|------|------|------|
+| 1. 记忆双向回写 | penguin 原生记忆 push 到 TDAI | ✅ |
+| 2. 会话级身份 | 每项目独立 TDAI team/agent/user | ✅ |
+| 3. Skill 沉淀 | penguin skill → TDAI 资产库 | ✅ |
+| 4. Trace 批量导入 | 历史会话导入 TDAI 冷启动 | ✅ |
+| 5. 删除语义 | 本地删除同步远端 atomic/delete | ✅ |
+| 6. Knowledge 知识库 | Wiki/CodeGraph 通过 proxy 注入 | ✅ 基础设施就绪 |
+| 7. 镜像即时同步 | Task 启动时 auto-pull L1 | ✅ |
+| 8. 用户管理 | penguin 用户 ↔ TDAI ACL | 🛑 阻塞（网关缺 API） |
+
+### 启动所有服务
+
+```bash
+# 1. 启动 MemoryCore Gateway（Node 22）
+cd MemoryCore
+export PATH="../MemoryProxy/.tools/node22/bin:$PATH"
+export TDAI_LLM_API_KEY="sk-your-llm-key"
+export TDAI_LLM_BASE_URL="https://api.deepseek.com/v1"
+export TDAI_LLM_MODEL="deepseek-chat"
+node --import tsx src/gateway/server.ts > /tmp/tdai-gateway.log 2>&1 &
+
+# 2. 启动 MemoryProxy（Node 22）
+cd MemoryProxy
+export PATH=".tools/node22/bin:$PATH"
+pnpm dev > /tmp/proxy-dev.log 2>&1 &
+
+# 3. 启动 MemoryKnowledge（Node 22）
+cd MemoryKnowledge
+export PATH="../MemoryProxy/.tools/node22/bin:$PATH"
+pnpm dev > /tmp/knowledge-dev.log 2>&1 &
+
+# 4. 启动 MemoryPanel（Node 22）
+cd MemoryPanel
+export PATH="../MemoryProxy/.tools/node22/bin:$PATH"
+pnpm dev > /tmp/panel-dev.log 2>&1 &
+
+# 5. 启动 PenguinHarness（Node 24）
+cd penguin-harness
+export PATH=".tools/node24/bin:$PATH"
+TENCENTDB_MEMORY_ENABLED=1 \
+TENCENTDB_MEMORY_CORE_URL="http://127.0.0.1:8420/v1" \
+TENCENTDB_MEMORY_PROXY_URL="http://127.0.0.1:8096" \
+TENCENTDB_MEMORY_TEAM_ID="team-xxx" \
+TENCENTDB_MEMORY_AGENT_ID="agent-xxx" \
+TENCENTDB_MEMORY_TASK_ID="task-xxx" \
+TENCENTDB_MEMORY_USER_ID="user-xxx" \
+TENCENTDB_MEMORY_USER_KEY="sk-user-key" \
+TENCENTDB_MEMORY_AUTO_PULL=1 \
+TENCENTDB_MEMORY_PUSH_NATIVE=1 \
+TENCENTDB_MEMORY_DELETE_REMOTE=1 \
+pnpm dev > /tmp/penguin-dev.log 2>&1 &
+```
+
+### 验证命令
+
+启动后逐项验证：
+
+```bash
+# ── 所有服务健康检查 ──
+for port in 8420 8096 8421 8123 7368; do
+  echo "port $port: $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$port/health)"
+done
+# 预期: 8420=200, 8096=200, 8421=200, 8123=200, 7368=302
+
+# ── 事项 1: 记忆双向回写 ──
+# Push 原生记忆（通过 penguin memory sync push）
+curl -s -X POST http://127.0.0.1:7368/api/tencentdb/sync/push \
+  -H "Cookie: session=<valid-session>"
+
+# ── 事项 2: 会话级身份 ──
+# 在 .project_config.toml 中配置:
+#   [tencentdb_memory]
+#   team_id = "team-xxx"
+#   agent_id = "agent-xxx"
+# 验证: 不同项目各自请求携带不同身份头
+
+# ── 事项 3: Skill 管理 ──
+# 查看 TDAI 侧已有 Skill
+curl -s -X POST http://127.0.0.1:8420/v3/skill/list \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-mem-admin-key-xxx" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"team_id":"team-xxx"}' | python3 -m json.tool
+
+# ── 事项 4: 会话/对话查询 ──
+curl -s -X POST http://127.0.0.1:8420/v3/conversation/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-mem-admin-key-xxx" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"team_id":"team-xxx","limit":3}' | python3 -m json.tool
+
+# ── 事项 5: 删除语义 ──
+# 删除镜像文件后 push → 网关 atomic/delete 被调用
+# 开关: TENCENTDB_MEMORY_DELETE_REMOTE=1
+
+# ── 事项 6: Knowledge 知识库 ──
+# 查看知识资源列表
+curl -s -X POST http://127.0.0.1:8420/v3/knowledge/list \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-mem-admin-key-xxx" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"team_id":"team-xxx"}' | python3 -m json.tool
+# 预期: items=[], total=0（无资源时优雅降级，不注入空块）
+
+# 查看 tools/list（需要 knowledge_id）
+curl -s -X POST http://127.0.0.1:8421/v3/tools/list \
+  -H "Content-Type: application/json" \
+  -H "x-tdai-service-id: memory-proxy" \
+  -d '{"knowledge_ids":[]}' | python3 -m json.tool
+# 预期: 400, "knowledge_id is required"
+
+# ── 事项 7: 镜像即时同步 ──
+# 确认 auto-pull 代码已加载
+grep "auto-pull on task start" penguin-harness/packages/server/src/http/routes/sessions.ts
+# 预期: 2 occurrences（goal 模式 + 普通 task 各一处）
+
+# 确认环境变量已设置
+ps aux | grep penguin | grep -o "TENCENTDB_MEMORY_AUTO_PULL=[^ ]*"
+# 预期: TENCENTDB_MEMORY_AUTO_PULL=1
+
+# ── Proxy 注入管线验证 ──
+grep "injection" /tmp/proxy-dev.log | grep "skill,knowledge,tdai-memory"
+# 预期: injection: skill,knowledge,tdai-memory
+```
+
+### 配置参考
+
+#### MemoryProxy config.yaml（关键段）
+
+```yaml
+# 注入管线：必须包含 knowledge 才能启用知识工具注入
+injection:
+  injectors: ["skill", "knowledge", "tdai-memory"]
+
+# TDAI Gateway 连接
+tdai:
+  endpoint: "http://127.0.0.1:8420"
+
+# Knowledge 独立服务
+knowledge:
+  enabled: true
+  serviceId: "memory-proxy"
+  endpoint: "http://127.0.0.1:8421"
+```
+
+#### PenguinHarness 环境变量
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `TENCENTDB_MEMORY_ENABLED` | 总开关 | `0` |
+| `TENCENTDB_MEMORY_CORE_URL` | TDAI Gateway 地址 | — |
+| `TENCENTDB_MEMORY_PROXY_URL` | MemoryProxy 地址 | — |
+| `TENCENTDB_MEMORY_TEAM_ID` | 团队 ID | — |
+| `TENCENTDB_MEMORY_AGENT_ID` | Agent ID | — |
+| `TENCENTDB_MEMORY_TASK_ID` | Task ID | — |
+| `TENCENTDB_MEMORY_USER_ID` | 用户 ID | — |
+| `TENCENTDB_MEMORY_USER_KEY` | 用户密钥 | — |
+| `TENCENTDB_MEMORY_AUTO_PULL` | 自动拉取镜像 (1=开启) | `1` |
+| `TENCENTDB_MEMORY_PUSH_NATIVE` | 推送原生记忆 (1=开启) | `1` |
+| `TENCENTDB_MEMORY_DELETE_REMOTE` | 删除同步远端 (1=开启) | `1` |
+
+各项也可在 `.project_config.toml` 的 `[tencentdb_memory]` 段中按项目配置，优先级高于环境变量。
+
+### 已知限制
+
+- **事项 6**：Knowledge 完整链路需要 Panel 侧创建知识资源（Wiki/CodeGraph）并完成 LLM 抽取，当前 gateway 返回 0 items，注入器优雅降级为不注入。
+- **事项 8**：TDAI 网关 `/v3/internal/meta/` 仅提供 `user/init-admin` 和 `user/list-by-instance`，不支持通用用户 CRUD，penguin 用户管理暂无法同步到 TDAI ACL。需在网关侧扩展接口或 penguin 侧维护独立映射表。
+
 ## Security & release notes
 
 - When listening on a non-loopback address or deploying multi-node, enable `auth.enabled=true` and inject `TDAI_PROXY_ADMIN_API_KEY` via env to protect ops endpoints.

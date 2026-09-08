@@ -14,7 +14,7 @@
 [![Hermes](https://img.shields.io/badge/Hermes-Gateway-7B61FF)](https://hermes-agent.nousresearch.com/docs/)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/dJQM6mKMF)
 
-[Installation](#installation) · [Supported Agents](#all-agents-share-the-same-memory-server) · [What is it?](#what-is-tencentdb-agent-memory) · [Team Play](#one-play-style-build-a-growing-agent-team-for-a-one-person-company) · [Technical Implementation](#technical-implementation) · [Benchmark](#benchmark) · [Roadmap](#roadmap)
+[Installation](#installation) · [Supported Agents](#all-agents-share-the-same-memory-server) · [What is it?](#what-is-tencentdb-agent-memory) · [Team Play](#one-play-style-build-a-growing-agent-team-for-a-one-person-company) · [Technical Implementation](#technical-implementation) · [Architecture](#architecture) · [Benchmark](#benchmark) · [Roadmap](#roadmap)
 
 [**English**](./README.md) · [简体中文](./README_CN.md)
 
@@ -41,6 +41,16 @@ $EDITOR .env       # Fill in two sets of LLM parameters (memory group + proxy gr
 ```
 
 Open the panel: [http://localhost:8125](http://localhost:8125).
+
+### Local Recovery Launcher
+
+This checkout also includes a local wrapper:
+
+```bash
+./scripts/start-local.sh
+```
+
+The wrapper uses `deploy/global-images/start-all.sh`. If `deploy/global-images/.env` is missing, it creates it from `.env.example` and stops so you can fill the LLM settings first. It does not run package installs. Docker may still pull images when the official launcher starts containers on a machine without those images.
 
 Complete installation documentation (standalone Memory Hub deployment, Proxy + Claude Code / CodeBuddy usage, stop and cleanup, port reference, etc.) is available in [**INSTALL.md**](./INSTALL.md) (中文: [INSTALL_CN.md](./INSTALL_CN.md)).
 
@@ -265,6 +275,98 @@ This lets teams share experience without exposing all their private information;
 Documents are organized into searchable Wiki pages that support link-graph drill-down; codebases are indexed into CodeGraph assets containing files, symbols, and call relationships. Agents first discover capabilities via `/v3/tools/list`, then use `/v3/tools/call` to read relevant pages, source code, or impact paths.
 
 This makes documents and code part of memory as well — but they remain available tools that only enter context when truly needed.
+
+## Architecture
+
+Three services, one memory server. Agents point their base URL at the Proxy and get memory for free; the Hub is the human-facing control panel; the Core is the single source of truth for metadata and memory.
+
+```mermaid
+flowchart TB
+    subgraph AGENTS["Agent Clients — zero-code, base URL → Proxy"]
+        direction LR
+        A1["Claude Code"]
+        A2["DeepSeek Harness"]
+        A3["Codex"]
+        A4["CodeBuddy / Hermes / ..."]
+    end
+
+    subgraph PROXY["Memory Proxy (:8096) — protocol adapter"]
+        direction TB
+        P1["Auth · user_key identity"]
+        P2["sessionInit · memory injection"]
+        P3["tdai injection + upstream forward"]
+        P4["capture · conversation report-back"]
+    end
+
+    subgraph CORE["Memory Core (:8420) — gateway + memory pipeline"]
+        direction TB
+        M1["Metadata: user / team / agent / asset / ACL"]
+        M2["Memory pipeline L0 → L3"]
+        M3["Recall: BM25 + vector + RRF"]
+        M4["Skill module"]
+    end
+
+    subgraph HUB["Memory Hub (:8125 panel + :8424 knowledge)"]
+        direction TB
+        H1["Panel UI — team / asset / binding"]
+        H2["Knowledge — Wiki build + CodeGraph index"]
+    end
+
+    UPLLM["Upstream LLM<br/>(Anthropic / DeepSeek / ...)"]
+    MEMLLM["Memory LLM<br/>(extract / summarize / persona)"]
+    STORE[("Local storage<br/>sqlite + vector")]
+
+    AGENTS --> PROXY
+    PROXY -->|forward request| UPLLM
+    PROXY -->|inject / report| CORE
+    HUB -->|metadata + asset CRUD| CORE
+    HUB -->|embed / RAG| CORE
+    CORE --> MEMLLM
+    CORE --> STORE
+```
+
+### Memory lifecycle (flow)
+
+Conversations are captured as L0, then an async pipeline refines them upward; recall walks back down, bootstrap first, precise lookup second.
+
+```mermaid
+flowchart LR
+    CONV["Conversation / event"] --> CAP["capture report"]
+    CAP --> L0["L0 raw conversation<br/>(full context)"]
+    L0 -->|async extraction| L1["L1 atoms<br/>(facts · preferences · constraints)"]
+    L1 -->|aggregation| L2["L2 scenario blocks<br/>(per project / scenario)"]
+    L2 -->|long-term consolidation| L3["L3 core / persona"]
+
+    L2 --> RECALL["Recall"]
+    L3 --> RECALL
+    RECALL -->|bootstrap first| INIT["sessionInit injection"]
+    L1 -->|precise lookup| RECALL
+    L0 -->|traceability| RECALL
+    INIT --> CTX["Agent context"]
+```
+
+### One Agent turn (sequence)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as Agent client
+    participant Proxy as Memory Proxy
+    participant LLM as Upstream LLM
+    participant Core as Memory Core
+
+    Agent->>Proxy: LLM request (base URL → Proxy)
+    Proxy->>Core: auth/verify (user_key)
+    Core-->>Proxy: identity + team/agent membership
+    Proxy->>Core: sessionInit (recall)
+    Core-->>Proxy: L2/L3 bootstrap + L1/L0 retrieval
+    Proxy->>LLM: request with injected memory
+    LLM-->>Proxy: model reply
+    Proxy-->>Agent: reply (unchanged)
+    Proxy->>Core: capture (this turn)
+    Core->>Core: async pipeline L0 → L1 → L2 → L3
+    Note over Core,Agent: next turn's sessionInit inherits this turn's experience
+```
 
 ## Benchmark
 

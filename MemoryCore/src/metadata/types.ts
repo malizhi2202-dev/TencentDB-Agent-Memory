@@ -8,6 +8,8 @@
  * （含 user_key / password / visibility / acl 等）。
  */
 
+import type { GlobalPermission } from "./global-permissions.js";
+
 // ============================
 // 枚举与字面量类型
 // ============================
@@ -96,10 +98,61 @@ export interface TeamMemberView extends TeamMemberEntity {
   username: string;
 }
 
+// ============================
+// Project（协作轴，跨 team）
+// ============================
+
+/** 项目可见性：复用 AssetVisibility 前 3 档（private/team/restricted）。 */
+export type ProjectVisibility = "private" | "team" | "restricted";
+
+/** 项目成员角色。 */
+export type ProjectMemberRole = "member" | "manager";
+
+export interface ProjectEntity {
+  project_id: string;
+  /** 主归属 team（组织用）；project.members 可跨 team。 */
+  team_id: string;
+  name: string;
+  description?: string | null;
+  /** 创建者（默认 manager）。 */
+  owner_user_id: string;
+  /** 项目管理者；null = 仅 owner。 */
+  manager_user_id?: string | null;
+  visibility: ProjectVisibility;
+  default_agent_id?: string | null;
+  /** 主 git remote（锚定键）。 */
+  repo_url?: string | null;
+  /** JSON 数组：多 repo（跨 repo 项目）。 */
+  git_repo_urls: string;
+  /** JSON 数组：workspace 路径 glob（无 git 资料型项目）。 */
+  path_globs: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMemberEntity {
+  project_id: string;
+  user_id: string;
+  role: ProjectMemberRole;
+  granted_by?: string | null;
+  created_at: string;
+}
+
+/** project-member/list · get 响应：成员关系 + 读时 JOIN 的 username（不落库）。 */
+export interface ProjectMemberView extends ProjectMemberEntity {
+  username: string;
+}
+
+// ============================
+// Project（协作轴，跨 team）
+// ============================
+
 export interface AgentEntity {
   agent_id: string;
   team_id: string;
   owner_user_id: string;
+  /** 可空：挂到某 project（协作轴）；null = 团队/个人级 agent。 */
+  project_id?: string | null;
   name: string;
   description?: string | null;
   prompt?: string | null;
@@ -108,6 +161,323 @@ export interface AgentEntity {
   created_at: string;
   updated_at: string;
   metadata_json: string;
+}
+
+/**
+ * Agent 挂载的记忆空间（持久化记录，agent ↔ space 多对多）。
+ *
+ * 对应对比差距 §2「Agent 创建时挂载记忆空间（而非事后绑）」：agent 创建时按
+ * `mountSpacesForAgent` 默认策略落库，`space_id` 是确定性 id（sp_<sha1 前 12>）。
+ * `source` 区分「默认挂载」与「显式挂载/卸载后保留」。
+ */
+export interface AgentSpaceEntity {
+  id: string;
+  agent_id: string;
+  /** 确定性空间 id：`spaceIdFor(ownerType, ownerId, domain)`。 */
+  space_id: string;
+  owner_type: string;
+  owner_id: string;
+  domain: string;
+  write_policy: string;
+  source: "default_mount" | "explicit";
+  created_at: string;
+}
+
+/**
+ * 记忆空间列表组合筛选（需求 4：团队 × 项目 × Agent × 用户 AND）。
+ * 语义：空间跟随其挂载的 agent —— team/project/user 都取 agent 的字段，
+ * agent 取 space.agent_id。四者可同时生效。
+ */
+export interface AgentSpaceFilter {
+  /** 挂载目标 agent（space.agent_id）。 */
+  agent_id?: string;
+  /** agent 所属团队（meta_agents.team_id）。 */
+  team_id?: string;
+  /** agent 的 project_id（meta_agents.project_id）。 */
+  project_id?: string | null;
+  /** agent 的 owner（meta_agents.owner_user_id）。 */
+  owner_user_id?: string;
+}
+
+/** 知识条目作用域：team=团队级（工作模式/组织知识）；project=项目级协作知识。 */
+export type KnowledgeScope = "team" | "project";
+
+/** 来源标注（对应 🧠 记忆总结 / 🌐 外部传入 / 🧬 融合）。 */
+export type KnowledgeSource = "memory" | "external" | "hybrid";
+
+/** 知识条目类型。convention 在 team 作用域表示组织规范、在 project 作用域表示项目约定。 */
+export type KnowledgeKind =
+  | "objective"    // 项目级：目标
+  | "decision"     // 项目级：决策
+  | "deliverable"  // 项目级：交付物
+  | "discussion"   // 项目级：讨论
+  | "convention"   // 项目级规范 / 团队级工作模式规范
+  | "methodology"  // 团队级工作模式：方法论
+  | "mindset";     // 团队级工作模式：心智
+
+export interface KnowledgeEntryEntity {
+  entry_id: string;
+  scope: KnowledgeScope;
+  /** team_id 或 project_id。 */
+  scope_id: string;
+  kind: KnowledgeKind;
+  title: string;
+  content: string | null;
+  status: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateKnowledgeEntryInput {
+  entry_id?: string;
+  scope: KnowledgeScope;
+  scope_id: string;
+  kind: KnowledgeKind;
+  title: string;
+  content?: string | null;
+  status?: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json?: string;
+}
+
+export interface KnowledgeEntryFilter {
+  scope?: KnowledgeScope;
+  scope_id?: string;
+  kind?: KnowledgeKind;
+  source?: KnowledgeSource;
+  status?: string;
+}
+
+/** 能力资产类工具：MCP Server / REST API。 */
+export type ToolSourceKind = "mcp" | "rest";
+
+export interface ToolSourceEntity {
+  tool_id: string;
+  kind: ToolSourceKind;
+  team_id: string;
+  name: string;
+  description: string | null;
+  endpoint_url: string | null;
+  transport: string | null;
+  auth_config_json: string;
+  status: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateToolSourceInput {
+  tool_id?: string;
+  kind: ToolSourceKind;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  endpoint_url?: string | null;
+  transport?: string | null;
+  auth_config_json?: string;
+  status?: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json?: string;
+}
+
+export interface ToolSourceFilter {
+  team_id?: string;
+  kind?: ToolSourceKind;
+  source?: KnowledgeSource;
+  status?: string;
+}
+
+/** 运行载体类：Agent Team（多 Agent 编排）。 */
+export interface AgentTeamEntity {
+  agent_team_id: string;
+  team_id: string;
+  name: string;
+  description: string | null;
+  owner_user_id: string;
+  status: string | null;
+  source: KnowledgeSource;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentTeamMemberEntity {
+  id: string;
+  agent_team_id: string;
+  agent_id: string;
+  role: string | null;
+  created_at: string;
+}
+
+export interface CreateAgentTeamInput {
+  agent_team_id?: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  owner_user_id: string;
+  status?: string | null;
+  source: KnowledgeSource;
+  meta_json?: string;
+  linked_agents?: { agent_id: string; role?: string | null }[];
+}
+
+export interface AgentTeamFilter {
+  team_id?: string;
+  source?: KnowledgeSource;
+  status?: string;
+}
+
+export interface AgentTeamMemberInput {
+  agent_team_id: string;
+  agent_id: string;
+  role?: string | null;
+}
+
+/** 运行载体类：Automation 自动化（定时/触发编排）。 */
+export type AutomationTriggerType = "cron" | "webhook" | "manual" | "event";
+export type AutomationActionType = "run_agent" | "run_task" | "notify";
+
+export interface AutomationEntity {
+  automation_id: string;
+  team_id: string;
+  name: string;
+  description: string | null;
+  trigger_type: AutomationTriggerType;
+  trigger_config_json: string;
+  action_type: AutomationActionType;
+  action_config_json: string;
+  target_id: string | null;
+  status: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAutomationInput {
+  automation_id?: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  trigger_type: AutomationTriggerType;
+  trigger_config_json?: string;
+  action_type: AutomationActionType;
+  action_config_json?: string;
+  target_id?: string | null;
+  status?: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json?: string;
+}
+
+export interface AutomationFilter {
+  team_id?: string;
+  trigger_type?: AutomationTriggerType;
+  action_type?: AutomationActionType;
+  status?: string;
+}
+
+/** 可回看运行类：Run / Trace 会话回放。 */
+export type RunTraceKind = "run" | "trace";
+
+export interface RunTraceEntity {
+  run_id: string;
+  team_id: string;
+  agent_id: string | null;
+  task_id: string | null;
+  kind: RunTraceKind;
+  title: string;
+  status: string | null;
+  input_summary: string | null;
+  output_summary: string | null;
+  trace_json: string;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateRunTraceInput {
+  run_id?: string;
+  team_id: string;
+  agent_id?: string | null;
+  task_id?: string | null;
+  kind: RunTraceKind;
+  title: string;
+  status?: string | null;
+  input_summary?: string | null;
+  output_summary?: string | null;
+  trace_json?: string;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json?: string;
+}
+
+export interface RunTraceFilter {
+  team_id?: string;
+  agent_id?: string;
+  kind?: RunTraceKind;
+  status?: string;
+}
+
+/** 记忆写入审批（治理人机闭环）：pending → approved/rejected。 */
+export type WriteApprovalStatus = "pending" | "approved" | "rejected";
+
+export interface WriteApprovalEntity {
+  approval_id: string;
+  team_id: string;
+  agent_id: string | null;
+  task_id: string | null;
+  session_id: string | null;
+  write_policy: string;
+  risk: string | null;
+  /** 待执行的 consolidation plans（JSON 字符串）。 */
+  plans_json: string;
+  status: WriteApprovalStatus;
+  decided_by_user_id: string | null;
+  decision_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateWriteApprovalInput {
+  approval_id?: string;
+  team_id: string;
+  agent_id?: string | null;
+  task_id?: string | null;
+  session_id?: string | null;
+  write_policy: string;
+  risk?: string | null;
+  plans_json: string;
+  status?: WriteApprovalStatus;
+}
+
+export interface WriteApprovalFilter {
+  team_id?: string;
+  agent_id?: string;
+  status?: WriteApprovalStatus;
+}
+  scope: KnowledgeScope;
+  /** team_id 或 project_id。 */
+  scope_id: string;
+  kind: KnowledgeKind;
+  title: string;
+  content: string | null;
+  status: string | null;
+  source: KnowledgeSource;
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TaskEntity {
@@ -121,6 +491,7 @@ export interface TaskEntity {
   status: TaskStatus;
   auto_assign_floating_assets: boolean;
   risk_level?: string | null;
+  project_id?: string | null;
   created_at: string;
   updated_at: string;
   metadata_json: string;
@@ -176,6 +547,8 @@ export interface AssetEntity {
   name: string;
   description?: string | null;
   owner_user_id: string;
+  /** 可空：挂到某 project（协作轴）；null = 团队/个人级资产。 */
+  project_id?: string | null;
   source_type: string;
   source_ref?: string | null;
   version: number;
@@ -284,6 +657,46 @@ export interface AclEntity {
   updated_at: string;
 }
 
+/** 审计日志条目（治理收尾：所有写操作留痕）。 */
+export interface AuditLogEntity {
+  id: string;
+  actor_user_id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  detail: string;
+  created_at: string;
+}
+
+/** 审计日志列表过滤。 */
+export interface AuditLogFilter {
+  actor_user_id?: string;
+  action?: string;
+  entity_type?: string;
+  entity_id?: string;
+}
+
+/** 用户显式授予的全局能力权限项（方案B RBAC）。 */
+export interface UserPermissionEntity {
+  id: string;
+  user_id: string;
+  permission: GlobalPermission;
+  granted_by: string;
+  created_at: string;
+}
+
+/** 授予/撤销全局权限项的输入。 */
+export interface GrantPermissionInput {
+  user_id: string;
+  permission: GlobalPermission;
+  granted_by?: string;
+}
+
+/** 权限项列表过滤。 */
+export interface PermissionFilter {
+  user_id?: string;
+}
+
 // ============================
 // 输入类型（创建/更新）
 // ============================
@@ -364,18 +777,62 @@ export interface AddTeamMemberInput {
   user_id: string;
   role?: TeamRole;
   status?: MemberStatus;
+  /** 是否自动创建个人 Agent（agent_id = user_id）；默认 true（创建），显式传 false 才跳过 */
+  create_default_agent?: boolean;
+}
+
+export interface CreateProjectInput {
+  project_id?: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  owner_user_id: string;
+  visibility?: ProjectVisibility;
+  default_agent_id?: string | null;
+  repo_url?: string | null;
+  git_repo_urls?: string[];
+  path_globs?: string[];
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string | null;
+  manager_user_id?: string | null;
+  visibility?: ProjectVisibility;
+  default_agent_id?: string | null;
+  repo_url?: string | null;
+  git_repo_urls?: string[];
+  path_globs?: string[];
+}
+
+export interface AddProjectMemberInput {
+  project_id: string;
+  user_id: string;
+  role?: ProjectMemberRole;
+  granted_by?: string;
 }
 
 export interface CreateAgentInput {
   agent_id?: string;
   team_id: string;
   owner_user_id: string;
+  project_id?: string | null;
   name: string;
   description?: string | null;
   prompt?: string | null;
   visibility?: AssetVisibility;
   status?: AgentStatus;
   metadata_json?: string;
+}
+
+export interface CreateAgentSpaceInput {
+  agent_id: string;
+  space_id: string;
+  owner_type: string;
+  owner_id: string;
+  domain: string;
+  write_policy: string;
+  source?: "default_mount" | "explicit";
 }
 
 export interface CreateTaskInput {
@@ -389,6 +846,7 @@ export interface CreateTaskInput {
   status?: TaskStatus;
   auto_assign_floating_assets?: boolean;
   risk_level?: string | null;
+  project_id?: string | null;
   metadata_json?: string;
   /** 创建 task 时可同时关联的 agent。 */
   linked_agents?: Array<{ agent_id: string; role_in_task?: string }>;
@@ -402,6 +860,7 @@ export interface CreateAssetInput {
   name: string;
   description?: string | null;
   owner_user_id: string;
+  project_id?: string | null;
   source_type: string;
   source_ref?: string | null;
   visibility?: AssetVisibility;
@@ -443,6 +902,10 @@ export interface AgentFilter {
   owner_user_id?: string;
   /** 精确匹配 agent 名称（用于查重等场景）。 */
   name?: string;
+  /**
+   * 协作轴过滤：精确匹配 project_id；`null` 表示只取未挂 project 的（团队/个人级 agent）。
+   */
+  project_id?: string | null;
 }
 
 export interface TaskFilter {
@@ -450,6 +913,10 @@ export interface TaskFilter {
   creator_user_id?: string;
   /** 精确匹配 task 标题（用于查重等场景）。 */
   title?: string;
+  /** 关联 agent 过滤：只取绑定了该 agent 的 task（JOIN meta_task_agents）。 */
+  agent_id?: string;
+  /** 协作轴过滤：精确匹配 project_id；`null` 表示只取未挂 project 的 task。 */
+  project_id?: string | null;
 }
 
 /** team/list 可选过滤（用于查重等场景）。 */
@@ -458,11 +925,24 @@ export interface TeamFilter {
   name?: string;
 }
 
+/** project/list 可选过滤。 */
+export interface ProjectFilter {
+  team_id?: string;
+  owner_user_id?: string;
+  /** 收窄到「该 user 是 member 的 project」。 */
+  member_user_id?: string;
+  visibility?: ProjectVisibility;
+  /** 精确匹配 project 名称。 */
+  name?: string;
+}
+
 export interface AssetFilter {
   asset_type?: AssetType;
   status?: AssetStatus;
   owner_user_id?: string;
   visibility?: AssetVisibility;
+  /** 精确匹配 project_id；`null` 表示只取未挂 project 的（团队级）资产。 */
+  project_id?: string | null;
 }
 
 // ============================

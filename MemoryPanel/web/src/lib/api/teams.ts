@@ -54,8 +54,8 @@ export const membersApi = {
    * 没有"按用户名建户"的等价能力——若要按用户名查找 user_id，可用 `usersApi.list`
    * 传入 `{ username }` 做精确匹配。
    */
-  add: (teamId: string, data: { user_id: string; role: 'admin' | 'member' | 'reviewer' }) =>
-    metaPost<TeamMember>('team-member/add', { team_id: teamId, user_id: data.user_id, role: data.role }),
+  add: (teamId: string, data: { user_id: string; role: 'admin' | 'member' | 'reviewer'; create_default_agent?: boolean }) =>
+    metaPost<TeamMember>('team-member/add', { team_id: teamId, user_id: data.user_id, role: data.role, create_default_agent: data.create_default_agent }),
 
   /** 移除成员 */
   remove: async (teamId: string, userId: string) => {

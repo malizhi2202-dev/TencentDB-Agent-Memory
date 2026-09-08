@@ -66,6 +66,19 @@ export async function resolveCallerUserId(
   return typeof uid === 'string' && uid.length > 0 ? uid : null;
 }
 
+/** 通过 auth/verify 反查 caller 是否为 system_admin。失败返 false。 */
+export async function resolveCallerIsAdmin(
+  deps: PanelDeps,
+  ctx: MetaCallContext,
+): Promise<boolean> {
+  if (!ctx.userKey) return false;
+  const env = await deps.metaKernel.invoke('auth/verify', { user_key: ctx.userKey }, ctx);
+  if (env.code !== 0) return false;
+  const data = env.data as { valid?: boolean; user?: { user_type?: string } } | null;
+  if (!data?.valid) return false;
+  return data.user?.user_type === 'system_admin';
+}
+
 /** 判断当前 caller 是否为 system_admin（auth/verify 返回 user.user_type）。失败保守返 false。 */
 export async function isCallerSystemAdmin(
   deps: PanelDeps,
@@ -182,7 +195,7 @@ export async function ensureKnowledgeAsset(
       name: params.name,
       owner_user_id: params.ownerUserId,
       source_type: 'manual',
-      visibility: 'team',
+      visibility: 'private',
       content_ref: params.serviceUrl ?? undefined,
     },
     ctx,
@@ -193,7 +206,7 @@ export async function ensureKnowledgeAsset(
     });
     return { ok: false, env: createEnv };
   }
-  log.info('[ensure-knowledge-asset] created', { asset_id: params.assetId, visibility: 'team' });
+  log.info('[ensure-knowledge-asset] created', { asset_id: params.assetId, visibility: 'private' });
   return { ok: true };
 }
 

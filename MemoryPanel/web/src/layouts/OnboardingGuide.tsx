@@ -31,12 +31,20 @@ function onboardedKey(userId?: string): string {
 
 /** 是否应当自动弹出引导（未标记过 = 首次） */
 export function shouldShowOnboarding(userId?: string): boolean {
-  try {
-    return window.localStorage.getItem(onboardedKey(userId)) !== '1';
-  } catch {
-    // localStorage 不可用时不打扰用户
-    return false;
-  }
+  // 临时禁用「自动弹出」：引导气泡（tea-guide，fixed + z-index 10000）定位在
+  // 内容区左上角，会盖住首页顶部新加的「记忆能力」面板，导致用户看不到新功能。
+  // 「我的资料 → 回顾引导」仍可用（handleReplayOnboarding 直接置 visible=true，不走这里）。
+  // 需要恢复首次引导时，把下面这段还原为原实现即可。
+  void userId;
+  return false;
+
+  // 原实现（按「每用户仅首次」判定）：
+  // try {
+  //   return window.localStorage.getItem(onboardedKey(userId)) !== '1';
+  // } catch {
+  //   // localStorage 不可用时不打扰用户
+  //   return false;
+  // }
 }
 
 /**
@@ -135,11 +143,12 @@ function computePlacement(
  *      文案同步提示「先新建一个 Agent 再回来点它」。
  */
 const AGENT_BIND_STEP: OnboardingStep = {
-  path: '/team/agents',
+  path: '/team',
   selector: [
     '[data-guide="agent-card-editable"]',
     '[data-guide="agent-name-editable"]',
     '[data-guide="create-agent"]',
+    '[data-guide="team-card"]',
   ],
   placement: 'bottom-start',
   titleKey: 'onboarding.guide.agentBind.title',
@@ -203,23 +212,24 @@ function buildSteps(role: 'admin' | 'member'): OnboardingStep[] {
     return [
       loginStep,
       {
-        selector: '._memory-team-switcher-trigger',
-        // header 左上角：向左展开避免右移溢出
+        path: '/team',
+        selector: '[data-guide="team-card"]',
+        // 团队列表卡片：向左展开避免右移溢出
         placement: 'bottom-start',
         titleKey: 'onboarding.guide.team.title',
         descKey: 'onboarding.guide.team.desc',
       },
       {
-        path: '/team/members',
-        // 优先高亮"添加成员"按钮；无 team 时按钮不存在，回退到成员列表区
-        selector: ['[data-guide="add-member"]', '[data-guide="members-list"]'],
+        path: '/team',
+        // 优先高亮"添加成员"按钮；无 team 时按钮不存在，回退到团队卡片
+        selector: ['[data-guide="add-member"]', '[data-guide="members-list"]', '[data-guide="team-card"]'],
         placement: 'bottom-end',
         titleKey: 'onboarding.guide.memberAdmin.title',
         descKey: 'onboarding.guide.memberAdmin.desc',
       },
       {
-        path: '/team/agents',
-        selector: '[data-guide="create-agent"]',
+        path: '/team',
+        selector: ['[data-guide="create-agent"]', '[data-guide="team-card"]'],
         // ActionPanel 左侧"新建 Agent"按钮：向右展开
         placement: 'bottom-start',
         titleKey: 'onboarding.guide.agent.title',
@@ -233,17 +243,17 @@ function buildSteps(role: 'admin' | 'member'): OnboardingStep[] {
   return [
     loginStep,
     {
-      path: '/team/members',
+      path: '/team',
       // 普通 member 没有"添加成员"按钮（仅 admin/teamAdmin 可见），
-      // 所以高亮始终存在的成员列表区，避免 fallback 到 header 导致"没跳转/定位错"
-      selector: '[data-guide="members-list"]',
+      // 所以高亮始终存在的成员列表区；未进入团队时回退到团队卡片
+      selector: ['[data-guide="members-list"]', '[data-guide="team-card"]'],
       placement: 'bottom-start',
       titleKey: 'onboarding.guide.member.title',
       descKey: 'onboarding.guide.member.desc',
     },
     {
-      path: '/team/agents',
-      selector: '[data-guide="create-agent"]',
+      path: '/team',
+      selector: ['[data-guide="create-agent"]', '[data-guide="team-card"]'],
       // ActionPanel 左侧"新建 Agent"按钮：向右展开
       placement: 'bottom-start',
       titleKey: 'onboarding.guide.agent.title',

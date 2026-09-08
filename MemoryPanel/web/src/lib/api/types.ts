@@ -64,6 +64,193 @@ export interface TeamMember {
   username?: string;
 }
 
+/** project（协作轴，与 team 正交；members 可跨 team）。 */
+export interface Project {
+  project_id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  owner_user_id: string;
+  manager_user_id?: string | null;
+  visibility: 'private' | 'team' | 'restricted';
+  default_agent_id?: string | null;
+  repo_url?: string | null;
+  git_repo_urls?: string;
+  path_globs?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMember {
+  project_id: string;
+  user_id: string;
+  role: 'member' | 'manager';
+  granted_by?: string | null;
+  created_at: string;
+  username?: string;
+}
+
+/** project（协作轴，与 team 正交；members 可跨 team）。 */
+export interface Project {
+  project_id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  owner_user_id: string;
+  manager_user_id?: string | null;
+  visibility: 'private' | 'team' | 'restricted';
+  default_agent_id?: string | null;
+  repo_url?: string | null;
+  git_repo_urls?: string;
+  path_globs?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMember {
+  project_id: string;
+  user_id: string;
+  role: 'member' | 'manager';
+  granted_by?: string | null;
+  created_at: string;
+  username?: string;
+}
+
+/** 项目级五类 + 团队级工作模式 共用的知识条目。 */
+export type KnowledgeKind =
+  | 'objective' | 'decision' | 'deliverable' | 'discussion'
+  | 'convention' | 'methodology' | 'mindset';
+
+export interface KnowledgeEntry {
+  entry_id: string;
+  scope: 'team' | 'project';
+  scope_id: string;
+  kind: KnowledgeKind;
+  title: string;
+  content?: string | null;
+  status?: string | null;
+  source: 'memory' | 'external' | 'hybrid';
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 能力资产类工具：MCP Server / REST API。 */
+export interface ToolSource {
+  tool_id: string;
+  kind: 'mcp' | 'rest';
+  team_id: string;
+  name: string;
+  description?: string | null;
+  endpoint_url?: string | null;
+  transport?: string | null;
+  auth_config_json: string;
+  status?: string | null;
+  source: 'memory' | 'external' | 'hybrid';
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 能力资产类工具：MCP Server / REST API。 */
+export interface ToolSource {
+  tool_id: string;
+  kind: 'mcp' | 'rest';
+  team_id: string;
+  name: string;
+  description?: string | null;
+  endpoint_url?: string | null;
+  transport?: string | null;
+  auth_config_json: string;
+  status?: string | null;
+  source: 'memory' | 'external' | 'hybrid';
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 运行载体类：Agent Team（多 Agent 编排）。 */
+export interface AgentTeam {
+  agent_team_id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  owner_user_id: string;
+  status?: string | null;
+  source: 'memory' | 'external' | 'hybrid';
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentTeamMember {
+  id: string;
+  agent_team_id: string;
+  agent_id: string;
+  role?: string | null;
+  created_at: string;
+}
+
+/** 运行载体类：Automation 自动化。 */
+export interface Automation {
+  automation_id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  trigger_type: 'cron' | 'webhook' | 'manual' | 'event';
+  trigger_config_json: string;
+  action_type: 'run_agent' | 'run_task' | 'notify';
+  action_config_json: string;
+  target_id?: string | null;
+  status?: string | null;
+  source: 'memory' | 'external' | 'hybrid';
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 运行载体类：Automation 自动化。 */
+export interface Automation {
+  automation_id: string;
+  team_id: string;
+  name: string;
+  description?: string | null;
+  trigger_type: 'cron' | 'webhook' | 'manual' | 'event';
+  trigger_config_json: string;
+  action_type: 'run_agent' | 'run_task' | 'notify';
+  action_config_json: string;
+  target_id?: string | null;
+  status?: string | null;
+  source: 'memory' | 'external' | 'hybrid';
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 可回看运行类：Run / Trace 会话回放。 */
+export interface RunTrace {
+  run_id: string;
+  team_id: string;
+  agent_id?: string | null;
+  task_id?: string | null;
+  kind: 'run' | 'trace';
+  title: string;
+  status?: string | null;
+  input_summary?: string | null;
+  output_summary?: string | null;
+  trace_json: string;
+  source: 'memory' | 'external' | 'hybrid';
+  owner_user_id: string;
+  meta_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Agent {
   agent_id: string;
   team_id: string;
@@ -73,6 +260,7 @@ export interface Agent {
   prompt?: string;
   visibility: 'private' | 'task' | 'agent' | 'team' | 'restricted';
   status: 'active' | 'inactive';
+  project_id?: string | null;
   created_at: string;
   updated_at: string;
   metadata_json: string;
@@ -84,6 +272,7 @@ export type AssetStatus = 'draft' | 'candidate' | 'approved' | 'deprecated' | 'a
 export interface Asset {
   asset_id: string;
   team_id: string;
+  project_id?: string | null;
   asset_type: AssetType;
   name: string;
   description?: string;

@@ -131,11 +131,12 @@ export function registerKnowledgeAllocateRoutes(api: Hono, deps: PanelDeps): voi
 
     const caller = await resolveCallerUserId(deps, ctx);
     if (!caller) return respondControlError(c, 401, 'INVALID_USER_KEY');
+    const isAdmin = await resolveCallerIsAdmin(deps, ctx);
     const agentEnv = await deps.metaKernel.invoke('agent/get', { agent_id: agentId }, ctx);
     if (agentEnv.code !== 0) return respondEnvelope(c, agentEnv);
     const agent = agentEnv.data as AgentRaw | null;
     if (!agent) return respondControlError(c, 404, 'AGENT_NOT_FOUND');
-    if (agent.owner_user_id !== caller) return respondControlError(c, 403, 'NOT_YOUR_AGENT');
+    if (agent.owner_user_id !== caller && !isAdmin) return respondControlError(c, 403, 'NOT_YOUR_AGENT');
 
     // 同 allocate：必须分页拉全量，否则未在第一页的 binding 永远解不干净；
     // list 出错透传，避免被误判为 BINDING_NOT_FOUND。

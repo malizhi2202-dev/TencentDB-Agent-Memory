@@ -24,6 +24,14 @@ export const ID_PREFIX = {
   task: "task",
   asset: "ast",
   userKey: "uky",
+  project: "prj",
+  gitCredential: "gitc",
+  knowledge: "knl",
+  agentTeam: "agtm",
+  automation: "auto",
+  toolSource: "tls",
+  runTrace: "run",
+  writeApproval: "wapr",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIX)[keyof typeof ID_PREFIX];

@@ -1,0 +1,13 @@
+{
+  "name": "dsh-rate-limit-retry",
+  "version": "1.0.0",
+  "description": "DeepSeek Harness plugin: handles rate-limit errors with a longer retry delay",
+  "type": "module",
+  "main": "index.js",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}

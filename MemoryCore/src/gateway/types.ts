@@ -39,6 +39,8 @@ export interface RecallRequest {
   query: string;
   session_key: string;
   user_id?: string;
+  team_id?: string;
+  agent_id?: string;
 }
 
 export interface RecallResponse {

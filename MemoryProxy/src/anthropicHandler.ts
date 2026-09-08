@@ -581,6 +581,7 @@ export async function handleAnthropicMessages(
   // `modelName`, ensuring upstream ids and billing/observability keys align
   // across all traffic.
   const requestedModel = typeof body.model === "string" ? body.model : "unknown";
+  // ...（gate 逻辑省略）...
 
   // ── Early instance config fetch (needed before pricing gate) ──────────
   // Custom upstream (Option 2/3) may use models not in our pricing table,
@@ -620,7 +621,6 @@ export async function handleAnthropicMessages(
   // model name — "LLM-A1" may be a valid model on the user's own service.
   let modelId = _isCustomUpstream ? requestedModel : resolveModelId(config.creditPricing, requestedModel);
   const modelAliasApplied = !_isCustomUpstream && typeof body.model === "string" && modelId !== requestedModel;
-  if (modelAliasApplied) body.model = modelId;
 
   // ── System-user short-circuit ────────────────────────────────────────────
   // Internal service accounts (see `systemUsers` config) bypass the entire
@@ -744,6 +744,8 @@ export async function handleAnthropicMessages(
 
   // ── Session Init (before injection pipeline) ─────────────────────────────
   let sessionInfo: Record<string, unknown> | null | undefined;
+  let agentDetail: import("./session/types.js").AgentDetail | null = null;
+  let metadataClient: import("./meta/client.js").MetadataClient | null = null;
   let assetCapabilities: import("./injection/types.js").AssetCapabilityFlags | undefined;
   let injectedSkipped = !conversationId;
   let sessionJustRegistered = false;
@@ -758,7 +760,7 @@ export async function handleAnthropicMessages(
       const { getSessionStore, handleSessionInit, parsePresetIdentity } = await import("./session/index.js");
       const { getMetadataClient } = await import("./meta/client.js");
       const store = getSessionStore();
-      const metadataClient = getMetadataClient(config.coreSkill, spaceId, apiKey);
+      metadataClient = getMetadataClient(config.coreSkill, spaceId, apiKey);
       const presetIdentity = parsePresetIdentity(config.sessionInit, lcHeaders);
 
       // ── Session Recovery: try L2b binding before falling into session-init form ──
@@ -967,6 +969,7 @@ export async function handleAnthropicMessages(
       }
 
       sessionInfo = initResult.sessionInfo as Record<string, unknown> | null | undefined;
+      agentDetail = initResult.agentDetail ?? null;
       // Legacy sessions persisted before space_id was tracked will hydrate
       // with an empty space_id. Restore it from the URL each request so
       // downstream skill / knowledge / injection paths route to the correct
@@ -1232,6 +1235,31 @@ export async function handleAnthropicMessages(
   }
 
   // ── Cost guard: resolve forward target (opaque — no routing logic here) ──
+  // ── Per-agent LLM model override（与 handler.ts 对称）──────────────────────
+  // 创建 agent 时若显式配置了 llm（存 agent 的 metadata_json.ui.llm），覆盖客户端
+  // 的 `model`；未配置（空）则回退到公共默认（llm_default.model）；公共默认也为空
+  // 则沿用客户端模型 —— 既有链路行为完全不变。
+  let agentLlmModel: string | undefined;
+  try {
+    const metaJson = agentDetail?.metadata_json ? JSON.parse(agentDetail.metadata_json) : null;
+    const llm = (metaJson as Record<string, unknown> | null)?.ui as Record<string, unknown> | undefined;
+    const llmObj = llm?.llm as Record<string, unknown> | undefined;
+    const rawModel = llmObj?.model;
+    agentLlmModel =
+      typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : undefined;
+  } catch {
+    agentLlmModel = undefined;
+  }
+  // 公共默认回退（fail-open，读取失败 = 不覆盖）
+  if (!agentLlmModel && metadataClient) {
+    const { getLlmDefaultModel } = await import("./llm-default.js");
+    agentLlmModel = await getLlmDefaultModel(metadataClient);
+  }
+  if (agentLlmModel) {
+    body.model = agentLlmModel;
+    modelId = agentLlmModel;
+  }
+
   // upstream.agents[agent] is a single map keyed by agent name (URL path
   // prefix); both url and apiKey may be overridden per agent. When there's
   // no entry, we fall through to the Anthropic-specific global (costGuard

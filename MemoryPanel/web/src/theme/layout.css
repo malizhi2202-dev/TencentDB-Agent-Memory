@@ -1,0 +1,144 @@
+/**
+ * layout.css — 三段式 + 双列栅格布局 utility
+ *
+ * change: agent-collab-ui-redesign / T09
+ * 颜色统一别名到 tea `--tea-color-*`（保持现有视觉，不硬编码色值、不引入新 hue）。
+ * 间距用整数 px，遵循「三段式（头部 → TabBar → 内容区）+ 双列栅格（左主区 + 右上下文栏）」。
+ */
+
+/* ===== 双列栅格（工作台 / 详情页：左主区 + 右上下文栏）===== */
+._memory-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+._memory-workbench-main,
+._memory-workbench-context {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ===== 三段式（详情页：头部 → TabBar → 内容区）===== */
+._memory-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+._memory-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+._memory-detail-tabs {
+  border-bottom: 1px solid var(--tea-color-border-primary-default);
+}
+
+._memory-detail-body {
+  min-width: 0;
+}
+
+/* ===== 上下文栏卡片：hairline 边框替代重阴影 ===== */
+._memory-context-card {
+  border: 1px solid var(--tea-color-border-primary-default);
+  border-radius: 6px;
+  background: var(--tea-color-bg-primary-default);
+  padding: 16px;
+}
+
+/* ===== 响应式：窄屏降为单列 ===== */
+@media (max-width: 1100px) {
+  ._memory-workbench-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 减少动效偏好 ===== */
+@media (prefers-reduced-motion: reduce) {
+  ._memory-workbench-grid,
+  ._memory-detail-page {
+    transition: none;
+  }
+}
+
+/* ===== 可读结果渲染（MemoryResultView）===== */
+._rv-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--tea-color-bg-primary-default);
+  border: 1px solid var(--tea-color-border-primary-default);
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+._rv-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+._rv-key {
+  flex: 0 0 auto;
+  min-width: 120px;
+  max-width: 180px;
+  color: var(--tea-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+._rv-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--tea-color-text-primary);
+}
+
+._rv-num {
+  display: inline-block;
+  min-width: 24px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--tea-color-bg-secondary-default);
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+._rv-text {
+  word-break: break-word;
+}
+
+._rv-empty {
+  color: var(--tea-color-text-placeholder);
+}
+
+._rv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+._rv-chip {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--tea-color-bg-secondary-default);
+  border: 1px solid var(--tea-color-border-primary-default);
+  font-size: 12px;
+  line-height: 20px;
+  word-break: break-all;
+}
+
+._rv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

@@ -1,0 +1,252 @@
+/* analysis-shell.css — 代码分析「壳」页面（仓库管理列表 + 上传） */
+
+._analysis-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+._analysis-shell-header {
+  align-items: center;
+}
+
+._analysis-shell-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+._analysis-shell-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--tea-color-text-primary);
+}
+
+._analysis-shell-subtitle {
+  font-size: 12px;
+}
+
+._analysis-shell-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+._analysis-shell-scope {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+
+._analysis-shell-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--tea-color-text-primary);
+}
+
+._analysis-shell-row-name:hover ._analysis-shell-repo-name {
+  color: var(--tea-color-text-brand-default);
+}
+
+._analysis-shell-repo-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+._analysis-shell-repo-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._analysis-shell-repo-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--tea-color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._analysis-shell-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+._analysis-shell-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--tea-color-text-tertiary);
+}
+
+._analysis-shell-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tea-color-text-secondary);
+  flex-wrap: wrap;
+}
+
+._analysis-shell-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+._analysis-shell-delete:not(.is-disabled),
+._analysis-shell-delete:not(.is-disabled):hover {
+  color: var(--tea-color-text-error-default);
+}
+
+._analysis-shell-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 44px 16px;
+  color: var(--tea-color-text-tertiary);
+}
+
+/* —— 上传弹窗「已保存凭据」选择 —— */
+._analysis-auth-saved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+._analysis-auth-saved > :first-child {
+  flex: 1;
+}
+
+/* —— Git 凭据管理弹窗 —— */
+._cred-section {
+  min-height: 40px;
+}
+._cred-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+._cred-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--tea-color-border-default);
+  border-radius: 4px;
+}
+._cred-row-icon {
+  color: var(--tea-color-text-tertiary);
+  flex-shrink: 0;
+}
+._cred-row-main {
+  flex: 1;
+  min-width: 0;
+}
+._cred-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+._cred-row-type {
+  font-weight: normal;
+  margin-left: 4px;
+}
+._cred-row-meta {
+  color: var(--tea-color-text-tertiary);
+  font-size: 12px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+._cred-row-del {
+  color: var(--tea-color-text-error-default);
+  flex-shrink: 0;
+}
+._cred-divider {
+  height: 1px;
+  background: var(--tea-color-border-default);
+  margin: 16px 0;
+}
+
+/* —— 上传弹窗「已保存凭据」选择 —— */
+._analysis-auth-saved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+._analysis-auth-saved > :first-child {
+  flex: 1;
+}
+
+/* —— Git 凭据管理弹窗 —— */
+._cred-section {
+  min-height: 40px;
+}
+._cred-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+._cred-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--tea-color-border-default);
+  border-radius: 4px;
+}
+._cred-row-icon {
+  color: var(--tea-color-text-tertiary);
+  flex-shrink: 0;
+}
+._cred-row-main {
+  flex: 1;
+  min-width: 0;
+}
+._cred-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+._cred-row-type {
+  font-weight: normal;
+  margin-left: 4px;
+}
+._cred-row-meta {
+  color: var(--tea-color-text-tertiary);
+  font-size: 12px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+._cred-row-del {
+  color: var(--tea-color-text-error-default);
+  flex-shrink: 0;
+}
+._cred-divider {
+  height: 1px;
+  background: var(--tea-color-border-default);
+  margin: 16px 0;
+}

@@ -141,6 +141,7 @@ export const DEFAULT_CONFIG: ProxyConfig = {
     enabled: false,
     url: "",
     timeoutMs: 5000,
+    degradeOnUnreachable: false,
   },
   systemUsers: [],
   admin: { apiKey: "" },
@@ -489,6 +490,8 @@ export function buildConfig(overrides: CliOverrides = {}): ProxyConfig {
       enabled: yaml.auth?.enabled ?? DEFAULT_CONFIG.auth.enabled,
       url: yaml.auth?.url ?? DEFAULT_CONFIG.auth.url,
       timeoutMs: yaml.auth?.timeoutMs ?? DEFAULT_CONFIG.auth.timeoutMs,
+      degradeOnUnreachable:
+        yaml.auth?.degradeOnUnreachable ?? DEFAULT_CONFIG.auth.degradeOnUnreachable,
     },
     // Entries without a non-empty userId are silently dropped — matching is
     // by userId now, and an empty userId would otherwise collide with

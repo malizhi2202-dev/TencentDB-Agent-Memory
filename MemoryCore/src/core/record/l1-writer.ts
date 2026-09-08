@@ -17,11 +17,28 @@
  */
 
 import crypto from "node:crypto";
-import { DEFAULT_ISOLATION_ID, type IMemoryStore } from "../store/types.js";
+import { DEFAULT_ISOLATION_ID, type IMemoryStore, type L1RecordRow } from "../store/types.js";
 import type { EmbeddingService } from "../store/embedding.js";
 import type { StorageAdapter } from "../storage/adapter.js";
 import { StoragePaths } from "../storage/types.js";
 import type { Logger } from "../types.js";
+import {
+  canOverwrite,
+  defaultDomainForType,
+  defaultPolicyForDomain,
+  resolveWritePolicy,
+  type MemoryDomain,
+  type WritePolicy,
+} from "./memory-domain.js";
+import {
+  canOverwrite,
+  defaultDomainForType,
+  defaultPolicyForDomain,
+  resolveWritePolicy,
+  type MemoryDomain,
+  type WritePolicy,
+} from "./memory-domain.js";
+import { redactSensitive } from "./redaction.js";
 
 // ============================
 // Types
@@ -95,6 +112,12 @@ export interface MemoryRecord {
   teamId?: string;
   userId?: string;
   agentId?: string;
+  /** Brain 域（P0.1）：由 type 推导或显式指定。见 memory-domain.ts。 */
+  domain?: MemoryDomain;
+  /** 写入策略（P0.1）：automatic / review_required / explicit_only。持久更改 vs 记忆总结分界。 */
+  write_policy?: WritePolicy;
+  /** 记忆空间 ID（P0.1 阶段 C）：服务端裁决的确定性空间归属，调用方不可自选。 */
+  spaceId?: string;
 }
 
 /**
@@ -171,6 +194,12 @@ export async function writeMemory(params: {
   teamId?: string;
   userId?: string;
   agentId?: string;
+  /** Brain 域（P0.1）：缺省时由 type 推导。 */
+  domain?: MemoryDomain;
+  /** 写入策略（P0.1）：缺省时由 domain 推导；只能收紧，不能放宽。 */
+  write_policy?: WritePolicy;
+  /** 记忆空间 ID（P0.1 阶段 C）：服务端裁决，调用方不可自选。 */
+  spaceId?: string;
   logger?: Logger;
   /** Optional vector store for dual-write (JSONL + vector DB) */
   vectorStore?: IMemoryStore;
@@ -179,7 +208,7 @@ export async function writeMemory(params: {
   /** StorageAdapter for file operations (COS/local). Falls back to fs when absent. */
   storage?: StorageAdapter;
 }): Promise<MemoryRecord | null> {
-  const { memory, decision, baseDir, sessionKey, sessionId, taskId, teamId, userId, agentId, logger, vectorStore, embeddingService, storage } = params;
+  const { memory, decision, baseDir, sessionKey, sessionId, taskId, teamId, userId, agentId, domain, write_policy, spaceId, logger, vectorStore, embeddingService, storage } = params;
 
   if (decision.action === "skip") {
     logger?.debug?.(`${TAG} Skipping memory: ${memory.content.slice(0, 50)}...`);
@@ -189,10 +218,11 @@ export async function writeMemory(params: {
   const now = new Date().toISOString();
 
   let nextVersion = 0;
+  let existingRows: L1RecordRow[] = [];
   if ((decision.action === "update" || decision.action === "merge") && decision.target_ids.length > 0 && vectorStore) {
     try {
-      const existing = await vectorStore.queryL1Records({ recordIds: decision.target_ids });
-      const maxVersion = existing.reduce((max, row) => Math.max(max, row.version ?? 0), 0);
+      existingRows = await vectorStore.queryL1Records({ recordIds: decision.target_ids });
+      const maxVersion = existingRows.reduce((max, row) => Math.max(max, row.version ?? 0), 0);
       nextVersion = maxVersion + 1;
     } catch (err) {
       logger?.warn?.(`${TAG} Failed to read existing memory version, defaulting to v0: ${err instanceof Error ? err.message : String(err)}`);
@@ -218,10 +248,45 @@ export async function writeMemory(params: {
     finalTimestamps = [now];
   }
 
+  // P2 治理：写入前脱敏（密码/密钥/PII 不沉淀进记忆，避免泄密 + 注入）。
+  const redaction = redactSensitive(finalContent);
+  if (redaction.changed) {
+    finalContent = redaction.redacted;
+    logger?.debug?.(
+      `${TAG} [redaction] masked ${redaction.count} sensitive tokens (${redaction.findings.map((f) => f.kind).join(",")})`,
+    );
+  }
+
+  // P0.1 阶段 A：推导 Brain 域 + 写入策略（持久更改 vs 记忆总结）。
+  // domain 缺省由 type 推导；write_policy 缺省由 domain 推导，且只能收紧不能放宽。
+  const resolvedDomain = domain ?? defaultDomainForType(finalType);
+  const policyResolved = resolveWritePolicy(defaultPolicyForDomain(resolvedDomain), write_policy);
+  if (!policyResolved.ok) {
+    logger?.warn?.(`${TAG} Write refused: ${policyResolved.reason}`);
+    return null;
+  }
+  const finalPolicy = policyResolved.policy;
+
+  // 覆盖守卫（持久 vs 总结的铁律）：系统总结（automatic）不可覆盖用户显式
+  // 持久更改（explicit_only）。existing 的 write_policy 缺省时从 domain/type 推导。
+  for (const row of existingRows) {
+    const existingDomain = (row.domain || defaultDomainForType(row.type)) as MemoryDomain;
+    const existingPolicy = (row.write_policy || defaultPolicyForDomain(existingDomain)) as WritePolicy;
+    if (!canOverwrite(existingPolicy, finalPolicy)) {
+      logger?.warn?.(
+        `${TAG} Overwrite refused: ${existingPolicy} memory (id=${row.record_id}) cannot be overridden by ${finalPolicy}`,
+      );
+      return null;
+    }
+  }
+
   const record: MemoryRecord = {
     id: decision.record_id || generateMemoryId(),
     content: finalContent,
     type: finalType,
+    domain: resolvedDomain,
+    write_policy: finalPolicy,
+    spaceId,
     priority: finalPriority,
     scene_name: memory.scene_name,
     source_message_ids: memory.source_message_ids,

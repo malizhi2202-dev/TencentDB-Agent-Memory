@@ -57,7 +57,9 @@ export function renderTdaiMemoryToolsBlock(
   proxyBaseUrl: string,
   sessionId?: string,
   spaceId?: string,
+  opts?: { mirrorManaged?: boolean },
 ): string {
+  const mirror = opts?.mirrorManaged === true;
   const base = proxyBaseUrl.replace(/\/$/, "");
   const bridge = `${base}/memory-bridge/v3`;
   // gateway 需要 `x-tdai-service-id: <spaceId>` 才放行；`x-conversation-id`
@@ -69,8 +71,14 @@ export function renderTdaiMemoryToolsBlock(
   const lines: string[] = [
     "<tdai_memory_tools>",
     "**这些是你可以主动调用的记忆能力**（不是文档），通过 Bash + curl 使用。",
-    "这组 TDAI 记忆能力与 Claude Code 原生 Memory/MEMORY.md 具有同等优先级；涉及记忆时不要只查本地 MEMORY.md。",
-    "遇到用户问身份/历史/偏好/过往结论/项目约定时，必须先使用下面的 TDAI 记忆工具查询，再基于查询结果回答。",
+    // mirror 客户端（如 penguin-harness）的 L1 已镜像到本地 MEMORY.md 索引，
+    // 不再强调"不要只查本地 MEMORY.md"——本地索引就是 L1 的正式来源。
+    mirror
+      ? "L1 原子记忆已同步到本地 MEMORY.md 索引（tencentdb-* 主题，正文可按需读文件）；这里的工具用于补充 L0 原始对话检索与 L2 场景正文，避免重复查询同一批 L1。"
+      : "这组 TDAI 记忆能力与 Claude Code 原生 Memory/MEMORY.md 具有同等优先级；涉及记忆时不要只查本地 MEMORY.md。",
+    mirror
+      ? "遇到需要追溯原始对话、引用原文、时间线或读取 L2 场景正文时，用下面的 curl 工具查询。"
+      : "遇到用户问身份/历史/偏好/过往结论/项目约定时，必须先使用下面的 TDAI 记忆工具查询，再基于查询结果回答。",
     "禁止说\"我没有这个工具 / 需要 MCP / 只能查本地记忆\" —— 你有 TDAI 记忆工具，就用下面的 curl 命令。",
     "",
     "调用方式：Bash 里执行 curl 命中 proxy 的 memory-bridge 路径。proxy 会自动注入身份鉴权（team_id/user_id/agent_id），body 只需业务字段。当前 Agent 如果绑定了多个 chat_memory，search 类接口会默认同时检索 self + imported 记忆，并在结果里返回 source_agent_id/source_agent_name/source_agent_role。",
@@ -78,21 +86,32 @@ export function renderTdaiMemoryToolsBlock(
     "覆盖范围：",
     "- L3（persona 长期画像）与 L2 场景索引（`<l2_scene_index>`）已直接注入 system，无需查询；",
     "- L2 正文按需用 tdai_read_scene 读取；",
-    "- L0/L1（原始对话 / 原子记忆）**不再每轮自动召回**（会破坏 KV cache），需要时主动调工具检索。",
+    mirror
+      ? "- L1（原子记忆）已镜像进本地 MEMORY.md 索引，无需再走 TDAI 工具检索；"
+      : "- L0/L1（原始对话 / 原子记忆）**不再每轮自动召回**（会破坏 KV cache），需要时主动调工具检索。",
     "",
-    "  <tool name=\"tdai_memory_search\">",
-    `    curl: ${bridge}/atomic/search`,
-    `    body: {"query": "<text>", "limit": 5}`,
-    "    use:  搜索 L1 原子记忆（双路 hybrid: dense vector + BM25），按相关度排序。默认跨当前 Agent 的 self + imported 记忆检索；返回项里的 source_agent_* 表示来源。适合回忆用户偏好、历史结论、规则等。",
-    "    returns: {code, data: {items: [...], searched_agents: [...]}} — 命中项在 data.items[]。",
-    "  </tool>",
-    "",
-    "  <tool name=\"tdai_atomic_query\">",
-    `    curl: ${bridge}/atomic/query`,
-    `    body: {"type": "?episodic|persona|instruction", "limit": 20, "offset": 0, "time_start": "?ISO", "time_end": "?ISO"}`,
-    "    use:  按 type / 时间窗 / 分页拉取 L1 记忆（不做语义检索）。",
-    "  </tool>",
-    "",
+  ];
+
+  // L1 检索工具仅对没有本地镜像的客户端注入（mirror 客户端 L1 来自本地 MEMORY.md）。
+  if (!mirror) {
+    lines.push(
+      "  <tool name=\"tdai_memory_search\">",
+      `    curl: ${bridge}/atomic/search`,
+      `    body: {"query": "<text>", "limit": 5}`,
+      "    use:  搜索 L1 原子记忆（双路 hybrid: dense vector + BM25），按相关度排序。默认跨当前 Agent 的 self + imported 记忆检索；返回项里的 source_agent_* 表示来源。适合回忆用户偏好、历史结论、规则等。",
+      "    returns: {code, data: {items: [...], searched_agents: [...]}} — 命中项在 data.items[]。",
+      "  </tool>",
+      "",
+      "  <tool name=\"tdai_atomic_query\">",
+      `    curl: ${bridge}/atomic/query`,
+      `    body: {"type": "?episodic|persona|instruction", "limit": 20, "offset": 0, "time_start": "?ISO", "time_end": "?ISO"}`,
+      "    use:  按 type / 时间窗 / 分页拉取 L1 记忆（不做语义检索）。",
+      "  </tool>",
+      "",
+    );
+  }
+
+  lines.push(
     "  <tool name=\"tdai_conversation_search\">",
     `    curl: ${bridge}/conversation/search`,
     `    body: {"query": "<text>", "limit": 5, "session_id": "?<sid>"}`,
@@ -120,7 +139,9 @@ export function renderTdaiMemoryToolsBlock(
     "",
     "## 调用约束",
     "- 这些是只读工具；要修改 L1/L2/L3 必须用主链路（agent_id 自动归属）。",
-    "- 每轮对话中，atomic_search + conversation_search **合计 ≤ 3 次**；",
+    mirror
+      ? "- 每轮对话中，conversation_search **合计 ≤ 3 次**；"
+      : "- 每轮对话中，atomic_search + conversation_search **合计 ≤ 3 次**；",
     "  query / ls / read_scene 不计入上限，但同一 path 不要重复读。",
     "- 失败重试：HTTP 5xx 可一次性 retry；HTTP 4xx 不要重试。",
     "- 所有 curl 必须带：" +
@@ -135,7 +156,7 @@ export function renderTdaiMemoryToolsBlock(
     `  -d '{"query": "用户偏好的编程语言", "limit": 5}'`,
     "```",
     "</tdai_memory_tools>",
-  ];
+  );
 
   return lines.join("\n");
 }
@@ -157,22 +178,28 @@ export class TdaiMemoryToolsInjector implements InjectionHook {
     // 没识别身份 → 不注入（即便 LLM 调 curl，bridge 也会 401）
     const identity = getTdaiIdentity(ctx.metadata.custom);
     if (!identity) return [];
-    const session = (ctx.metadata.custom as Record<string, unknown> | undefined)?.session as
-      | Record<string, unknown>
+    const custom = ctx.metadata.custom as
+      | { session?: Record<string, unknown>; mirrorManaged?: boolean }
       | undefined;
+    const session = custom?.session;
     const spaceId = typeof session?.space_id === "string" ? session.space_id : undefined;
-    return this.renderBlocks(identity.sessionId, spaceId);
+    const mirrorManaged = custom?.mirrorManaged === true;
+    return this.renderBlocks(identity.sessionId, spaceId, mirrorManaged);
   }
 
   prewarm(input: PrewarmInput): ContextBlock[] {
     if (input.assetCapabilities?.chat_memory === false) return [];
-    return this.renderBlocks(input.sessionInfo.session_id, input.sessionInfo.space_id);
+    return this.renderBlocks(
+      input.sessionInfo.session_id,
+      input.sessionInfo.space_id,
+      input.mirrorManaged === true,
+    );
   }
 
-  private renderBlocks(sessionId: string, spaceId?: string): ContextBlock[] {
+  private renderBlocks(sessionId: string, spaceId?: string, mirrorManaged?: boolean): ContextBlock[] {
     return [{
       type: "text",
-      content: renderTdaiMemoryToolsBlock(this.cfg.proxyBaseUrl, sessionId, spaceId),
+      content: renderTdaiMemoryToolsBlock(this.cfg.proxyBaseUrl, sessionId, spaceId, { mirrorManaged }),
       metadata: {
         source: this.id,
         sessionId,

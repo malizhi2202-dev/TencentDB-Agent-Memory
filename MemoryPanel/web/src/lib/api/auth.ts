@@ -21,6 +21,50 @@ export const authVerifyApi = {
     ),
 };
 
+export const authLoginApi = {
+  /** 用户名+密码登录：Header 仅带实例 ID，body 带 username + password。
+   *  返回 user_key（该用户 default key），前端用它继续 Header 双凭证鉴权。 */
+  login: (instanceId: string, username: string, password: string) =>
+    metaCall<{ valid: boolean; user_key?: string; user?: PublicUser }>(
+      'auth/login',
+      { username, password },
+      { 'X-Tdai-Service-Id': instanceId },
+    ),
+};
+
+export const authLoginApi = {
+  /** 用户名+密码登录：Header 仅带实例 ID，body 带 username + password。
+   *  返回 user_key（该用户 default key），前端用它继续 Header 双凭证鉴权。 */
+  login: (instanceId: string, username: string, password: string) =>
+    metaCall<{ valid: boolean; user_key?: string; user?: PublicUser }>(
+      'auth/login',
+      { username, password },
+      { 'X-Tdai-Service-Id': instanceId },
+    ),
+};
+
+export const authLoginApi = {
+  /** 用户名+密码登录：Header 仅带实例 ID，body 带 username + password。
+   *  返回 user_key（该用户 default key），前端用它继续 Header 双凭证鉴权。 */
+  login: (instanceId: string, username: string, password: string) =>
+    metaCall<{ valid: boolean; user_key?: string; user?: PublicUser }>(
+      'auth/login',
+      { username, password },
+      { 'X-Tdai-Service-Id': instanceId },
+    ),
+};
+
+export const authLoginApi = {
+  /** 用户名+密码登录：Header 仅带实例 ID，body 带 username + password。
+   *  返回 user_key（该用户 default key），前端用它继续 Header 双凭证鉴权。 */
+  login: (instanceId: string, username: string, password: string) =>
+    metaCall<{ valid: boolean; user_key?: string; user?: PublicUser }>(
+      'auth/login',
+      { username, password },
+      { 'X-Tdai-Service-Id': instanceId },
+    ),
+};
+
 export interface AuthMethod {
   id: string;
   type: 'user_key' | 'woa';

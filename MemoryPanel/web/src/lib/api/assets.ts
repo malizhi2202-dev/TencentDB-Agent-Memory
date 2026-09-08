@@ -50,7 +50,7 @@ export const assetsApi = {
       owner_user_id: me.user_id,
       source_type: data.source_type ?? 'uploaded',
       content_ref: data.content_ref,
-      visibility: data.visibility ?? 'team',
+      visibility: data.visibility ?? 'private',
       metadata_json: data.metadata_json,
       detail: data.detail,
     });
@@ -87,6 +87,12 @@ export const assetsApi = {
       asset_type?: AssetType;
       action?: 'read' | 'write' | 'use';
       visibility?: Asset['visibility'] | Asset['visibility'][];
+      /** 协作轴：额外并入这些 project 里「我是 member」的资产。 */
+      project_ids?: string[];
+      /** 用户维度：只返回该 owner 的资产。 */
+      owner_user_id?: string;
+      /** Agent 维度：只返回绑定到该 agent 的资产（meta_agent_fixed_assets）。 */
+      agent_id?: string;
     }
   ): Promise<Asset[]> => {
     const me = await getCurrentUser();
@@ -96,6 +102,21 @@ export const assetsApi = {
       asset_type: params?.asset_type,
       action: params?.action ?? 'read',
       visibility: params?.visibility,
+      project_ids: params?.project_ids,
+      owner_user_id: params?.owner_user_id,
+      agent_id: params?.agent_id,
     });
   },
+  /** 列出某 project 下的资产（协作轴聚合视图，caller 须 project 可见）。 */
+  listByProject: (projectId: string, params?: { asset_type?: AssetType }) =>
+    metaListAll<Asset>('asset/list-by-project', {
+      project_id: projectId,
+      asset_type: params?.asset_type,
+    }),
+  /** 列出某 project 下的资产（协作轴聚合视图，caller 须 project 可见）。 */
+  listByProject: (projectId: string, params?: { asset_type?: AssetType }) =>
+    metaListAll<Asset>('asset/list-by-project', {
+      project_id: projectId,
+      asset_type: params?.asset_type,
+    }),
 };

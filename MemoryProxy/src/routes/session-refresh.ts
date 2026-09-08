@@ -201,6 +201,10 @@ export async function refreshSessionCache(input: RefreshInput): Promise<RefreshR
         agentDetail,
         taskDetail,
         callerUserKey,
+        // 镜像客户端（方案 B 可信身份头）的会话在 init 时已持久化标记，
+        // 刷新缓存时据此渲染精简版工具指南（L1 走本地镜像）。
+        mirrorManaged: (store.get(compositeKey) as { mirrorManaged?: boolean } | undefined)
+          ?.mirrorManaged === true,
       },
       // 刷新场景必须 clearBefore=true —— 首次 session_init 复用同一入口时不带
       // 这个选项,保留 "cache miss 由 pipeline 走 execute() self-heal" 的语义;

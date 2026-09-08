@@ -99,9 +99,11 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
             userId: input.user_id ?? null,
             agentId: input.agent_id ?? null,
             taskId: input.task_id ?? null,
+            projectId: input.project_id ?? null,
             visibility: input.visibility ?? "team",
             status: "pending",
             serviceUrl: input.service_url ?? null,
+            gitAuth: input.git_auth ?? null,
             version: CODE_DATA_VERSION,
             createdAt: ts,
             updatedAt: ts,
@@ -174,6 +176,9 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
     if (opts?.syncStatus) {
       conditions.push(eq(knowledgeCodeGraph.status, opts.syncStatus));
     }
+    if (opts?.projectId) {
+      conditions.push(eq(knowledgeCodeGraph.projectId, opts.projectId));
+    }
     const rows = this.db
       .select()
       .from(knowledgeCodeGraph)
@@ -192,6 +197,9 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
     ];
     if (opts?.syncStatus) {
       conditions.push(eq(knowledgeCodeGraph.status, opts.syncStatus));
+    }
+    if (opts?.projectId) {
+      conditions.push(eq(knowledgeCodeGraph.projectId, opts.projectId));
     }
     const result = this.db
       .select({ total: sql<number>`count(*)` })
@@ -293,6 +301,7 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
             userId: input.user_id ?? null,
             agentId: input.agent_id ?? null,
             taskId: input.task_id ?? null,
+            projectId: input.project_id ?? null,
             visibility: input.visibility ?? "team",
             status: "draft",
             serviceUrl: input.service_url ?? null,
@@ -366,6 +375,9 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
     if (opts?.syncStatus) {
       conditions.push(eq(knowledgeWiki.status, opts.syncStatus));
     }
+    if (opts?.projectId) {
+      conditions.push(eq(knowledgeWiki.projectId, opts.projectId));
+    }
     const rows = this.db
       .select()
       .from(knowledgeWiki)
@@ -384,6 +396,9 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
     ];
     if (opts?.syncStatus) {
       conditions.push(eq(knowledgeWiki.status, opts.syncStatus));
+    }
+    if (opts?.projectId) {
+      conditions.push(eq(knowledgeWiki.projectId, opts.projectId));
     }
     const result = this.db
       .select({ total: sql<number>`count(*)` })
@@ -606,6 +621,7 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
       user_id: r.userId,
       agent_id: r.agentId,
       task_id: r.taskId,
+      project_id: r.projectId ?? null,
       visibility: r.visibility,
       status: r.status as SyncStatus,
       internal_status: r.internalStatus,
@@ -613,6 +629,7 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
       stats_json: r.statsJson,
       service_url: r.serviceUrl ?? null,
       summary: r.summary ?? null,
+      git_auth: r.gitAuth ?? null,
       version: r.version,
       last_sync_at: r.lastSyncAt,
       created_at: r.createdAt,
@@ -633,6 +650,7 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
       user_id: r.userId,
       agent_id: r.agentId,
       task_id: r.taskId,
+      project_id: r.projectId ?? null,
       visibility: r.visibility,
       status: r.status as SyncStatus,
       internal_status: r.internalStatus,
@@ -640,6 +658,7 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
       page_count: r.pageCount,
       service_url: r.serviceUrl ?? null,
       summary: r.summary ?? null,
+      git_auth: r.gitAuth ?? null,
       version: r.version,
       last_sync_at: r.lastSyncAt,
       created_at: r.createdAt,

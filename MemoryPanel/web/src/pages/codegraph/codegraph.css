@@ -1,0 +1,176 @@
+/* 代码图谱 — 铺满内容区
+ * 全局壳：GlobalHeader 48px + TabBar 36px + Content.Body padding 16px
+ * 用 :has() 移除父级 padding，并用 calc 精确铺满剩余视口，状态栏可见 */
+._memory-content-body:has(._cg-page) {
+  padding: 0 !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+._memory-page-frame:has(._cg-page) {
+  height: 100% !important;
+  min-height: 100% !important;
+}
+._cg-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 84px);
+  background: var(--tea-color-bg-page, #f5f5f5);
+  overflow: hidden;
+}
+
+/* 嵌入式（仓库详情页 tab 内）：上方多面包屑(≈28px) + tab(≈44px) + 间距，
+   整体额外扣 ~96px，宁可略短也不让底部状态栏被裁切 */
+._cg-page--embedded {
+  height: calc(100vh - 180px);
+}
+
+._cg-topbar {
+  padding: 10px 20px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+._cg-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+._cg-center {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  background: #f8f9fa;
+  overflow: hidden;
+}
+
+/* Floating code panel — bottom-right of graph */
+._cg-code-float {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 480px;
+  max-width: 50vw;
+  max-height: 45vh;
+  background: #fff;
+  border: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  z-index: 30;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 30;
+  animation: _cg-slide-up 0.2s ease-out;
+}
+
+@keyframes _cg-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+._cg-code-float-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+._cg-code-float-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+._cg-code-float-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tea-color-text-primary, #333);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._cg-code-float-close {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--tea-color-text-placeholder, #bbb);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+._cg-code-float-close:hover {
+  background: var(--tea-color-bg-hover, #f0f0f0);
+  color: var(--tea-color-text-primary, #333);
+}
+
+._cg-code-float-body {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tea-color-text-primary, #333);
+  background: #fff;
+  counter-reset: line;
+}
+
+._cg-code-line {
+  display: flex;
+  min-height: 1.6em;
+  padding: 0;
+}
+
+._cg-code-line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 40px;
+  min-width: 40px;
+  text-align: right;
+  padding-right: 12px;
+  color: #999;
+  font-size: 11px;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+
+._cg-code-line-content {
+  flex: 1;
+  padding-right: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  ._cg-body {
+    flex-direction: column;
+  }
+  ._cg-code-float {
+    width: calc(100vw - 32px);
+    max-width: none;
+    left: 16px;
+    right: 16px;
+  }
+}

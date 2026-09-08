@@ -1,10 +1,12 @@
 /**
- * Code-Graph Routes — 13 endpoints (Hono rewrite).
+ * Code-Graph Routes — 14 endpoints (Hono rewrite).
  *
  * Management (5): create / list / get / sync / delete
  * Query (8): search / explore / callers / callees / impact / node / status / files
+ * Derived (1): graph
  *
  * Query endpoints delegate to engines/code executeTool, return {text, isError}.
+ * Graph endpoint uses exportGraph for structured visualization data.
  * Routes are defined WITHOUT /v2 prefix — prefix applied at server.ts mount level.
  *
  * 多租户（001）：`service_id` 每个端点必传于 `x-tdai-service-id` 请求头（与内核路由键统一）。
@@ -16,7 +18,7 @@ import { Hono } from "hono";
 
 import type { CodeGraphService } from "../store/index.js";
 import type { SyncStatus } from "../store/index.js";
-import { executeTool as executeCodeTool } from "../engines/code/index.js";
+import { executeTool as executeCodeTool, exportGraph, analyzeProject } from "../engines/code/index.js";
 import { toCodeGraphToolName, CODEGRAPH_QUERY_TOOL_NAMES } from "./tools.js";
 import {
   extractIdFields,
@@ -189,6 +191,14 @@ export function createCodeGraphRoutes(deps: CodeGraphRouteDeps): Hono {
 
     const branch = typeof body.branch === "string" && body.branch ? body.branch : "main";
     const repoName = typeof body.repo_name === "string" ? body.repo_name : undefined;
+    const projectId = typeof body.project_id === "string" ? body.project_id : undefined;
+    // 私有仓库认证：优先内联 auth 对象（JSON 序列化），否则透传已序列化的 git_auth。
+    const gitAuth =
+      body.auth !== undefined && body.auth !== null && typeof body.auth === "object"
+        ? JSON.stringify(body.auth)
+        : typeof body.git_auth === "string" && body.git_auth
+          ? body.git_auth
+          : null;
 
     const { row, existed } = cgService.create({
       service_id: idFields.service_id,
@@ -200,6 +210,8 @@ export function createCodeGraphRoutes(deps: CodeGraphRouteDeps): Hono {
       user_id: idFields.user_id,
       agent_id: idFields.agent_id,
       task_id: idFields.task_id,
+      project_id: projectId ?? null,
+      git_auth: gitAuth,
     });
 
     // Persist service_url (tools self-discovery base; resource selected via
@@ -223,9 +235,10 @@ export function createCodeGraphRoutes(deps: CodeGraphRouteDeps): Hono {
     const status = typeof body.status === "string" ? (body.status as SyncStatus) : undefined;
     const limit = typeof body.limit === "number" ? body.limit : 20;
     const offset = typeof body.offset === "number" ? body.offset : 0;
+    const projectId = typeof body.project_id === "string" ? body.project_id : undefined;
 
-    const items = cgService.list(idFields.service_id, idFields.team_id, { syncStatus: status, limit, offset });
-    const total = cgService.count(idFields.service_id, idFields.team_id, status ? { syncStatus: status } : undefined);
+    const items = cgService.list(idFields.service_id, idFields.team_id, { syncStatus: status, projectId, limit, offset });
+    const total = cgService.count(idFields.service_id, idFields.team_id, status ? { syncStatus: status, projectId } : { projectId });
     return c.json(wrapOk({ items: items.map(toCodeGraphDetail), total }));
   });
 
@@ -357,6 +370,126 @@ export function createCodeGraphRoutes(deps: CodeGraphRouteDeps): Hono {
       return c.json(wrapOk(result), result.isError ? 500 : 200);
     });
   }
+
+  // ═══════════════════ Graph (visualization export) ═══════════════════
+
+  app.post("/graph", async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const serviceId = c.req.header("x-tdai-service-id");
+    if (!isValidIdSegment(serviceId)) return c.json(wrapError(400, "x-tdai-service-id header is required"), 400);
+    const cgId = body.code_graph_id;
+    if (!isValidIdSegment(cgId)) return c.json(wrapError(400, "code_graph_id is required"), 400);
+
+    const row = cgService.getById(serviceId, cgId);
+    if (!row) return c.json(wrapError(404, "code graph not found"), 404);
+
+    if (row.status !== "ready") {
+      return c.json(wrapOk({ nodes: [], edges: [] }));
+    }
+
+    let instance = instancePool.get(cgId);
+    if (!instance && instancePool.loadIfMissing) {
+      const dir = cgService.dirFor(serviceId, row.team_id, cgId);
+      instance = await instancePool.loadIfMissing(cgId, dir);
+    }
+    if (!instance) {
+      return c.json(wrapError(503, "code graph instance not loaded"), 503);
+    }
+
+    const graphData = exportGraph(instance);
+    return c.json(wrapOk(graphData));
+  });
+
+  // ═══════════════════ Analyze (architecture analysis) ═══════════════════
+
+  app.post("/analyze", async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const serviceId = c.req.header("x-tdai-service-id");
+    if (!isValidIdSegment(serviceId)) return c.json(wrapError(400, "x-tdai-service-id header is required"), 400);
+    const cgId = body.code_graph_id;
+    if (!isValidIdSegment(cgId)) return c.json(wrapError(400, "code_graph_id is required"), 400);
+
+    const row = cgService.getById(serviceId, cgId);
+    if (!row) return c.json(wrapError(404, "code graph not found"), 404);
+
+    if (row.status !== "ready") {
+      return c.json(wrapError(400, "index not ready"), 400);
+    }
+
+    let instance = instancePool.get(cgId);
+    if (!instance && instancePool.loadIfMissing) {
+      const dir = cgService.dirFor(serviceId, row.team_id, cgId);
+      instance = await instancePool.loadIfMissing(cgId, dir);
+    }
+    if (!instance) {
+      return c.json(wrapError(503, "code graph instance not loaded"), 503);
+    }
+
+    const analysis = await analyzeProject(instance);
+    return c.json(wrapOk(analysis));
+  });
+
+  // ═══════════════════ Graph (visualization export) ═══════════════════
+
+  app.post("/graph", async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const serviceId = c.req.header("x-tdai-service-id");
+    if (!isValidIdSegment(serviceId)) return c.json(wrapError(400, "x-tdai-service-id header is required"), 400);
+    const cgId = body.code_graph_id;
+    if (!isValidIdSegment(cgId)) return c.json(wrapError(400, "code_graph_id is required"), 400);
+
+    const row = cgService.getById(serviceId, cgId);
+    if (!row) return c.json(wrapError(404, "code graph not found"), 404);
+
+    if (row.status !== "ready") {
+      return c.json(wrapOk({ nodes: [], edges: [] }));
+    }
+
+    let instance = instancePool.get(cgId);
+    if (!instance && instancePool.loadIfMissing) {
+      const dir = cgService.dirFor(serviceId, row.team_id, cgId);
+      instance = await instancePool.loadIfMissing(cgId, dir);
+    }
+    if (!instance) {
+      return c.json(wrapError(503, "code graph instance not loaded"), 503);
+    }
+
+    const graphData = exportGraph(instance);
+    return c.json(wrapOk(graphData));
+  });
+
+  // ═══════════════════ Analyze (architecture analysis) ═══════════════════
+
+  app.post("/analyze", async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const serviceId = c.req.header("x-tdai-service-id");
+    if (!isValidIdSegment(serviceId)) return c.json(wrapError(400, "x-tdai-service-id header is required"), 400);
+    const cgId = body.code_graph_id;
+    if (!isValidIdSegment(cgId)) return c.json(wrapError(400, "code_graph_id is required"), 400);
+
+    const row = cgService.getById(serviceId, cgId);
+    if (!row) return c.json(wrapError(404, "code graph not found"), 404);
+
+    if (row.status !== "ready") {
+      return c.json(wrapError(400, "index not ready"), 400);
+    }
+
+    let instance = instancePool.get(cgId);
+    if (!instance && instancePool.loadIfMissing) {
+      const dir = cgService.dirFor(serviceId, row.team_id, cgId);
+      instance = await instancePool.loadIfMissing(cgId, dir);
+    }
+    if (!instance) {
+      return c.json(wrapError(503, "code graph instance not loaded"), 503);
+    }
+
+    const analysis = await analyzeProject(instance);
+    return c.json(wrapOk(analysis));
+  });
 
   return app;
 }

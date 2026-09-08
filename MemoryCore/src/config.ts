@@ -97,6 +97,12 @@ export interface RecallConfig {
   strategy: "embedding" | "keyword" | "hybrid";
   /** Overall recall timeout in milliseconds (default: 5000). When exceeded, recall is skipped with a warning. */
   timeoutMs: number;
+  /** Token budget for the retention layer (mixed-score + MMR). 0 disables retention (legacy behavior). */
+  tokenBudget: number;
+  /** Retention MMR weight λ (default 0.70). Only used when tokenBudget > 0. */
+  retentionLambda: number;
+  /** Retention top-m guarantee (default 5). Only used when tokenBudget > 0. */
+  retentionTopM: number;
 }
 
 /** Embedding service configuration for vector search. */
@@ -599,6 +605,9 @@ export function parseConfig(raw: Record<string, unknown> | undefined): MemoryTda
       scoreThreshold: num(recallGroup, "scoreThreshold") ?? 0.3,
       strategy: validateStrategy(str(recallGroup, "strategy")) ?? "hybrid",
       timeoutMs: num(recallGroup, "timeoutMs") ?? 5000,
+      tokenBudget: num(recallGroup, "tokenBudget") ?? 0,
+      retentionLambda: num(recallGroup, "retentionLambda") ?? 0.7,
+      retentionTopM: num(recallGroup, "retentionTopM") ?? 5,
     },
     embedding: {
       enabled: embeddingEnabled,

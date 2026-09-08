@@ -73,6 +73,39 @@ export const chatMemoryApi = {
       agent_id: agentId,
     }),
 
+  /** 维度查询：project 维度（该项目下的 chat_memory，跨 team） */
+  listByProject: (projectId: string) =>
+    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-scope', {
+      project_id: projectId,
+    }),
+
+  /** 维度查询：user 维度（该 owner 的 chat_memory，system_admin 可看任意 owner） */
+  listByOwner: (ownerUserId: string) =>
+    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-scope', {
+      owner_user_id: ownerUserId,
+    }),
+
+  /** 维度查询：project 维度（该项目下的 chat_memory，跨 team） */
+  listByProject: (projectId: string) =>
+    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-scope', {
+      project_id: projectId,
+    }),
+
+  /** 维度查询：user 维度（该 owner 的 chat_memory，system_admin 可看任意 owner） */
+  listByOwner: (ownerUserId: string) =>
+    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-scope', {
+      owner_user_id: ownerUserId,
+    }),
+
+  /** 组合维度（团队 × 项目 × Agent × 用户 AND）查询。 */
+  listCombined: (opts: {
+    team_id?: string;
+    project_ids?: string[];
+    agent_id?: string;
+    owner_user_id?: string;
+  }) =>
+    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-combined', opts),
+
   /** 我的资产分配（owner=me 的 agent 列表） */
   myAgents: (teamId: string) =>
     chatMemoryCall<{ items: ChatMemoryBlock[] }>('my-agents', { team_id: teamId }),

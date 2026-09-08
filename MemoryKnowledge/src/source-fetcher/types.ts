@@ -8,6 +8,16 @@
 
 export type SourceType = "git" | "local" | "ftp";
 
+/** 私有 git 仓库认证对象（password / token / ssh）。 */
+export interface GitAuth {
+  kind: "password" | "token" | "ssh";
+  username?: string | null;
+  /** password 值 / token 值 / SSH 私钥内容。 */
+  secret: string;
+  /** SSH 私钥口令（可选）。 */
+  passphrase?: string | null;
+}
+
 export interface FetchResult {
   /** 源码落盘的本地目录（绝对路径）。 */
   localPath: string;
@@ -24,15 +34,15 @@ export interface FetchResult {
  *   3. 返回版本标识
  *
  * 实现：
- *   - GitSourceFetcher：simple-git，第一版仅 public HTTPS（SSH/私有仓库鉴权见文档 005）
+ *   - GitSourceFetcher：simple-git，支持 https（公开 + password/token 私有）+ ssh
  *   - LocalSourceFetcher / FtpSourceFetcher：未来扩展
  */
 export interface ISourceFetcher {
   /** 首次拉取：把源码下载到 localPath。 */
-  fetch(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult>;
+  fetch(sourceUrl: string, branch: string, localPath: string, auth?: GitAuth): Promise<FetchResult>;
 
   /** 增量同步：更新已存在的 localPath 到最新版本。 */
-  sync(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult>;
+  sync(sourceUrl: string, branch: string, localPath: string, auth?: GitAuth): Promise<FetchResult>;
 
   /** 校验 sourceUrl 是否合法（协议白名单 + SSRF 防护）。非法则 throw。 */
   validate(sourceUrl: string): void;

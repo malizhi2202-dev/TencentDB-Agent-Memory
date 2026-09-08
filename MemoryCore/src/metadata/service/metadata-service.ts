@@ -17,6 +17,9 @@ import {
   checkPermission,
   canBindAsset,
   roleDefaultCovers,
+  OWNER_ACTIONS,
+  ADMIN_ACTIONS,
+  MEMBER_ACTIONS,
   type PermCheckResult,
   type PermCheckLogger,
 } from "./permission-checker.js";
@@ -33,7 +36,6 @@ import { resolveUserId } from "./resolve-user-id.js";
 import type { V3AuthContext } from "../router/auth.js";
 import { DEFAULT_INSTANCE_ID, DEFAULT_AUTH_PROVIDER } from "../constants.js";
 import {
-  canManageUsers,
   canViewUser,
   filterVisibleUsers,
   isSystemAdminUser,
@@ -48,7 +50,32 @@ import type {
   TeamEntity,
   TeamMemberEntity,
   TeamMemberView,
+  ProjectEntity,
+  ProjectMemberEntity,
+  ProjectMemberView,
   AgentEntity,
+  AgentSpaceEntity,
+  AgentSpaceFilter,
+  KnowledgeEntryEntity,
+  KnowledgeEntryFilter,
+  CreateKnowledgeEntryInput,
+  ToolSourceEntity,
+  ToolSourceFilter,
+  CreateToolSourceInput,
+  AgentTeamEntity,
+  AgentTeamMemberEntity,
+  AgentTeamFilter,
+  CreateAgentTeamInput,
+  AgentTeamMemberInput,
+  AutomationEntity,
+  AutomationFilter,
+  CreateAutomationInput,
+  RunTraceEntity,
+  RunTraceFilter,
+  CreateRunTraceInput,
+  WriteApprovalEntity,
+  WriteApprovalFilter,
+  CreateWriteApprovalInput,
   TaskEntity,
   TaskAgentEntity,
   ParticipationLogEntity,
@@ -67,7 +94,10 @@ import type {
   CreateUserApiResult,
   CreateTeamInput,
   AddTeamMemberInput,
+  CreateProjectInput,
+  AddProjectMemberInput,
   CreateAgentInput,
+  CreateAgentSpaceInput,
   CreateTaskInput,
   CreateAssetInput,
   FixedAssetBindingInput,
@@ -75,12 +105,16 @@ import type {
   AgentFilter,
   TaskFilter,
   AssetFilter,
+  ProjectFilter,
+  ProjectFilter,
+  ProjectVisibility,
   BatchDeleteResult,
   AssetType,
   AssetVisibility,
   AssetStatus,
   InjectionMode,
   Permission,
+  AclSubjectType,
   UserType,
   PaginatedResult,
   PaginationParams,
@@ -94,6 +128,10 @@ import type {
 import { formatListResult, paginateArray, resolvePagination, wrapPaginated, DEFAULT_PAGINATION } from "../pagination.js";
 import { generateId, ID_PREFIX } from "../utils/id-generator.js";
 import { buildChatMemoryAssetId, resolveChatMemoryAgentId } from "../utils/chat-memory-asset.js";
+import { hashPassword, verifyPasswordHash, type PasswordHashConfig } from "../utils/crypto.js";
+import { mountSpacesForAgent } from "../../core/record/memory-space.js";
+import { hashPassword, verifyPasswordHash, type PasswordHashConfig } from "../utils/crypto.js";
+import { mountSpacesForAgent } from "../../core/record/memory-space.js";
 
 // ── 默认 Agent / Team 常量 ──
 
@@ -219,6 +257,16 @@ export interface ListAccessibleAssetsParams {
    * 目的：让前端从 HTTP 响应上就拿不到不需要的数据（安全 + 减小载荷）。
    */
   visibility?: AssetEntity["visibility"] | AssetEntity["visibility"][];
+  /**
+   * 协作轴：额外并入这些 project 里「U 是 member 的」资产（跨 team）。
+   * 不传 = 只按 team 维度取（公共 ∪ 私有 ∪ ACL），与旧行为一致。
+   */
+  project_ids?: string[];
+  /**
+   * 用户维度：二次过滤，只返回 owner_user_id 等于该值的资产（在「可访问」范围内切片）。
+   * 管控页「我的资产」tab / admin 按用户维度切换用。
+   */
+  owner_user_id?: string;
   limit?: number;
   offset?: number;
 }
@@ -289,6 +337,53 @@ export class MetadataService {
 
   setConfigParamService(svc: import("./config-param-service.js").IConfigParamService): void {
     this._configParams = svc;
+  }
+
+  private _gitCredentials?: import("./git-credential-service.js").GitCredentialService;
+
+  private _passwordHashConfig?: PasswordHashConfig;
+
+  /** 密码哈希配置（懒加载）：pepper 可选，未配置时用空 pepper（scrypt+随机盐仍不可逆）。 */
+  private passwordHashConfig(): PasswordHashConfig {
+    if (!this._passwordHashConfig) {
+      let pepper = Buffer.alloc(0);
+      try {
+        const b64 = process.env.TDAI_PASSWORD_PEPPER?.trim();
+        if (b64) pepper = Buffer.from(b64, "base64");
+      } catch {
+        // 忽略非法 pepper，回退空 pepper
+      }
+      this._passwordHashConfig = { pepper, scryptN: 16384, scryptR: 8, scryptP: 1, keylen: 32 };
+    }
+    return this._passwordHashConfig;
+  }
+
+  private _passwordHashConfig?: PasswordHashConfig;
+
+  /** 密码哈希配置（懒加载）：pepper 可选，未配置时用空 pepper（scrypt+随机盐仍不可逆）。 */
+  private passwordHashConfig(): PasswordHashConfig {
+    if (!this._passwordHashConfig) {
+      let pepper = Buffer.alloc(0);
+      try {
+        const b64 = process.env.TDAI_PASSWORD_PEPPER?.trim();
+        if (b64) pepper = Buffer.from(b64, "base64");
+      } catch {
+        // 忽略非法 pepper，回退空 pepper
+      }
+      this._passwordHashConfig = { pepper, scryptN: 16384, scryptR: 8, scryptP: 1, keylen: 32 };
+    }
+    return this._passwordHashConfig;
+  }
+
+  get gitCredentials(): import("./git-credential-service.js").GitCredentialService {
+    if (!this._gitCredentials) {
+      throw new Error("GitCredentialService not initialized. Call setGitCredentialService() after store.init().");
+    }
+    return this._gitCredentials;
+  }
+
+  setGitCredentialService(svc: import("./git-credential-service.js").GitCredentialService): void {
+    this._gitCredentials = svc;
   }
 
   /**
@@ -402,11 +497,11 @@ export class MetadataService {
       });
 
       try {
-        const agentName = `${DEFAULT_AGENT_NAME}-${input.username}`;
         await this.createAgent({
+          agent_id: created.user_id, // 个人 Agent：agent_id 直接用 user_id
           team_id: team.team_id,
           owner_user_id: created.user_id,
-          name: agentName,
+          name: input.username,
           description: DEFAULT_AGENT_DESCRIPTION,
           prompt: DEFAULT_AGENT_PROMPT,
           metadata_json: DEFAULT_AGENT_METADATA_JSON,
@@ -440,7 +535,7 @@ export class MetadataService {
    *   1. 前置 getUserByKey：正常路径快速失败，不进事务
    *   2. store 层 UNIQUE 约束（DuplicateUserKeyError）：TOCTOU / 并发兜底
    *
-   * router 层需先调 assertCanManageUsers 做鉴权。
+   * router 层需先调 assertPermission(ctx, "user.create") 做鉴权。
    */
   async createNormalUserWithKey(input: {
     username: string;
@@ -497,7 +592,7 @@ export class MetadataService {
     await this.assertUserQuota();
     const user = await this.store.createUser({
       ...resolved,
-      password: null,
+      password: input.password ? hashPassword(input.password, this.passwordHashConfig()) : null,
       user_type: userType,
     });
     const defaultKey = await this.store.getDefaultUserKey(user.user_id);
@@ -596,8 +691,8 @@ export class MetadataService {
   }
 
   async deleteUsersForCaller(userIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
-    if (!canManageUsers(ctx)) {
-      throw new MetadataError("permission_denied", "user management requires system admin");
+    if (!(await this.hasPermission(ctx, "user.delete"))) {
+      throw new MetadataError("permission_denied", "user management requires user.delete");
     }
     let deletingSystemAdmins = 0;
     for (const id of userIds) {
@@ -692,9 +787,10 @@ export class MetadataService {
     return formatListResult(page, pagination);
   }
 
-  assertCanManageUsers(ctx: V3AuthContext): void {
-    if (!canManageUsers(ctx)) {
-      throw new MetadataError("permission_denied", "user management requires system admin");
+  /** 断言调用方拥有某全局能力权限项（方案B RBAC）。 */
+  async assertPermission(ctx: V3AuthContext, perm: GlobalPermission): Promise<void> {
+    if (!(await this.hasPermission(ctx, perm))) {
+      throw new MetadataError("permission_denied", `requires permission ${perm}`);
     }
   }
 
@@ -747,6 +843,74 @@ export class MetadataService {
     const configured = lookupMemorySystemUser(userKey, this.instanceId, this.memorySystemUser);
     if (configured) return configured;
     return this.store.getUserByKey(userKey);
+  }
+
+  /**
+   * 用户名+密码登录。校验 username + password → 返回 user 与其 default user_key。
+   * 前端用返回的 user_key 继续走 Header 双凭证鉴权（与现有 auth/verify 一致）。
+   * 用户名不存在 / 未设密码 / 密码不符均返回 null（对外统一「用户名或密码错误」）。
+   */
+  async loginWithPassword(
+    username: string,
+    password: string,
+  ): Promise<{ user: UserPublic; default_key_value: string } | null> {
+    const user = await this.store.getUserByUsername(DEFAULT_AUTH_PROVIDER, username);
+    if (!user || !user.password) return null;
+    if (!verifyPasswordHash(password, user.password, this.passwordHashConfig())) return null;
+    const defaultKey = await this.store.getDefaultUserKey(user.user_id);
+    if (!defaultKey) return null;
+    const ctx: V3AuthContext = {
+      token: defaultKey.key_value,
+      userId: user.user_id,
+      isAdmin: false,
+      isSystemAdmin: user.user_type === "system_admin",
+    };
+    return { user: toPublicUser(user, ctx), default_key_value: defaultKey.key_value };
+  }
+
+  /** admin 或本人设置/重置密码（scrypt 哈希后落库）。 */
+  async setUserPasswordForCaller(userId: string, password: string, ctx: V3AuthContext): Promise<void> {
+    const self = ctx.userId === userId;
+    if (!self && !(await this.hasPermission(ctx, "user.set_password"))) {
+      throw new MetadataError("permission_denied", "requires user.set_password");
+    }
+    const user = await this.store.getUserById(userId);
+    if (!user) throw new MetadataError("user_not_found", `user not found: ${userId}`);
+    await this.store.updateUser(userId, { password: hashPassword(password, this.passwordHashConfig()) });
+  }
+
+  /**
+   * 用户名+密码登录。校验 username + password → 返回 user 与其 default user_key。
+   * 前端用返回的 user_key 继续走 Header 双凭证鉴权（与现有 auth/verify 一致）。
+   * 用户名不存在 / 未设密码 / 密码不符均返回 null（对外统一「用户名或密码错误」）。
+   */
+  async loginWithPassword(
+    username: string,
+    password: string,
+  ): Promise<{ user: UserPublic; default_key_value: string } | null> {
+    const user = await this.store.getUserByUsername(DEFAULT_AUTH_PROVIDER, username);
+    if (!user || !user.password) return null;
+    if (!verifyPasswordHash(password, user.password, this.passwordHashConfig())) return null;
+    const defaultKey = await this.store.getDefaultUserKey(user.user_id);
+    if (!defaultKey) return null;
+    const ctx: V3AuthContext = {
+      token: defaultKey.key_value,
+      userId: user.user_id,
+      isAdmin: false,
+      isSystemAdmin: user.user_type === "system_admin",
+    };
+    return { user: toPublicUser(user, ctx), default_key_value: defaultKey.key_value };
+  }
+
+  /** admin 或本人设置/重置密码（scrypt 哈希后落库）。 */
+  async setUserPasswordForCaller(userId: string, password: string, ctx: V3AuthContext): Promise<void> {
+    const self = ctx.userId === userId;
+    if (!self && !(await this.hasPermission(ctx, "user.set_password"))) {
+      throw new MetadataError("permission_denied", "requires user.set_password");
+    }
+    const user = await this.store.getUserById(userId);
+    if (!user) throw new MetadataError("user_not_found", `user not found: ${userId}`);
+    await this.store.updateUser(userId, { password: hashPassword(password, this.passwordHashConfig()) });
   }
 
   toPublicUserKey(entity: UserKeyEntity): UserKeyPublic {
@@ -886,6 +1050,18 @@ export class MetadataService {
     return formatListResult({ items, total: page.total }, pagination);
   }
 
+  /** admin 看全部团队（普通用户仍走 listTeamsByUser）。 */
+  async listTeams(filter?: { name?: string }, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<TeamEntity>> {
+    const page = await this.store.listTeams(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  /** admin 看全部团队（普通用户仍走 listTeamsByUser）。 */
+  async listTeams(filter?: { name?: string }, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<TeamEntity>> {
+    const page = await this.store.listTeams(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
   // ============================================================
   // TeamMember
   // ============================================================
@@ -931,6 +1107,16 @@ export class MetadataService {
   async createAgent(input: CreateAgentInput): Promise<AgentEntity> {
     await this.assertTeamExists(input.team_id);
     const agent = await this.store.createAgent(input);
+    // 建 agent 时自动挂载记忆空间（默认策略落库，供召回侧空间隔离使用）。
+    // 幂等 + 失败非致命：同上，空间挂载是"更早准备好"，缺了也不阻塞建 agent。
+    try {
+      await this.mountDefaultSpaces(agent);
+    } catch (err) {
+      console.warn(
+        `[META] createAgent: mountDefaultSpaces failed (agent=${agent.agent_id} team=${agent.team_id}): ` +
+        (err instanceof Error ? err.message : String(err)),
+      );
+    }
     // 建 agent 的同一事务边界外，立即 mint 该 agent 的 chat_memory 资产 +
     // 绑定到 fixed_assets。avoids Bug 2：首次对话触发时 asset 还不存在 →
     // profile-memory-injector 首个 session prewarm 走 fallback 到 tools-only、
@@ -953,6 +1139,93 @@ export class MetadataService {
       );
     }
     return agent;
+  }
+
+  /**
+   * 按 mountSpacesForAgent 默认策略持久化 agent 挂载的记忆空间。
+   * (agent_id, space_id) 幂等 upsert，重复调用无副作用。
+   */
+  async mountDefaultSpaces(agent: AgentEntity): Promise<void> {
+    const spaces = mountSpacesForAgent(agent.agent_id, {
+      teamId: agent.team_id,
+      userId: agent.owner_user_id,
+      projectId: agent.project_id ?? undefined,
+    });
+    const inputs: CreateAgentSpaceInput[] = spaces.map((s) => ({
+      agent_id: agent.agent_id,
+      space_id: s.spaceId,
+      owner_type: s.ownerType,
+      owner_id: s.ownerId,
+      domain: s.domain,
+      write_policy: s.writePolicy,
+      source: "default_mount",
+    }));
+    await this.store.createAgentSpaces(inputs);
+  }
+
+  /** 查询 agent 已持久化挂载的记忆空间。 */
+  async getMountedSpaces(agentId: string): Promise<AgentSpaceEntity[]> {
+    return this.store.getAgentSpaces(agentId);
+  }
+
+  /**
+   * 记忆空间组合筛选（需求 4：团队 × 项目 × Agent × 用户 AND）。
+   * team/project/user 通过 agent 的字段过滤（listAgentsByTeam 的 AgentFilter），
+   * agent 则精确到 space.agent_id。四者可同时生效。
+   */
+  async listAgentSpaces(params: AgentSpaceFilter): Promise<AgentSpaceEntity[]> {
+    const agentFilter: AgentFilter = {};
+    if (params.owner_user_id) agentFilter.owner_user_id = params.owner_user_id;
+    if (params.project_id !== undefined) agentFilter.project_id = params.project_id;
+
+    let agentIds: string[];
+    if (params.team_id) {
+      const { items } = await this.store.listAgentsByTeam(
+        params.team_id,
+        { limit: 1000, offset: 0 },
+        agentFilter,
+      );
+      agentIds = items.map((a) => a.agent_id);
+    } else {
+      // 未指定团队：无法确定可见 agent 集合，返回空（前端始终带 team 维度）。
+      agentIds = [];
+    }
+
+    if (params.agent_id) {
+      if (!agentIds.includes(params.agent_id)) return [];
+      return this.store.getAgentSpaces(params.agent_id);
+    }
+    return this.store.listAgentSpacesByAgentIds(agentIds);
+  }
+
+  /**
+   * 记忆空间组合筛选（需求 4：团队 × 项目 × Agent × 用户 AND）。
+   * team/project/user 通过 agent 的字段过滤（listAgentsByTeam 的 AgentFilter），
+   * agent 则精确到 space.agent_id。四者可同时生效。
+   */
+  async listAgentSpaces(params: AgentSpaceFilter): Promise<AgentSpaceEntity[]> {
+    const agentFilter: AgentFilter = {};
+    if (params.owner_user_id) agentFilter.owner_user_id = params.owner_user_id;
+    if (params.project_id !== undefined) agentFilter.project_id = params.project_id;
+
+    let agentIds: string[];
+    if (params.team_id) {
+      const { items } = await this.store.listAgentsByTeam(
+        params.team_id,
+        { limit: 1000, offset: 0 },
+        agentFilter,
+      );
+      agentIds = items.map((a) => a.agent_id);
+    } else {
+      // 未指定团队：无法确定可见 agent 集合，返回空（前端始终带 team 维度）。
+      agentIds = [];
+    }
+
+    if (params.agent_id) {
+      if (!agentIds.includes(params.agent_id)) return [];
+      return this.store.getAgentSpaces(params.agent_id);
+    }
+    return this.store.listAgentSpacesByAgentIds(agentIds);
   }
 
   async getAgentById(agentId: string): Promise<AgentEntity | null> {
@@ -1151,7 +1424,40 @@ export class MetadataService {
   // ============================================================
   async createAsset(input: CreateAssetInput): Promise<AssetEntity> {
     await this.assertTeamExists(input.team_id);
-    return this.store.createAsset(input);
+    const asset = await this.store.createAsset(input);
+    await this.seedDefaultAssetAcls(asset);
+    return asset;
+  }
+
+  /**
+   * 资产默认 ACL：创建资产时把「owner 全权 + team 角色默认」显式落库（幂等）。
+   * 与 permission-checker 的 owner 短路 / ADMIN_ACTIONS / MEMBER_ACTIONS 保持一致，
+   * 让「资产 ACL」页默认就有可见的授权记录，而不是空 0。
+   * granted_by 固定为 "system"，区别于人工授权（granted_by=调用者 user_id）。
+   */
+  private async seedDefaultAssetAcls(asset: AssetEntity): Promise<void> {
+    const defaults: Array<{ subjectType: AclSubjectType; subjectId: string; permissions: Permission[] }> = [
+      { subjectType: "user", subjectId: asset.owner_user_id, permissions: OWNER_ACTIONS },
+      { subjectType: "team_role", subjectId: "admin", permissions: ADMIN_ACTIONS },
+      { subjectType: "team_role", subjectId: "member", permissions: MEMBER_ACTIONS },
+      { subjectType: "team_role", subjectId: "reviewer", permissions: MEMBER_ACTIONS },
+    ];
+    for (const d of defaults) {
+      for (const permission of d.permissions) {
+        try {
+          await this.store.grantAcl({
+            asset_id: asset.asset_id,
+            subject_type: d.subjectType,
+            subject_id: d.subjectId,
+            permission,
+            effect: "allow",
+            granted_by: "system",
+          });
+        } catch {
+          this.logger.debug(`[META] seed default ACL failed: ${asset.asset_id} ${d.subjectType}:${d.subjectId} ${permission}`);
+        }
+      }
+    }
   }
 
   async getAssetById(assetId: string): Promise<AssetEntity | null> {
@@ -1311,7 +1617,8 @@ export class MetadataService {
     team_id: string;
     agent_id: string;
   }): Promise<AssetEntity> {
-    const assetId = buildChatMemoryAssetId(params.team_id, params.agent_id);
+    const agentId = params.agent_id;
+    const assetId = buildChatMemoryAssetId(params.team_id, agentId);
 
     // 1. 缓存短路：已确认存在直接返回轻量占位（如果调用方需要实体，才回 store）
     //    实践中调用方并不消费返回值（fire-and-forget），命中缓存时不再查 store。
@@ -1325,17 +1632,21 @@ export class MetadataService {
     // 2. 拿 agent，取 owner + team 用于 create + canBindAsset
     //    先拉 agent 是为了在任何路径下都能校验 team_mismatch，同时后续 bind
     //    要用到 owner_user_id 作 created_by。
-    const agent = await this.getAgentById(params.agent_id);
+    const agent = await this.getAgentById(agentId);
     if (!agent) {
       throw new MetadataError(
         "agent_not_found",
-        `cannot ensure chat_memory asset: agent ${params.agent_id} not found`,
+        `cannot ensure chat_memory asset: agent ${agentId} not found`,
       );
     }
-    if (agent.team_id !== params.team_id) {
+    // 个人 agent（agent_id === owner_user_id，即 agent 代表用户本人）允许跨 team
+    // 建 chat_memory 资产 —— 一个人一个全局 agent，记忆按 team 维度区分；
+    // 普通 team 级 agent（随机 agt-xxx）仍强校验 team 归属。
+    const isPersonalAgent = agent.agent_id === agent.owner_user_id;
+    if (!isPersonalAgent && agent.team_id !== params.team_id) {
       throw new MetadataError(
         "team_mismatch",
-        `cannot ensure chat_memory asset: agent ${params.agent_id} belongs to team ` +
+        `cannot ensure chat_memory asset: agent ${agentId} belongs to team ` +
         `${agent.team_id}, not ${params.team_id}`,
       );
     }
@@ -1369,7 +1680,7 @@ export class MetadataService {
     //    上一次可能只完成 create、bind 阶段失败；bind 有 UNIQUE 约束，重复
     //    调用无副作用。这里直接调 store 跳过 addAgentFixedAsset 的重复校验
     //    —— 我们上面已经查过 agent / asset。
-    await this.store.addAgentFixedAsset(params.agent_id, {
+    await this.store.addAgentFixedAsset(agentId, {
       asset_id: assetId,
       asset_type: "chat_memory",
       injection_mode: "summary",
@@ -1626,6 +1937,20 @@ export class MetadataService {
     const action = params.action ?? "read";
     const pagination = this.pag(params);
 
+    // admin 用户维度切换：system_admin + owner_user_id → 直接查该 owner 的全部资产（含 private），
+    // 绕过 team 循环 + checkPermission（admin 看任意用户资产的能力）。
+    if (params.owner_user_id) {
+      const caller = await this.getUserById(userId);
+      if (caller && isSystemAdminUser(caller)) {
+        const page = await this.store.listAssetsByOwner(
+          params.owner_user_id,
+          pagination,
+          { asset_type: params.asset_type },
+        );
+        return formatListResult(page, pagination);
+      }
+    }
+
     // visibility 白名单（服务端过滤，避免前端拿到不该看到的数据）
     const visFilter: Set<AssetEntity["visibility"]> | null = params.visibility
       ? new Set(Array.isArray(params.visibility) ? params.visibility : [params.visibility])
@@ -1665,6 +1990,8 @@ export class MetadataService {
         );
         for (const asset of page.items) {
           if (seen.has(asset.asset_id)) continue;
+          // 团队维度：挂到 project 的资产由下面的 project 循环单独按 project.members 判定，这里跳过
+          if (asset.project_id) continue;
           if (FILTERED_STATUSES.includes(asset.status)) continue;
           // visibility 白名单过滤（在权限判定前先剔除，节省 checkAssetPermission 开销）
           if (visFilter && !visFilter.has(asset.visibility)) continue;
@@ -1684,8 +2011,689 @@ export class MetadataService {
       }
     }
 
-    result.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    return paginateArray(result, pagination);
+    // 协作轴：并入「U 是 member 的 project」资产（跨 team）。
+    if (params.project_ids && params.project_ids.length > 0) {
+      for (const projectId of params.project_ids) {
+        if (!(await this.isProjectMember(projectId, userId))) continue; // 白名单：非 member 跳过
+        let offset = 0;
+        const limit = 100;
+        while (true) {
+          const page = await this.store.listAssetsByProject(
+            projectId,
+            { limit, offset },
+            { asset_type: params.asset_type },
+          );
+          for (const asset of page.items) {
+            if (seen.has(asset.asset_id)) continue;
+            if (FILTERED_STATUSES.includes(asset.status)) continue;
+            if (visFilter && !visFilter.has(asset.visibility)) continue;
+            // project-scoped 读：owner 全可见；private 仅 owner；其余由 project.members 可见
+            if (asset.owner_user_id === userId) {
+              seen.add(asset.asset_id);
+              result.push(asset);
+              continue;
+            }
+            if (asset.visibility === "private") continue;
+            seen.add(asset.asset_id);
+            result.push(asset);
+          }
+          if (offset + page.items.length >= page.total) break;
+          offset += limit;
+        }
+      }
+    }
+
+    // 用户维度二次过滤（在「可访问」结果集内按 owner 切片）。
+    const ownerFilter = params.owner_user_id ?? null;
+    const filtered = ownerFilter ? result.filter((a) => a.owner_user_id === ownerFilter) : result;
+
+    filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return paginateArray(filtered, pagination);
+  }
+
+  /** 判断 user 是否为 project 成员（含 owner / manager / 普通 member）。 */
+  private async isProjectMember(projectId: string, userId: string): Promise<boolean> {
+    const project = await this.store.getProjectById(projectId);
+    if (!project) return false;
+    if (project.owner_user_id === userId) return true;
+    const member = await this.store.getProjectMember(projectId, userId);
+    return !!member;
+  }
+
+  // ============================================================
+  // KnowledgeEntry（项目级五类 + 团队级工作模式）
+  // ============================================================
+  async createKnowledgeEntryForCaller(input: CreateKnowledgeEntryInput, ctx: V3AuthContext): Promise<KnowledgeEntryEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    if (input.scope === "team") {
+      await this.assertTeamExists(input.scope_id);
+      await this.requireActiveTeamMember(ctx, input.scope_id);
+    } else {
+      await this.requireProjectVisible(ctx, input.scope_id);
+    }
+    return this.store.createKnowledgeEntry(input);
+  }
+
+  async getKnowledgeEntryForCaller(entryId: string, ctx: V3AuthContext): Promise<KnowledgeEntryEntity> {
+    const entry = await this.store.getKnowledgeEntry(entryId);
+    if (!entry) throw new MetadataError("knowledge_not_found", `knowledge entry not found: ${entryId}`);
+    await this.requireKnowledgeScopeVisible(entry, ctx);
+    return entry;
+  }
+
+  async updateKnowledgeEntryForCaller(
+    entryId: string,
+    patch: Partial<KnowledgeEntryEntity>,
+    ctx: V3AuthContext,
+  ): Promise<KnowledgeEntryEntity> {
+    const entry = await this.store.getKnowledgeEntry(entryId);
+    if (!entry) throw new MetadataError("knowledge_not_found", `knowledge entry not found: ${entryId}`);
+    this.assertCallerIsResourceOwner(ctx, entry.owner_user_id);
+    const updated = await this.store.updateKnowledgeEntry(entryId, patch);
+    if (!updated) throw new MetadataError("knowledge_not_found", `knowledge entry not found: ${entryId}`);
+    return updated;
+  }
+
+  async deleteKnowledgeEntriesForCaller(entryIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const entryId of entryIds) {
+      const entry = await this.store.getKnowledgeEntry(entryId);
+      if (!entry) continue;
+      this.assertCallerIsResourceOwner(ctx, entry.owner_user_id);
+    }
+    return this.store.deleteKnowledgeEntries(entryIds);
+  }
+
+  async listKnowledgeEntriesForCaller(
+    filter: KnowledgeEntryFilter,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<KnowledgeEntryEntity>> {
+    await this.requireKnowledgeScopeVisible(filter, ctx);
+    const page = await this.store.listKnowledgeEntries(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  private async requireKnowledgeScopeVisible(filter: KnowledgeEntryFilter, ctx: V3AuthContext): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    if (filter.scope === "team" && filter.scope_id) {
+      await this.requireActiveTeamMember(ctx, filter.scope_id);
+      return;
+    }
+    if (filter.scope === "project" && filter.scope_id) {
+      await this.requireProjectVisible(ctx, filter.scope_id);
+      return;
+    }
+    // 无明确作用域过滤时要求登录即可（list 仅返回各作用域内可见数据由 store 过滤，此处兜底）。
+    this.requireCallerId(ctx);
+  }
+
+  // ============================================================
+  // ToolSource（MCP Server / REST API）
+  // ============================================================
+  async createToolSourceForCaller(input: CreateToolSourceInput, ctx: V3AuthContext): Promise<ToolSourceEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    return this.store.createToolSource(input);
+  }
+
+  async getToolSourceForCaller(toolId: string, ctx: V3AuthContext): Promise<ToolSourceEntity> {
+    const tool = await this.store.getToolSource(toolId);
+    if (!tool) throw new MetadataError("tool_not_found", `tool source not found: ${toolId}`);
+    await this.requireActiveTeamMember(ctx, tool.team_id);
+    return tool;
+  }
+
+  async updateToolSourceForCaller(toolId: string, patch: Partial<ToolSourceEntity>, ctx: V3AuthContext): Promise<ToolSourceEntity> {
+    const tool = await this.store.getToolSource(toolId);
+    if (!tool) throw new MetadataError("tool_not_found", `tool source not found: ${toolId}`);
+    this.assertCallerIsResourceOwner(ctx, tool.owner_user_id);
+    const updated = await this.store.updateToolSource(toolId, patch);
+    if (!updated) throw new MetadataError("tool_not_found", `tool source not found: ${toolId}`);
+    return updated;
+  }
+
+  async deleteToolSourcesForCaller(toolIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const toolId of toolIds) {
+      const tool = await this.store.getToolSource(toolId);
+      if (!tool) continue;
+      this.assertCallerIsResourceOwner(ctx, tool.owner_user_id);
+    }
+    return this.store.deleteToolSources(toolIds);
+  }
+
+  async listToolSourcesForCaller(filter: ToolSourceFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<ToolSourceEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listToolSources(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // AgentTeam（多 Agent 编排）
+  // ============================================================
+  async createAgentTeamForCaller(input: CreateAgentTeamInput, ctx: V3AuthContext): Promise<AgentTeamEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    for (const link of input.linked_agents ?? []) {
+      const agent = await this.store.getAgentById(link.agent_id);
+      if (!agent) throw new MetadataError("agent_not_found", `agent not found: ${link.agent_id}`);
+      if (agent.team_id !== input.team_id) {
+        throw new MetadataError("agent_team_mismatch", `agent ${link.agent_id} does not belong to team ${input.team_id}`);
+      }
+    }
+    return this.store.createAgentTeam(input);
+  }
+
+  async getAgentTeamForCaller(agentTeamId: string, ctx: V3AuthContext): Promise<AgentTeamEntity> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    await this.requireActiveTeamMember(ctx, t.team_id);
+    return t;
+  }
+
+  async updateAgentTeamForCaller(agentTeamId: string, patch: Partial<AgentTeamEntity>, ctx: V3AuthContext): Promise<AgentTeamEntity> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    const updated = await this.store.updateAgentTeam(agentTeamId, patch);
+    if (!updated) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    return updated;
+  }
+
+  async deleteAgentTeamsForCaller(agentTeamIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const agentTeamId of agentTeamIds) {
+      const t = await this.store.getAgentTeam(agentTeamId);
+      if (!t) continue;
+      this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    }
+    return this.store.deleteAgentTeams(agentTeamIds);
+  }
+
+  async listAgentTeamsForCaller(filter: AgentTeamFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<AgentTeamEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listAgentTeams(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  async addAgentTeamMemberForCaller(input: AgentTeamMemberInput, ctx: V3AuthContext): Promise<AgentTeamMemberEntity> {
+    const t = await this.store.getAgentTeam(input.agent_team_id);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${input.agent_team_id}`);
+    this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    await this.requireActiveTeamMember(ctx, t.team_id);
+    const agent = await this.store.getAgentById(input.agent_id);
+    if (!agent) throw new MetadataError("agent_not_found", `agent not found: ${input.agent_id}`);
+    if (agent.team_id !== t.team_id) {
+      throw new MetadataError("agent_team_mismatch", `agent ${input.agent_id} does not belong to team ${t.team_id}`);
+    }
+    return this.store.addAgentTeamMember(input);
+  }
+
+  async removeAgentTeamMemberForCaller(agentTeamId: string, agentId: string, ctx: V3AuthContext): Promise<void> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    await this.store.removeAgentTeamMember(agentTeamId, agentId);
+  }
+
+  async listAgentTeamMembersForCaller(agentTeamId: string, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<AgentTeamMemberEntity>> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    await this.requireActiveTeamMember(ctx, t.team_id);
+    const page = await this.store.listAgentTeamMembers(agentTeamId, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // Automation（自动化编排）
+  // ============================================================
+  async createAutomationForCaller(input: CreateAutomationInput, ctx: V3AuthContext): Promise<AutomationEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    return this.store.createAutomation(input);
+  }
+
+  async getAutomationForCaller(automationId: string, ctx: V3AuthContext): Promise<AutomationEntity> {
+    const a = await this.store.getAutomation(automationId);
+    if (!a) throw new MetadataError("automation_not_found", `automation not found: ${automationId}`);
+    await this.requireActiveTeamMember(ctx, a.team_id);
+    return a;
+  }
+
+  async updateAutomationForCaller(automationId: string, patch: Partial<AutomationEntity>, ctx: V3AuthContext): Promise<AutomationEntity> {
+    const a = await this.store.getAutomation(automationId);
+    if (!a) throw new MetadataError("automation_not_found", `automation not found: ${automationId}`);
+    this.assertCallerIsResourceOwner(ctx, a.owner_user_id);
+    const updated = await this.store.updateAutomation(automationId, patch);
+    if (!updated) throw new MetadataError("automation_not_found", `automation not found: ${automationId}`);
+    return updated;
+  }
+
+  async deleteAutomationsForCaller(automationIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const automationId of automationIds) {
+      const a = await this.store.getAutomation(automationId);
+      if (!a) continue;
+      this.assertCallerIsResourceOwner(ctx, a.owner_user_id);
+    }
+    return this.store.deleteAutomations(automationIds);
+  }
+
+  async listAutomationsForCaller(filter: AutomationFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<AutomationEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listAutomations(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // RunTrace（会话回放）
+  // ============================================================
+  async createRunTraceForCaller(input: CreateRunTraceInput, ctx: V3AuthContext): Promise<RunTraceEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    return this.store.createRunTrace(input);
+  }
+
+  async getRunTraceForCaller(runId: string, ctx: V3AuthContext): Promise<RunTraceEntity> {
+    const r = await this.store.getRunTrace(runId);
+    if (!r) throw new MetadataError("run_not_found", `run trace not found: ${runId}`);
+    await this.requireActiveTeamMember(ctx, r.team_id);
+    return r;
+  }
+
+  async updateRunTraceForCaller(runId: string, patch: Partial<RunTraceEntity>, ctx: V3AuthContext): Promise<RunTraceEntity> {
+    const r = await this.store.getRunTrace(runId);
+    if (!r) throw new MetadataError("run_not_found", `run trace not found: ${runId}`);
+    this.assertCallerIsResourceOwner(ctx, r.owner_user_id);
+    const updated = await this.store.updateRunTrace(runId, patch);
+    if (!updated) throw new MetadataError("run_not_found", `run trace not found: ${runId}`);
+    return updated;
+  }
+
+  async deleteRunTracesForCaller(runIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const runId of runIds) {
+      const r = await this.store.getRunTrace(runId);
+      if (!r) continue;
+      this.assertCallerIsResourceOwner(ctx, r.owner_user_id);
+    }
+    return this.store.deleteRunTraces(runIds);
+  }
+
+  async listRunTracesForCaller(filter: RunTraceFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<RunTraceEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listRunTraces(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  /**
+   * recordRunAuto — 内部自动落库（无鉴权）。
+   * 供 pipeline（L1/L2/L3 提取）与内核记忆写入（consolidation）自动记录一次真实运行，
+   * 使「运行回放」反映真实活动而非手动登记。owner_user_id 固定为 system。
+   */
+  async recordRunAuto(input: {
+    team_id: string;
+    agent_id?: string | null;
+    task_id?: string | null;
+    kind?: RunTraceEntity["kind"];
+    title: string;
+    status?: string | null;
+    input_summary?: string | null;
+    output_summary?: string | null;
+    trace_json?: string;
+  }): Promise<RunTraceEntity> {
+    return this.store.createRunTrace({
+      team_id: input.team_id,
+      agent_id: input.agent_id ?? null,
+      task_id: input.task_id ?? null,
+      kind: input.kind ?? "run",
+      title: input.title,
+      status: input.status ?? null,
+      input_summary: input.input_summary ?? null,
+      output_summary: input.output_summary ?? null,
+      trace_json: input.trace_json ?? "[]",
+      source: "memory",
+      owner_user_id: "system",
+      meta_json: "{}",
+    });
+  }
+
+  // ============================================================
+  // WriteApproval（记忆写入审批，内部免鉴权）
+  // ============================================================
+  async createWriteApproval(input: CreateWriteApprovalInput): Promise<WriteApprovalEntity> {
+    return this.store.createWriteApproval(input);
+  }
+
+  async getWriteApproval(approvalId: string): Promise<WriteApprovalEntity | null> {
+    return this.store.getWriteApproval(approvalId);
+  }
+
+  async updateWriteApproval(approvalId: string, patch: Partial<WriteApprovalEntity>): Promise<WriteApprovalEntity | null> {
+    return this.store.updateWriteApproval(approvalId, patch);
+  }
+
+  async listWriteApprovals(filter: WriteApprovalFilter, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<WriteApprovalEntity>> {
+    const page = await this.store.listWriteApprovals(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // WriteApproval（记忆写入审批，内部免鉴权）
+  // ============================================================
+  async createWriteApproval(input: CreateWriteApprovalInput): Promise<WriteApprovalEntity> {
+    return this.store.createWriteApproval(input);
+  }
+
+  async getWriteApproval(approvalId: string): Promise<WriteApprovalEntity | null> {
+    return this.store.getWriteApproval(approvalId);
+  }
+
+  async updateWriteApproval(approvalId: string, patch: Partial<WriteApprovalEntity>): Promise<WriteApprovalEntity | null> {
+    return this.store.updateWriteApproval(approvalId, patch);
+  }
+
+  async listWriteApprovals(filter: WriteApprovalFilter, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<WriteApprovalEntity>> {
+    const page = await this.store.listWriteApprovals(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // KnowledgeEntry（项目级五类 + 团队级工作模式）
+  // ============================================================
+  async createKnowledgeEntryForCaller(input: CreateKnowledgeEntryInput, ctx: V3AuthContext): Promise<KnowledgeEntryEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    if (input.scope === "team") {
+      await this.assertTeamExists(input.scope_id);
+      await this.requireActiveTeamMember(ctx, input.scope_id);
+    } else {
+      await this.requireProjectVisible(ctx, input.scope_id);
+    }
+    return this.store.createKnowledgeEntry(input);
+  }
+
+  async getKnowledgeEntryForCaller(entryId: string, ctx: V3AuthContext): Promise<KnowledgeEntryEntity> {
+    const entry = await this.store.getKnowledgeEntry(entryId);
+    if (!entry) throw new MetadataError("knowledge_not_found", `knowledge entry not found: ${entryId}`);
+    await this.requireKnowledgeScopeVisible(entry, ctx);
+    return entry;
+  }
+
+  async updateKnowledgeEntryForCaller(
+    entryId: string,
+    patch: Partial<KnowledgeEntryEntity>,
+    ctx: V3AuthContext,
+  ): Promise<KnowledgeEntryEntity> {
+    const entry = await this.store.getKnowledgeEntry(entryId);
+    if (!entry) throw new MetadataError("knowledge_not_found", `knowledge entry not found: ${entryId}`);
+    this.assertCallerIsResourceOwner(ctx, entry.owner_user_id);
+    const updated = await this.store.updateKnowledgeEntry(entryId, patch);
+    if (!updated) throw new MetadataError("knowledge_not_found", `knowledge entry not found: ${entryId}`);
+    return updated;
+  }
+
+  async deleteKnowledgeEntriesForCaller(entryIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const entryId of entryIds) {
+      const entry = await this.store.getKnowledgeEntry(entryId);
+      if (!entry) continue;
+      this.assertCallerIsResourceOwner(ctx, entry.owner_user_id);
+    }
+    return this.store.deleteKnowledgeEntries(entryIds);
+  }
+
+  async listKnowledgeEntriesForCaller(
+    filter: KnowledgeEntryFilter,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<KnowledgeEntryEntity>> {
+    await this.requireKnowledgeScopeVisible(filter, ctx);
+    const page = await this.store.listKnowledgeEntries(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  private async requireKnowledgeScopeVisible(filter: KnowledgeEntryFilter, ctx: V3AuthContext): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    if (filter.scope === "team" && filter.scope_id) {
+      await this.requireActiveTeamMember(ctx, filter.scope_id);
+      return;
+    }
+    if (filter.scope === "project" && filter.scope_id) {
+      await this.requireProjectVisible(ctx, filter.scope_id);
+      return;
+    }
+    // 无明确作用域过滤时要求登录即可（list 仅返回各作用域内可见数据由 store 过滤，此处兜底）。
+    this.requireCallerId(ctx);
+  }
+
+  // ============================================================
+  // ToolSource（MCP Server / REST API）
+  // ============================================================
+  async createToolSourceForCaller(input: CreateToolSourceInput, ctx: V3AuthContext): Promise<ToolSourceEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    return this.store.createToolSource(input);
+  }
+
+  async getToolSourceForCaller(toolId: string, ctx: V3AuthContext): Promise<ToolSourceEntity> {
+    const tool = await this.store.getToolSource(toolId);
+    if (!tool) throw new MetadataError("tool_not_found", `tool source not found: ${toolId}`);
+    await this.requireActiveTeamMember(ctx, tool.team_id);
+    return tool;
+  }
+
+  async updateToolSourceForCaller(toolId: string, patch: Partial<ToolSourceEntity>, ctx: V3AuthContext): Promise<ToolSourceEntity> {
+    const tool = await this.store.getToolSource(toolId);
+    if (!tool) throw new MetadataError("tool_not_found", `tool source not found: ${toolId}`);
+    this.assertCallerIsResourceOwner(ctx, tool.owner_user_id);
+    const updated = await this.store.updateToolSource(toolId, patch);
+    if (!updated) throw new MetadataError("tool_not_found", `tool source not found: ${toolId}`);
+    return updated;
+  }
+
+  async deleteToolSourcesForCaller(toolIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const toolId of toolIds) {
+      const tool = await this.store.getToolSource(toolId);
+      if (!tool) continue;
+      this.assertCallerIsResourceOwner(ctx, tool.owner_user_id);
+    }
+    return this.store.deleteToolSources(toolIds);
+  }
+
+  async listToolSourcesForCaller(filter: ToolSourceFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<ToolSourceEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listToolSources(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // AgentTeam（多 Agent 编排）
+  // ============================================================
+  async createAgentTeamForCaller(input: CreateAgentTeamInput, ctx: V3AuthContext): Promise<AgentTeamEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    for (const link of input.linked_agents ?? []) {
+      const agent = await this.store.getAgentById(link.agent_id);
+      if (!agent) throw new MetadataError("agent_not_found", `agent not found: ${link.agent_id}`);
+      if (agent.team_id !== input.team_id) {
+        throw new MetadataError("agent_team_mismatch", `agent ${link.agent_id} does not belong to team ${input.team_id}`);
+      }
+    }
+    return this.store.createAgentTeam(input);
+  }
+
+  async getAgentTeamForCaller(agentTeamId: string, ctx: V3AuthContext): Promise<AgentTeamEntity> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    await this.requireActiveTeamMember(ctx, t.team_id);
+    return t;
+  }
+
+  async updateAgentTeamForCaller(agentTeamId: string, patch: Partial<AgentTeamEntity>, ctx: V3AuthContext): Promise<AgentTeamEntity> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    const updated = await this.store.updateAgentTeam(agentTeamId, patch);
+    if (!updated) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    return updated;
+  }
+
+  async deleteAgentTeamsForCaller(agentTeamIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const agentTeamId of agentTeamIds) {
+      const t = await this.store.getAgentTeam(agentTeamId);
+      if (!t) continue;
+      this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    }
+    return this.store.deleteAgentTeams(agentTeamIds);
+  }
+
+  async listAgentTeamsForCaller(filter: AgentTeamFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<AgentTeamEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listAgentTeams(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  async addAgentTeamMemberForCaller(input: AgentTeamMemberInput, ctx: V3AuthContext): Promise<AgentTeamMemberEntity> {
+    const t = await this.store.getAgentTeam(input.agent_team_id);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${input.agent_team_id}`);
+    this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    await this.requireActiveTeamMember(ctx, t.team_id);
+    const agent = await this.store.getAgentById(input.agent_id);
+    if (!agent) throw new MetadataError("agent_not_found", `agent not found: ${input.agent_id}`);
+    if (agent.team_id !== t.team_id) {
+      throw new MetadataError("agent_team_mismatch", `agent ${input.agent_id} does not belong to team ${t.team_id}`);
+    }
+    return this.store.addAgentTeamMember(input);
+  }
+
+  async removeAgentTeamMemberForCaller(agentTeamId: string, agentId: string, ctx: V3AuthContext): Promise<void> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    this.assertCallerIsResourceOwner(ctx, t.owner_user_id);
+    await this.store.removeAgentTeamMember(agentTeamId, agentId);
+  }
+
+  async listAgentTeamMembersForCaller(agentTeamId: string, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<AgentTeamMemberEntity>> {
+    const t = await this.store.getAgentTeam(agentTeamId);
+    if (!t) throw new MetadataError("agent_team_not_found", `agent team not found: ${agentTeamId}`);
+    await this.requireActiveTeamMember(ctx, t.team_id);
+    const page = await this.store.listAgentTeamMembers(agentTeamId, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // Automation（自动化编排）
+  // ============================================================
+  async createAutomationForCaller(input: CreateAutomationInput, ctx: V3AuthContext): Promise<AutomationEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    return this.store.createAutomation(input);
+  }
+
+  async getAutomationForCaller(automationId: string, ctx: V3AuthContext): Promise<AutomationEntity> {
+    const a = await this.store.getAutomation(automationId);
+    if (!a) throw new MetadataError("automation_not_found", `automation not found: ${automationId}`);
+    await this.requireActiveTeamMember(ctx, a.team_id);
+    return a;
+  }
+
+  async updateAutomationForCaller(automationId: string, patch: Partial<AutomationEntity>, ctx: V3AuthContext): Promise<AutomationEntity> {
+    const a = await this.store.getAutomation(automationId);
+    if (!a) throw new MetadataError("automation_not_found", `automation not found: ${automationId}`);
+    this.assertCallerIsResourceOwner(ctx, a.owner_user_id);
+    const updated = await this.store.updateAutomation(automationId, patch);
+    if (!updated) throw new MetadataError("automation_not_found", `automation not found: ${automationId}`);
+    return updated;
+  }
+
+  async deleteAutomationsForCaller(automationIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const automationId of automationIds) {
+      const a = await this.store.getAutomation(automationId);
+      if (!a) continue;
+      this.assertCallerIsResourceOwner(ctx, a.owner_user_id);
+    }
+    return this.store.deleteAutomations(automationIds);
+  }
+
+  async listAutomationsForCaller(filter: AutomationFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<AutomationEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listAutomations(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
+  }
+
+  // ============================================================
+  // RunTrace（会话回放）
+  // ============================================================
+  async createRunTraceForCaller(input: CreateRunTraceInput, ctx: V3AuthContext): Promise<RunTraceEntity> {
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertTeamExists(input.team_id);
+    await this.requireActiveTeamMember(ctx, input.team_id);
+    return this.store.createRunTrace(input);
+  }
+
+  async getRunTraceForCaller(runId: string, ctx: V3AuthContext): Promise<RunTraceEntity> {
+    const r = await this.store.getRunTrace(runId);
+    if (!r) throw new MetadataError("run_not_found", `run trace not found: ${runId}`);
+    await this.requireActiveTeamMember(ctx, r.team_id);
+    return r;
+  }
+
+  async updateRunTraceForCaller(runId: string, patch: Partial<RunTraceEntity>, ctx: V3AuthContext): Promise<RunTraceEntity> {
+    const r = await this.store.getRunTrace(runId);
+    if (!r) throw new MetadataError("run_not_found", `run trace not found: ${runId}`);
+    this.assertCallerIsResourceOwner(ctx, r.owner_user_id);
+    const updated = await this.store.updateRunTrace(runId, patch);
+    if (!updated) throw new MetadataError("run_not_found", `run trace not found: ${runId}`);
+    return updated;
+  }
+
+  async deleteRunTracesForCaller(runIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    for (const runId of runIds) {
+      const r = await this.store.getRunTrace(runId);
+      if (!r) continue;
+      this.assertCallerIsResourceOwner(ctx, r.owner_user_id);
+    }
+    return this.store.deleteRunTraces(runIds);
+  }
+
+  async listRunTracesForCaller(filter: RunTraceFilter, ctx: V3AuthContext, pagination: PaginationParams = DEFAULT_PAGINATION): Promise<PaginatedResult<RunTraceEntity>> {
+    if (filter.team_id) {
+      await this.requireActiveTeamMember(ctx, filter.team_id);
+    } else {
+      this.requireCallerId(ctx);
+    }
+    const page = await this.store.listRunTraces(filter, pagination);
+    return formatListResult({ items: page.items, total: page.total }, pagination);
   }
 
   // ============================================================
@@ -1704,9 +2712,60 @@ export class MetadataService {
   }
 
   private assertCallerIsResourceOwner(ctx: V3AuthContext, ownerUserId: string): void {
+    if (ctx.isSystemAdmin) return; // system admin can operate on any resource
     const callerId = this.requireCallerId(ctx);
     if (callerId !== ownerUserId) {
       throw new MetadataError("permission_denied", "caller is not resource owner");
+    }
+  }
+
+  /**
+   * R2 增（资产）：非 system_admin 建资产默认 `private`；显式 `visibility=team`（建公共）需 system_admin。
+   * 返回派生后的 visibility（system_admin 未传时维持 store 默认 team）。
+   */
+  private resolveCreateVisibility(
+    ctx: V3AuthContext,
+    visibility: AssetVisibility | undefined,
+  ): AssetVisibility {
+    if (ctx.isSystemAdmin) return visibility ?? "team";
+    if (visibility === "team") {
+      throw new MetadataError(
+        "permission_denied",
+        "creating team-public assets requires system admin",
+      );
+    }
+    return visibility ?? "private";
+  }
+
+  /** R2 增（project）：非 system_admin 显式建 team 公共 project 需 system_admin（默认已是 private）。 */
+  private assertCanCreateProjectVisibility(ctx: V3AuthContext, visibility: ProjectVisibility | undefined): void {
+    if (!ctx.isSystemAdmin && visibility === "team") {
+      throw new MetadataError("permission_denied", "creating team-public project requires system admin");
+    }
+  }
+
+  /**
+   * R2 增（资产）：非 system_admin 建资产默认 `private`；显式 `visibility=team`（建公共）需 system_admin。
+   * 返回派生后的 visibility（system_admin 未传时维持 store 默认 team）。
+   */
+  private resolveCreateVisibility(
+    ctx: V3AuthContext,
+    visibility: AssetVisibility | undefined,
+  ): AssetVisibility {
+    if (ctx.isSystemAdmin) return visibility ?? "team";
+    if (visibility === "team") {
+      throw new MetadataError(
+        "permission_denied",
+        "creating team-public assets requires system admin",
+      );
+    }
+    return visibility ?? "private";
+  }
+
+  /** R2 增（project）：非 system_admin 显式建 team 公共 project 需 system_admin（默认已是 private）。 */
+  private assertCanCreateProjectVisibility(ctx: V3AuthContext, visibility: ProjectVisibility | undefined): void {
+    if (!ctx.isSystemAdmin && visibility === "team") {
+      throw new MetadataError("permission_denied", "creating team-public project requires system admin");
     }
   }
 
@@ -1720,6 +2779,7 @@ export class MetadataService {
   }
 
   private async assertCallerIsTeamAdmin(ctx: V3AuthContext, teamId: string): Promise<void> {
+    if (ctx.isSystemAdmin) return; // system admin 视同任意 team admin（跨 team 成员管理）
     const member = await this.requireActiveTeamMember(ctx, teamId);
     if (member.role !== "admin") {
       throw new MetadataError("permission_denied", "caller is not team admin");
@@ -1730,6 +2790,7 @@ export class MetadataService {
     const callerId = this.requireCallerId(ctx);
     const team = await this.getTeamById(teamId);
     if (!team) throw new MetadataError("team_not_found", `team not found: ${teamId}`);
+    if (ctx.isSystemAdmin) return team;
     if (team.owner_user_id === callerId) return team;
     await this.assertCallerIsTeamAdmin(ctx, teamId);
     return team;
@@ -1779,11 +2840,402 @@ export class MetadataService {
     return asset;
   }
 
+  /** 判断 caller 是否为 project 的 owner/manager（R4 删：project.manager 可删 project 资产）。 */
+  private async isCallerProjectManager(ctx: V3AuthContext, projectId: string | null | undefined): Promise<boolean> {
+    if (!projectId) return false;
+    const callerId = this.requireCallerId(ctx);
+    const project = await this.store.getProjectById(projectId);
+    if (!project) return false;
+    return project.owner_user_id === callerId || project.manager_user_id === callerId;
+  }
+
+  /** 赋权可：caller 是否持有该 asset 的显式 user ACL（write/delete 等）。 */
+  private async hasUserAclGrant(assetId: string, userId: string, action: Permission): Promise<boolean> {
+    const records = await this.allAclRecords(assetId);
+    return records.some(
+      (a) => a.permission === action && a.effect === "allow" && a.subject_type === "user" && a.subject_id === userId,
+    );
+  }
+
+  /** R3 改：owner 或 system_admin 或（赋权可）user ACL write。 */
+  private async assertCallerCanUpdateAsset(ctx: V3AuthContext, asset: AssetEntity): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    const callerId = this.requireCallerId(ctx);
+    if (asset.owner_user_id === callerId) return;
+    if (await this.hasUserAclGrant(asset.asset_id, callerId, "write")) return;
+    throw new MetadataError("permission_denied", "caller is not asset owner nor granted write access");
+  }
+
+  /** R4 删除：owner 或 system_admin 或 project.manager 或（赋权可）user ACL delete。 */
+  private async assertCallerCanDeleteAsset(ctx: V3AuthContext, asset: AssetEntity): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    const callerId = this.requireCallerId(ctx);
+    if (asset.owner_user_id === callerId) return;
+    if (await this.isCallerProjectManager(ctx, asset.project_id)) return;
+    if (await this.hasUserAclGrant(asset.asset_id, callerId, "delete")) return;
+    throw new MetadataError("permission_denied", "caller is not asset owner, project manager, nor granted delete");
+  }
+
+  /** R4 删除（agent 同规则）。 */
+  private async assertCallerCanDeleteAgent(ctx: V3AuthContext, agent: AgentEntity): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    const callerId = this.requireCallerId(ctx);
+    if (agent.owner_user_id === callerId) return;
+    if (await this.isCallerProjectManager(ctx, agent.project_id)) return;
+    throw new MetadataError("permission_denied", "caller is not agent owner or project manager");
+  }
+
+  /** 判断 caller 是否为 project 的 owner/manager（R4 删：project.manager 可删 project 资产）。 */
+  private async isCallerProjectManager(ctx: V3AuthContext, projectId: string | null | undefined): Promise<boolean> {
+    if (!projectId) return false;
+    const callerId = this.requireCallerId(ctx);
+    const project = await this.store.getProjectById(projectId);
+    if (!project) return false;
+    return project.owner_user_id === callerId || project.manager_user_id === callerId;
+  }
+
+  /** 赋权可：caller 是否持有该 asset 的显式 user ACL（write/delete 等）。 */
+  private async hasUserAclGrant(assetId: string, userId: string, action: Permission): Promise<boolean> {
+    const records = await this.allAclRecords(assetId);
+    return records.some(
+      (a) => a.permission === action && a.effect === "allow" && a.subject_type === "user" && a.subject_id === userId,
+    );
+  }
+
+  /** R3 改：owner 或 system_admin 或（赋权可）user ACL write。 */
+  private async assertCallerCanUpdateAsset(ctx: V3AuthContext, asset: AssetEntity): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    const callerId = this.requireCallerId(ctx);
+    if (asset.owner_user_id === callerId) return;
+    if (await this.hasUserAclGrant(asset.asset_id, callerId, "write")) return;
+    throw new MetadataError("permission_denied", "caller is not asset owner nor granted write access");
+  }
+
+  /** R4 删除：owner 或 system_admin 或 project.manager 或（赋权可）user ACL delete。 */
+  private async assertCallerCanDeleteAsset(ctx: V3AuthContext, asset: AssetEntity): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    const callerId = this.requireCallerId(ctx);
+    if (asset.owner_user_id === callerId) return;
+    if (await this.isCallerProjectManager(ctx, asset.project_id)) return;
+    if (await this.hasUserAclGrant(asset.asset_id, callerId, "delete")) return;
+    throw new MetadataError("permission_denied", "caller is not asset owner, project manager, nor granted delete");
+  }
+
+  /** R4 删除（agent 同规则）。 */
+  private async assertCallerCanDeleteAgent(ctx: V3AuthContext, agent: AgentEntity): Promise<void> {
+    if (ctx.isSystemAdmin) return;
+    const callerId = this.requireCallerId(ctx);
+    if (agent.owner_user_id === callerId) return;
+    if (await this.isCallerProjectManager(ctx, agent.project_id)) return;
+    throw new MetadataError("permission_denied", "caller is not agent owner or project manager");
+  }
+
+  // ============================================================
+  // Project（协作轴，跨 team）
+  // ============================================================
+  async getProjectById(projectId: string): Promise<ProjectEntity | null> {
+    return this.store.getProjectById(projectId);
+  }
+
+  private async assertCallerIsProjectOwnerOrManager(ctx: V3AuthContext, projectId: string): Promise<ProjectEntity> {
+    const project = await this.getProjectById(projectId);
+    if (!project) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    const callerId = this.requireCallerId(ctx);
+    if (project.owner_user_id === callerId || project.manager_user_id === callerId) return project;
+    if (ctx.isSystemAdmin) return project;
+    throw new MetadataError("permission_denied", "caller is not project owner/manager");
+  }
+
+  private async requireProjectVisible(ctx: V3AuthContext, projectId: string): Promise<ProjectEntity> {
+    const project = await this.getProjectById(projectId);
+    if (!project) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    const callerId = this.requireCallerId(ctx);
+    if (ctx.isSystemAdmin) return project;
+    if (project.owner_user_id === callerId) return project;
+    const member = await this.store.getProjectMember(projectId, callerId);
+    if (member) return project;
+    if (project.visibility === "team") {
+      const tm = await this.store.getTeamMember(project.team_id, callerId);
+      if (tm && tm.status === "active") return project;
+    }
+    throw new MetadataError("permission_denied", "caller cannot view project");
+  }
+
+  /** 列出某 project 下的资产（协作轴聚合视图）。caller 须 project 可见。 */
+  async listAssetsByProjectForCaller(
+    projectId: string,
+    ctx: V3AuthContext,
+    pagination: PaginationParams,
+    filter?: AssetFilter,
+  ): Promise<PaginatedResult<AssetEntity>> {
+    await this.requireProjectVisible(ctx, projectId);
+    const page = await this.store.listAssetsByProject(projectId, pagination, filter);
+    return formatListResult(page, pagination);
+  }
+
+  async createProjectForCaller(input: CreateProjectInput, ctx: V3AuthContext): Promise<ProjectEntity> {
+    await this.assertTeamExists(input.team_id);
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertPermission(ctx, "project.create");
+    this.assertCanCreateProjectVisibility(ctx, input.visibility);
+    return this.store.createProject(input);
+  }
+
+  async getProjectForCaller(projectId: string, ctx: V3AuthContext): Promise<ProjectEntity> {
+    return this.requireProjectVisible(ctx, projectId);
+  }
+
+  async listProjectsForCaller(
+    filter: ProjectFilter | undefined,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<ProjectEntity>> {
+    const callerId = this.requireCallerId(ctx);
+    if (ctx.isSystemAdmin) {
+      const page = await this.store.listProjects(filter, pagination);
+      return formatListResult(page, pagination);
+    }
+    // 普通用户：我 member 的 project（含 owner，因为 create 会把 owner 加为 manager 成员）
+    // ∪ 我所属 team 的 team 公共 project。
+    const seen = new Map<string, ProjectEntity>();
+    const memberPage = await this.store.listProjects({ member_user_id: callerId }, null);
+    for (const p of memberPage.items) seen.set(p.project_id, p);
+    const teamsPage = await this.store.listTeamsByUser(callerId, null);
+    const teamIds = teamsPage.items.map((t) => t.team_id);
+    if (teamIds.length > 0) {
+      const publicPage = await this.store.listProjects({ visibility: "team" }, null);
+      for (const p of publicPage.items) {
+        if (teamIds.includes(p.team_id)) seen.set(p.project_id, p);
+      }
+    }
+    let items = Array.from(seen.values());
+    if (filter?.team_id) items = items.filter((p) => p.team_id === filter.team_id);
+    if (filter?.owner_user_id) items = items.filter((p) => p.owner_user_id === filter.owner_user_id);
+    if (filter?.visibility) items = items.filter((p) => p.visibility === filter.visibility);
+    if (filter?.name) items = items.filter((p) => p.name === filter.name);
+    items.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return paginateArray(items, pagination);
+  }
+
+  async updateProjectForCaller(
+    projectId: string,
+    patch: Partial<ProjectEntity>,
+    ctx: V3AuthContext,
+  ): Promise<ProjectEntity> {
+    await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    await this.assertPermission(ctx, "project.update");
+    const updated = await this.store.updateProject(projectId, patch);
+    if (!updated) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    return updated;
+  }
+
+  async deleteProjectsForCaller(projectIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    await this.assertPermission(ctx, "project.delete");
+    for (const projectId of projectIds) {
+      await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    }
+    return this.store.deleteProjects(projectIds);
+  }
+
+  async addProjectMemberForCaller(input: AddProjectMemberInput, ctx: V3AuthContext): Promise<ProjectMemberEntity> {
+    await this.assertCallerIsProjectOwnerOrManager(ctx, input.project_id);
+    await this.assertPermission(ctx, "project_member.manage");
+    return this.store.addProjectMember({ ...input, granted_by: this.requireCallerId(ctx) });
+  }
+
+  async removeProjectMemberForCaller(projectId: string, userId: string, ctx: V3AuthContext): Promise<void> {
+    await this.assertPermission(ctx, "project_member.manage");
+    const project = await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    if (userId === project.owner_user_id) {
+      throw new MetadataError("permission_denied", "cannot remove project owner");
+    }
+    return this.store.removeProjectMember(projectId, userId);
+  }
+
+  async setProjectManagerForCaller(projectId: string, userId: string, ctx: V3AuthContext): Promise<ProjectEntity> {
+    const project = await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    await this.assertPermission(ctx, "project_member.manage");
+    const callerId = this.requireCallerId(ctx);
+    if (project.owner_user_id !== callerId && !ctx.isSystemAdmin) {
+      throw new MetadataError("permission_denied", "only project owner can set manager");
+    }
+    await this.store.addProjectMember({ project_id: projectId, user_id: userId, role: "manager", granted_by: callerId });
+    const updated = await this.store.updateProject(projectId, { manager_user_id: userId });
+    if (!updated) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    return updated;
+  }
+
+  async listProjectMembersForCaller(
+    projectId: string,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<ProjectMemberView>> {
+    await this.requireProjectVisible(ctx, projectId);
+    const page = await this.store.listProjectMembersWithProfile(projectId, pagination);
+    return formatListResult(page, pagination);
+  }
+
+  async getProjectMemberForCaller(
+    projectId: string,
+    userId: string,
+    ctx: V3AuthContext,
+  ): Promise<ProjectMemberView> {
+    await this.requireProjectVisible(ctx, projectId);
+    const member = await this.store.getProjectMemberWithProfile(projectId, userId);
+    if (!member) throw new MetadataError("member_not_found", `member not found: ${projectId}/${userId}`);
+    return member;
+  }
+
+  // ============================================================
+  // Project（协作轴，跨 team）
+  // ============================================================
+  async getProjectById(projectId: string): Promise<ProjectEntity | null> {
+    return this.store.getProjectById(projectId);
+  }
+
+  private async assertCallerIsProjectOwnerOrManager(ctx: V3AuthContext, projectId: string): Promise<ProjectEntity> {
+    const project = await this.getProjectById(projectId);
+    if (!project) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    const callerId = this.requireCallerId(ctx);
+    if (project.owner_user_id === callerId || project.manager_user_id === callerId) return project;
+    if (ctx.isSystemAdmin) return project;
+    throw new MetadataError("permission_denied", "caller is not project owner/manager");
+  }
+
+  private async requireProjectVisible(ctx: V3AuthContext, projectId: string): Promise<ProjectEntity> {
+    const project = await this.getProjectById(projectId);
+    if (!project) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    const callerId = this.requireCallerId(ctx);
+    if (ctx.isSystemAdmin) return project;
+    if (project.owner_user_id === callerId) return project;
+    const member = await this.store.getProjectMember(projectId, callerId);
+    if (member) return project;
+    if (project.visibility === "team") {
+      const tm = await this.store.getTeamMember(project.team_id, callerId);
+      if (tm && tm.status === "active") return project;
+    }
+    throw new MetadataError("permission_denied", "caller cannot view project");
+  }
+
+  async createProjectForCaller(input: CreateProjectInput, ctx: V3AuthContext): Promise<ProjectEntity> {
+    await this.assertTeamExists(input.team_id);
+    this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertPermission(ctx, "project.create");
+    this.assertCanCreateProjectVisibility(ctx, input.visibility);
+    return this.store.createProject(input);
+  }
+
+  async getProjectForCaller(projectId: string, ctx: V3AuthContext): Promise<ProjectEntity> {
+    return this.requireProjectVisible(ctx, projectId);
+  }
+
+  async listProjectsForCaller(
+    filter: ProjectFilter | undefined,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<ProjectEntity>> {
+    const callerId = this.requireCallerId(ctx);
+    if (ctx.isSystemAdmin) {
+      const page = await this.store.listProjects(filter, pagination);
+      return formatListResult(page, pagination);
+    }
+    // 普通用户：我 member 的 project（含 owner，因为 create 会把 owner 加为 manager 成员）
+    // ∪ 我所属 team 的 team 公共 project。
+    const seen = new Map<string, ProjectEntity>();
+    const memberPage = await this.store.listProjects({ member_user_id: callerId }, null);
+    for (const p of memberPage.items) seen.set(p.project_id, p);
+    const teamsPage = await this.store.listTeamsByUser(callerId, null);
+    const teamIds = teamsPage.items.map((t) => t.team_id);
+    if (teamIds.length > 0) {
+      const publicPage = await this.store.listProjects({ visibility: "team" }, null);
+      for (const p of publicPage.items) {
+        if (teamIds.includes(p.team_id)) seen.set(p.project_id, p);
+      }
+    }
+    let items = Array.from(seen.values());
+    if (filter?.team_id) items = items.filter((p) => p.team_id === filter.team_id);
+    if (filter?.owner_user_id) items = items.filter((p) => p.owner_user_id === filter.owner_user_id);
+    if (filter?.visibility) items = items.filter((p) => p.visibility === filter.visibility);
+    if (filter?.name) items = items.filter((p) => p.name === filter.name);
+    items.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    return paginateArray(items, pagination);
+  }
+
+  async updateProjectForCaller(
+    projectId: string,
+    patch: Partial<ProjectEntity>,
+    ctx: V3AuthContext,
+  ): Promise<ProjectEntity> {
+    await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    await this.assertPermission(ctx, "project.update");
+    const updated = await this.store.updateProject(projectId, patch);
+    if (!updated) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    return updated;
+  }
+
+  async deleteProjectsForCaller(projectIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    await this.assertPermission(ctx, "project.delete");
+    for (const projectId of projectIds) {
+      await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    }
+    return this.store.deleteProjects(projectIds);
+  }
+
+  async addProjectMemberForCaller(input: AddProjectMemberInput, ctx: V3AuthContext): Promise<ProjectMemberEntity> {
+    await this.assertCallerIsProjectOwnerOrManager(ctx, input.project_id);
+    await this.assertPermission(ctx, "project_member.manage");
+    return this.store.addProjectMember({ ...input, granted_by: this.requireCallerId(ctx) });
+  }
+
+  async removeProjectMemberForCaller(projectId: string, userId: string, ctx: V3AuthContext): Promise<void> {
+    await this.assertPermission(ctx, "project_member.manage");
+    const project = await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    if (userId === project.owner_user_id) {
+      throw new MetadataError("permission_denied", "cannot remove project owner");
+    }
+    return this.store.removeProjectMember(projectId, userId);
+  }
+
+  async setProjectManagerForCaller(projectId: string, userId: string, ctx: V3AuthContext): Promise<ProjectEntity> {
+    const project = await this.assertCallerIsProjectOwnerOrManager(ctx, projectId);
+    await this.assertPermission(ctx, "project_member.manage");
+    const callerId = this.requireCallerId(ctx);
+    if (project.owner_user_id !== callerId && !ctx.isSystemAdmin) {
+      throw new MetadataError("permission_denied", "only project owner can set manager");
+    }
+    await this.store.addProjectMember({ project_id: projectId, user_id: userId, role: "manager", granted_by: callerId });
+    const updated = await this.store.updateProject(projectId, { manager_user_id: userId });
+    if (!updated) throw new MetadataError("project_not_found", `project not found: ${projectId}`);
+    return updated;
+  }
+
+  async listProjectMembersForCaller(
+    projectId: string,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<ProjectMemberView>> {
+    await this.requireProjectVisible(ctx, projectId);
+    const page = await this.store.listProjectMembersWithProfile(projectId, pagination);
+    return formatListResult(page, pagination);
+  }
+
+  async getProjectMemberForCaller(
+    projectId: string,
+    userId: string,
+    ctx: V3AuthContext,
+  ): Promise<ProjectMemberView> {
+    await this.requireProjectVisible(ctx, projectId);
+    const member = await this.store.getProjectMemberWithProfile(projectId, userId);
+    if (!member) throw new MetadataError("member_not_found", `member not found: ${projectId}/${userId}`);
+    return member;
+  }
+
   // ============================================================
   // Caller-scoped mutations（L-12 / L-14）
   // ============================================================
   async createTeamForCaller(input: CreateTeamInput, ctx: V3AuthContext): Promise<TeamEntity> {
     this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
+    await this.assertPermission(ctx, "team.create");
     return this.createTeam(input);
   }
 
@@ -1793,10 +3245,12 @@ export class MetadataService {
     ctx: V3AuthContext,
   ): Promise<TeamEntity> {
     await this.assertCallerIsTeamOwnerOrAdmin(ctx, teamId);
+    await this.assertPermission(ctx, "team.update");
     return this.updateTeam(teamId, patch);
   }
 
   async deleteTeamsForCaller(teamIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    await this.assertPermission(ctx, "team.delete");
     for (const teamId of teamIds) {
       await this.assertCallerIsTeamOwnerOrAdmin(ctx, teamId);
     }
@@ -1805,6 +3259,7 @@ export class MetadataService {
 
   async addTeamMemberForCaller(input: AddTeamMemberInput, ctx: V3AuthContext): Promise<TeamMemberEntity> {
     await this.assertCallerIsTeamAdmin(ctx, input.team_id);
+    await this.assertPermission(ctx, "team_member.add");
     const callerId = this.requireCallerId(ctx);
     // 「添加成员」不应用来改自己的角色；选自己 + role=member 会把 admin 降级。
     if (input.user_id === callerId) {
@@ -1815,6 +3270,7 @@ export class MetadataService {
 
   async removeTeamMemberForCaller(teamId: string, userId: string, ctx: V3AuthContext): Promise<void> {
     await this.assertCallerIsTeamAdmin(ctx, teamId);
+    await this.assertPermission(ctx, "team_member.remove");
     const team = await this.getTeamById(teamId);
     if (!team) throw new MetadataError("team_not_found", `team not found: ${teamId}`);
     if (userId === team.owner_user_id) {
@@ -1828,7 +3284,7 @@ export class MetadataService {
     ctx: V3AuthContext,
     pagination: PaginationParams = DEFAULT_PAGINATION,
   ): Promise<PaginatedResult<TeamMemberView>> {
-    await this.requireActiveTeamMember(ctx, teamId);
+    if (!ctx.isSystemAdmin) await this.requireActiveTeamMember(ctx, teamId);
     const page = await this.store.listTeamMembersWithProfile(teamId, pagination);
     return formatListResult(page, pagination);
   }
@@ -1863,18 +3319,23 @@ export class MetadataService {
     ctx: V3AuthContext,
   ): Promise<AgentEntity> {
     await this.assertCallerIsAgentOwner(ctx, agentId);
+    await this.assertPermission(ctx, "agent.update");
     return this.updateAgent(agentId, patch);
   }
 
   async deleteAgentsForCaller(agentIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    await this.assertPermission(ctx, "agent.delete");
     for (const agentId of agentIds) {
-      await this.assertCallerIsAgentOwner(ctx, agentId);
+      const agent = await this.getAgentById(agentId);
+      if (!agent) continue; // 与 store 层幂等成功对齐
+      await this.assertCallerCanDeleteAgent(ctx, agent);
     }
     return this.deleteAgents(agentIds);
   }
 
   async archiveAgentForCaller(agentId: string, ctx: V3AuthContext): Promise<AgentEntity> {
     await this.assertCallerIsAgentOwner(ctx, agentId);
+    await this.assertPermission(ctx, "agent.delete");
     return this.archiveAgent(agentId);
   }
 
@@ -1882,6 +3343,7 @@ export class MetadataService {
     await this.assertTeamExists(input.team_id);
     await this.requireActiveTeamMember(ctx, input.team_id);
     this.assertCallerIsResourceOwner(ctx, input.creator_user_id);
+    await this.assertPermission(ctx, "task.create");
     return this.createTask(input);
   }
 
@@ -1891,10 +3353,12 @@ export class MetadataService {
     ctx: V3AuthContext,
   ): Promise<TaskEntity> {
     await this.assertCallerIsTaskCreator(ctx, taskId);
+    await this.assertPermission(ctx, "task.update");
     return this.updateTask(taskId, patch);
   }
 
   async deleteTasksForCaller(taskIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
+    await this.assertPermission(ctx, "task.delete");
     for (const taskId of taskIds) {
       await this.assertCallerIsTaskCreator(ctx, taskId);
     }
@@ -1903,6 +3367,7 @@ export class MetadataService {
 
   async archiveTaskForCaller(taskId: string, ctx: V3AuthContext): Promise<TaskEntity> {
     await this.assertCallerIsTaskCreator(ctx, taskId);
+    await this.assertPermission(ctx, "task.delete");
     return this.archiveTask(taskId);
   }
 
@@ -1946,7 +3411,8 @@ export class MetadataService {
     await this.assertTeamExists(input.team_id);
     await this.requireActiveTeamMember(ctx, input.team_id);
     this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
-    return this.createAsset(input);
+    const visibility = this.resolveCreateVisibility(ctx, input.visibility);
+    return this.createAsset({ ...input, visibility });
   }
 
   async updateAssetForCaller(
@@ -1954,16 +3420,18 @@ export class MetadataService {
     patch: Partial<AssetEntity>,
     ctx: V3AuthContext,
   ): Promise<AssetEntity> {
-    await this.assertCallerIsAssetOwner(ctx, assetId);
+    const asset = await this.getAssetById(assetId);
+    if (!asset) throw new MetadataError("asset_not_found", `asset not found: ${assetId}`);
+    await this.assertCallerCanUpdateAsset(ctx, asset);
     return this.updateAsset(assetId, patch);
   }
 
   async deleteAssetsForCaller(assetIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
-    // 已不存在的 id 跳过 owner 校验（与 store 层幂等成功对齐）；仍存在的须为 owner。
+    // 已不存在的 id 跳过校验（与 store 层幂等成功对齐）；仍存在的须为 owner 或 project.manager。
     for (const assetId of assetIds) {
       const existing = await this.getAssetById(assetId);
       if (!existing) continue;
-      await this.assertCallerIsAssetOwner(ctx, assetId);
+      await this.assertCallerCanDeleteAsset(ctx, existing);
     }
     return this.deleteAssets(assetIds);
   }

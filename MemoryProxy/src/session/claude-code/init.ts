@@ -486,6 +486,7 @@ async function completeRegistration(
         name: a.name,
         description: a.description ?? undefined,
         prompt: a.prompt ?? undefined,
+        metadata_json: a.metadata_json,
       })),
       shouldFetchTask
         ? metadataClient.getTask(regData.task_id!).then((t) => ({

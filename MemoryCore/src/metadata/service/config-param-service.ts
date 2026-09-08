@@ -47,6 +47,12 @@ export interface UserConfigView {
   items: UserConfigViewItem[];
 }
 
+export interface GlobalConfigView {
+  module: string;
+  module_description: string;
+  items: UserConfigViewItem[];
+}
+
 // ── Service 接口 ──
 
 export interface IConfigParamService {
@@ -59,6 +65,8 @@ export interface IConfigParamService {
   isAssetTypeEnabledForUser(userId: string, assetType: AssetType): Promise<boolean>;
   getUserConfigForCaller(data: { user_id: string; module: string; param_name?: string }): Promise<UserConfigView>;
   setUserConfigForCaller(data: { user_id: string; module: string; params: Record<string, string> }): Promise<{ ok: true }>;
+  getGlobalConfigView(module: string, paramNames?: string[]): Promise<GlobalConfigView>;
+  setGlobalConfig(module: string, params: Record<string, string>): Promise<{ ok: true }>;
 }
 
 // ── 实现 ──
@@ -221,6 +229,148 @@ export class ConfigParamService implements IConfigParamService {
       module_description: moduleDef.description,
       items,
     };
+  }
+
+  // ── 全局配置视图 / 写入（公共默认配置，如 llm_default） ──
+
+  async getGlobalConfigView(module: string, paramNames?: string[]): Promise<GlobalConfigView> {
+    const moduleDef = getModuleDef(this.registry, module);
+    if (!moduleDef) {
+      throw new MetadataError("unknown_module", `unknown module: ${module}`);
+    }
+
+    if (paramNames && paramNames.length > 0) {
+      for (const pn of paramNames) {
+        if (!getParamDef(this.registry, module, pn)) {
+          throw new MetadataError("invalid_param_key", `unknown param: ${module}.${pn}`);
+        }
+      }
+    }
+
+    const targetParams = paramNames && paramNames.length > 0
+      ? moduleDef.params.filter((p) => paramNames.includes(p.param_name))
+      : moduleDef.params;
+
+    const items: UserConfigViewItem[] = [];
+    for (const paramDef of targetParams) {
+      const value = await this.getGlobalValue(module, paramDef.param_name, paramDef);
+      items.push({
+        module,
+        param_name: paramDef.param_name,
+        param_key: `${module}.${paramDef.param_name}`,
+        description: paramDef.description,
+        effective_value: value,
+      });
+    }
+
+    return { module, module_description: moduleDef.description, items };
+  }
+
+  async setGlobalConfig(module: string, params: Record<string, string>): Promise<{ ok: true }> {
+    const moduleDef = getModuleDef(this.registry, module);
+    if (!moduleDef) {
+      throw new MetadataError("unknown_module", `unknown module: ${module}`);
+    }
+
+    for (const [paramName, value] of Object.entries(params)) {
+      const paramDef = getParamDef(this.registry, module, paramName);
+      if (!paramDef) {
+        throw new MetadataError("invalid_param_key", `unknown param: ${module}.${paramName}`);
+      }
+      if (!paramDef.allowed_scopes.includes("global")) {
+        throw new MetadataError(
+          "invalid_param_scope",
+          `module '${module}' param '${paramName}' is not writable at global scope`,
+        );
+      }
+
+      this.validateParamValue(moduleDef, paramDef, value);
+
+      await this.store.upsertConfigParam({
+        scope: "global",
+        user_id: null,
+        module,
+        param_name: paramName,
+        param_value: value,
+        description: paramDef.description,
+      });
+
+      // 立即刷新全局读缓存（upsert 后旧值可能仍缓存 60s）。
+      this.setCache(`global:${module}:${paramName}`, value);
+    }
+
+    return { ok: true };
+  }
+
+  // ── 全局配置视图 / 写入（公共默认配置，如 llm_default） ──
+
+  async getGlobalConfigView(module: string, paramNames?: string[]): Promise<GlobalConfigView> {
+    const moduleDef = getModuleDef(this.registry, module);
+    if (!moduleDef) {
+      throw new MetadataError("unknown_module", `unknown module: ${module}`);
+    }
+
+    if (paramNames && paramNames.length > 0) {
+      for (const pn of paramNames) {
+        if (!getParamDef(this.registry, module, pn)) {
+          throw new MetadataError("invalid_param_key", `unknown param: ${module}.${pn}`);
+        }
+      }
+    }
+
+    const targetParams = paramNames && paramNames.length > 0
+      ? moduleDef.params.filter((p) => paramNames.includes(p.param_name))
+      : moduleDef.params;
+
+    const items: UserConfigViewItem[] = [];
+    for (const paramDef of targetParams) {
+      const value = await this.getGlobalValue(module, paramDef.param_name, paramDef);
+      items.push({
+        module,
+        param_name: paramDef.param_name,
+        param_key: `${module}.${paramDef.param_name}`,
+        description: paramDef.description,
+        effective_value: value,
+      });
+    }
+
+    return { module, module_description: moduleDef.description, items };
+  }
+
+  async setGlobalConfig(module: string, params: Record<string, string>): Promise<{ ok: true }> {
+    const moduleDef = getModuleDef(this.registry, module);
+    if (!moduleDef) {
+      throw new MetadataError("unknown_module", `unknown module: ${module}`);
+    }
+
+    for (const [paramName, value] of Object.entries(params)) {
+      const paramDef = getParamDef(this.registry, module, paramName);
+      if (!paramDef) {
+        throw new MetadataError("invalid_param_key", `unknown param: ${module}.${paramName}`);
+      }
+      if (!paramDef.allowed_scopes.includes("global")) {
+        throw new MetadataError(
+          "invalid_param_scope",
+          `module '${module}' param '${paramName}' is not writable at global scope`,
+        );
+      }
+
+      this.validateParamValue(moduleDef, paramDef, value);
+
+      await this.store.upsertConfigParam({
+        scope: "global",
+        user_id: null,
+        module,
+        param_name: paramName,
+        param_value: value,
+        description: paramDef.description,
+      });
+
+      // 立即刷新全局读缓存（upsert 后旧值可能仍缓存 60s）。
+      this.setCache(`global:${module}:${paramName}`, value);
+    }
+
+    return { ok: true };
   }
 
   // ── AssetType 快捷方法 ──

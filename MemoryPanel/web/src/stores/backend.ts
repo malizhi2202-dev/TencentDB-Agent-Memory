@@ -85,7 +85,10 @@ interface BackendState {
    */
   refreshTeams: (opts?: { silent?: boolean }) => Promise<void>;
   fetchAgents: (teamId: string) => Promise<Agent[]>;
-  fetchTasks: (teamId: string, params?: { limit?: number; offset?: number; force?: boolean }) => Promise<Task[]>;
+  fetchTasks: (
+    teamId: string,
+    params?: { limit?: number; offset?: number; force?: boolean; agent_id?: string; project_id?: string; creator_user_id?: string },
+  ) => Promise<Task[]>;
   setActiveTeamId: (teamId: string | null) => void;
   invalidate: () => void;
   invalidateTeam: (teamId: string) => void;
@@ -344,7 +347,7 @@ export function useTeams(): {
     }
   }, [teamsLoaded, teamsLoading, fetchTeams]);
 
-  // 监听 localStorage 变化（TeamSwitcher 写 activeTeamId 时触发）
+  // 监听 localStorage 变化（团队列表页 / 团队详情写入 activeTeamId 时触发）
   const [, force] = useState(0);
   useEffect(() => {
     const onLocalChange = () => {
@@ -392,13 +395,21 @@ export function useAgents(teamId: string | null | undefined): {
 /**
  * useTasks — 从 store 读指定 team 的 task 列表。
  */
-export function useTasks(teamId: string | null | undefined, page: number = 1, pageSize: number = 12): {
+export function useTasks(
+  teamId: string | null | undefined,
+  page: number = 1,
+  pageSize: number = 12,
+  filters?: { agent_id?: string; project_id?: string; creator_user_id?: string },
+): {
   tasks: Task[];
   total: number;
   loading: boolean;
 } {
   const offset = (page - 1) * pageSize;
-  const cacheKey = `${offset}:${pageSize}`;
+  const agentId = filters?.agent_id ?? '';
+  const projectId = filters?.project_id ?? '';
+  const creatorId = filters?.creator_user_id ?? '';
+  const cacheKey = `${offset}:${pageSize}:${agentId}:${projectId}:${creatorId}`;
   const tasks = useBackendStore((s) =>
     teamId ? (s.tasksPagesByTeam[teamId]?.[cacheKey] ?? EMPTY_TASKS) : EMPTY_TASKS
   );
@@ -412,8 +423,14 @@ export function useTasks(teamId: string | null | undefined, page: number = 1, pa
 
   useEffect(() => {
     if (!teamId || loaded) return;
-    void fetchTasks(teamId, { limit: pageSize, offset });
-  }, [teamId, offset, pageSize, loaded, fetchTasks]);
+    void fetchTasks(teamId, {
+      limit: pageSize,
+      offset,
+      agent_id: agentId || undefined,
+      project_id: projectId || undefined,
+      creator_user_id: creatorId || undefined,
+    });
+  }, [teamId, offset, pageSize, agentId, projectId, creatorId, loaded, fetchTasks]);
 
   return { tasks, total, loading: !!teamId && !loaded };
 }

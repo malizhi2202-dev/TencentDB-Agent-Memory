@@ -17,6 +17,10 @@ import { formatExtractionPrompt, getExtractMemoriesSystemPrompt, type MemoryProm
 import { batchDedup } from "./l1-dedup.js";
 import { writeMemory, generateMemoryId } from "./l1-writer.js";
 import type { ExtractedMemory, MemoryRecord, MemoryType, DedupDecision } from "./l1-writer.js";
+import { defaultDomainForType } from "./memory-domain.js";
+import { routeMemorySpace } from "./memory-write-router.js";
+import { defaultDomainForType } from "./memory-domain.js";
+import { routeMemorySpace } from "./memory-write-router.js";
 import { CleanContextRunner } from "../../utils/clean-context-runner.js";
 import { sanitizeJsonForParse, shouldExtractL1 } from "../../utils/sanitize.js";
 import type { IMemoryStore } from "../store/types.js";
@@ -719,6 +723,15 @@ async function applyDecisions(params: {
     };
 
     try {
+      // P0.1 阶段 C：服务端裁决路由（空间归属 + 写入策略）。pipeline 自动抽取 → system_extract。
+      const routed = routeMemorySpace({
+        domain: defaultDomainForType(memoryWithId.type),
+        source: "system_extract",
+        teamId,
+        userId,
+        agentId,
+        taskId,
+      });
       const record = await writeMemory({
         memory: memoryWithId,
         decision,
@@ -729,6 +742,9 @@ async function applyDecisions(params: {
         teamId,
         userId,
         agentId,
+        domain: routed.domain,
+        write_policy: routed.effectivePolicy,
+        spaceId: routed.spaceId,
         logger,
         vectorStore,
         embeddingService,
@@ -769,6 +785,15 @@ async function storeAllDirectly(
 
   for (const memoryWithId of memoriesWithIds) {
     try {
+      // P0.1 阶段 C：服务端裁决路由（空间归属 + 写入策略）。pipeline 自动抽取 → system_extract。
+      const routed = routeMemorySpace({
+        domain: defaultDomainForType(memoryWithId.type),
+        source: "system_extract",
+        teamId,
+        userId,
+        agentId,
+        taskId,
+      });
       const record = await writeMemory({
         memory: memoryWithId,
         decision: {
@@ -783,6 +808,9 @@ async function storeAllDirectly(
         teamId,
         userId,
         agentId,
+        domain: routed.domain,
+        write_policy: routed.effectivePolicy,
+        spaceId: routed.spaceId,
         logger,
         vectorStore,
         embeddingService,

@@ -73,6 +73,8 @@ export interface ServiceConfig {
   publicBaseUrl: string;
   /** TMC callback URL for status notifications (empty = no callback). */
   tmcCallbackUrl: string;
+  /** CORS allowed origins (browser frontends直连 /v3 工具通道)。 */
+  corsOrigins: string[];
   /** Optional ClickHouse request telemetry. Disabled by default. */
   clickhouse: ClickHouseTelemetryConfig;
 }
@@ -159,6 +161,10 @@ export function loadConfig(): ServiceConfig {
     apiPrefix: env("API_PREFIX", "/v3"),
     publicBaseUrl: env("KNOWLEDGE_PUBLIC_BASE_URL", ""),
     tmcCallbackUrl: env("TMC_CALLBACK_URL", ""),
+    corsOrigins: env("KNOWLEDGE_CORS_ORIGINS", "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
     clickhouse,
     llm: {
       mode: env("LLM_MODE", "proxy") === "custom" ? "custom" : "proxy",

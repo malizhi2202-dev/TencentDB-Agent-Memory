@@ -18,7 +18,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": false,
-    "allowImportingTsExtensions": false
+    "allowImportingTsExtensions": false,
+    "baseUrl": ".",
+    "paths": {
+      "gitnexus-shared": ["./src/engines/codeanalysis-engine/shared/index.ts"],
+      "gitnexus-shared/*": ["./src/engines/codeanalysis-engine/shared/*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts"]

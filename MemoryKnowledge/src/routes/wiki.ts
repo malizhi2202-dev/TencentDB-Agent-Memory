@@ -159,6 +159,7 @@ export function createWikiRoutes(deps: WikiRouteDeps): Hono {
 
     const name = body.name;
     if (typeof name !== "string" || !name) return c.json(wrapError(400, "name is required"), 400);
+    const projectId = typeof body.project_id === "string" ? body.project_id : undefined;
 
     const { row, existed } = wikiService.create({
       service_id: ids.service_id,
@@ -168,6 +169,7 @@ export function createWikiRoutes(deps: WikiRouteDeps): Hono {
       user_id: ids.user_id,
       agent_id: ids.agent_id,
       task_id: ids.task_id,
+      project_id: projectId ?? null,
     });
 
     // Persist service_url (tools self-discovery base; resource selected via
@@ -191,9 +193,10 @@ export function createWikiRoutes(deps: WikiRouteDeps): Hono {
     const status = typeof body.status === "string" ? (body.status as WikiStatus) : undefined;
     const limit = typeof body.limit === "number" ? body.limit : 20;
     const offset = typeof body.offset === "number" ? body.offset : 0;
+    const projectId = typeof body.project_id === "string" ? body.project_id : undefined;
 
-    const items = wikiService.list(ids.service_id, ids.team_id, { syncStatus: status, limit, offset });
-    const total = wikiService.count(ids.service_id, ids.team_id, status ? { syncStatus: status } : undefined);
+    const items = wikiService.list(ids.service_id, ids.team_id, { syncStatus: status, projectId, limit, offset });
+    const total = wikiService.count(ids.service_id, ids.team_id, status ? { syncStatus: status, projectId } : { projectId });
     return c.json(wrapOk({ items: items.map(toWikiDetail), total }));
   });
 

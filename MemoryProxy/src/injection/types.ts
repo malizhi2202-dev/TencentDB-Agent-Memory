@@ -316,6 +316,14 @@ export interface PrewarmInput {
    * 敏感字段：只在内存中流转，不写入日志/持久化。
    */
   callerUserKey?: string;
+  /**
+   * True when the request's identity came from trusted identity headers
+   * (方案 B / `sessionInit.trustIdentityHeaders`) — i.e. a client that manages
+   * its own memory mirror (penguin-harness tencentdb-*.md). Such clients get
+   * L1 from their mirror, so the proxy's L1 tool guide is trimmed (L0/L2 tools
+   * stay) to avoid duplicate L1 exposure.
+   */
+  mirrorManaged?: boolean;
 }
 
 // ── Injection Hook ────────────────────────────────────────────────────────────

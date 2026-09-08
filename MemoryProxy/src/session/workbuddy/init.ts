@@ -226,6 +226,7 @@ export async function handleWorkbuddySessionInit(
           name: agent.name,
           description: agent.description ?? undefined,
           prompt: agent.prompt ?? undefined,
+          metadata_json: agent.metadata_json,
         };
       } catch (err) {
         console.warn(
@@ -360,6 +361,7 @@ export async function handleWorkbuddySessionInit(
         name: agent.name,
         description: agent.description ?? undefined,
         prompt: agent.prompt ?? undefined,
+        metadata_json: agent.metadata_json,
       };
     }
   } catch (err) {

@@ -1,3 +1,11 @@
+@import './theme/layout.css';
+
+@import './theme/layout.css';
+
+@import './theme/layout.css';
+
+@import './theme/layout.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

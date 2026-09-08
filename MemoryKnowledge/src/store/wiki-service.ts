@@ -102,6 +102,7 @@ export interface CreateWikiParams {
   user_id?: string;
   agent_id?: string;
   task_id?: string;
+  project_id?: string | null;
   visibility?: string;
   service_url?: string;
 }

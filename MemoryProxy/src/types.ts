@@ -663,6 +663,13 @@ export interface AuthConfig {
   url: string;
   /** Request timeout in ms. Default: 5000. */
   timeoutMs: number;
+  /**
+   * When true, a request is treated as passthrough (NOT rejected) when the auth
+   * service is unreachable or broken — network error, timeout, or HTTP >= 500.
+   * Genuine rejections (auth service reachable and answers "invalid user_key")
+   * still return 401. Default: false.
+   */
+  degradeOnUnreachable?: boolean;
 }
 
 /**
@@ -917,6 +924,7 @@ export interface RawYamlConfig {
     enabled?: boolean;
     url?: string;
     timeoutMs?: number;
+    degradeOnUnreachable?: boolean;
   };
   systemUsers?: Partial<SystemUserEntry>[];
   admin?: {

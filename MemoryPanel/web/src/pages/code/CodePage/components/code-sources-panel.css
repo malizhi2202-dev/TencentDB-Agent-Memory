@@ -1,0 +1,42 @@
+/* code-sources-panel.css — Code_Graph 列表页（_codelist-）与详情页（_codedetail-）共用样式。
+ *
+ * 视觉对齐 Memory 项目的 Code.css：颜色全部走 Tea Design Token（--tea-color-*），
+ * 间距/圆角/字号取设计白名单，className 统一 _codelist- / _codedetail- 前缀，
+ * 避免与 Tea 内置类名冲突。
+ */
+
+._asset-code-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+._asset-code-content-card {
+  --card-body-padding: 16px;
+}
+
+._asset-code-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+._asset-code-toolbar,
+._codelist-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+._asset-code-toolbar {
+  justify-content: flex-end;
+}
+
+/* 工具栏 SearchBox 最小宽度，避免 placeholder 文字被截断。
+   英文 "Search name / branch / ID"（24 字符）约需 220px，加上图标/边距给 240px。
+   实际类名是 .tea-form--search / .tea-search（旧版 .tea-searchbox 是错的）。 */
+._asset-code-toolbar .tea-form--search,
+
+(Showing lines 1-40 of 421. Use offset=41 to continue.)

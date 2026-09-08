@@ -59,11 +59,27 @@ export interface Agent {
   code_graphs: string[];
   llm_wikis: string[];
   chat_memories: string[];
+  /** 协作轴挂接（可空）。 */
+  project_id?: string | null;
+  /** 每个 Agent 的 LLM 模型配置（模型 / 提供方 / 输入输出协议）。 */
+  llm: AgentLlmConfig;
   /** 后端 metadata_json 透传（写回时需要在旧值基础上 merge，而不是整体覆盖） */
   metadata_json?: string;
   created_at_ms: number;
   updated_at_ms: number;
 }
+
+/** 单个 Agent 的 LLM 配置 —— 创建 Agent 时可选，空字段表示沿用全局默认。 */
+export interface AgentLlmConfig {
+  /** 模型名，如 "gpt-4o" / "deepseek-chat"；空字符串 = 沿用全局默认。 */
+  model: string;
+  /** 模型提供方，如 "openai" / "anthropic" / "deepseek" / "custom"；空 = 沿用全局默认。 */
+  provider: string;
+  /** 输入输出协议：openai（/chat/completions）| anthropic（/messages）。 */
+  protocol: 'openai' | 'anthropic';
+}
+
+export const EMPTY_AGENT_LLM: AgentLlmConfig = { model: '', provider: '', protocol: 'openai' };
 
 export type TaskStatus = 'running' | 'completed';
 export type TaskSourceType = 'manual' | 'tapd';
@@ -95,6 +111,7 @@ interface AgentUiMeta {
   code_graphs: string[];
   llm_wikis: string[];
   chat_memories: string[];
+  llm: AgentLlmConfig;
 }
 
 const ACCENT_CYCLE: Agent['accent'][] = ['blue', 'purple', 'orange', 'emerald', 'rose', 'slate'];
@@ -110,6 +127,7 @@ function defaultAgentUiMeta(index: number): AgentUiMeta {
     code_graphs: [],
     llm_wikis: [],
     chat_memories: [],
+    llm: EMPTY_AGENT_LLM,
   };
 }
 
@@ -216,6 +234,8 @@ export function adaptAgent(ba: BackendAgent, index: number): Agent {
     rules_prompt: ui.rules_prompt,
     icon: ui.icon,
     accent: ui.accent,
+    project_id: ba.project_id ?? null,
+    project_id: ba.project_id ?? null,
     // 资产绑定不再从 metadata_json.ui 读（.ui 已废弃为资产存储）。
     // 真实绑定读 skill 表 owner_agent_id / agent-fixed-asset 表：
     // list 计数走 agent-overview/bootstrap.counts，详情弹窗走 skillApi.listByAgent
@@ -224,6 +244,8 @@ export function adaptAgent(ba: BackendAgent, index: number): Agent {
     code_graphs: [],
     llm_wikis: [],
     chat_memories: [],
+    // 兼容历史/部分数据：缺失的子字段回退到空默认。
+    llm: { ...EMPTY_AGENT_LLM, ...(ui.llm ?? {}) },
     metadata_json: ba.metadata_json,
     created_at_ms: new Date(ba.created_at).getTime(),
     updated_at_ms: new Date(ba.updated_at).getTime(),

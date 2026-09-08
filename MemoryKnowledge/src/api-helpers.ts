@@ -96,6 +96,7 @@ export function toExternalVersion(v: number): string {
 export interface WikiDetail {
   wiki_id: string;
   team_id: string;
+  project_id: string | null;
   name: string;
   service_url: string | null;
   summary: string | null;
@@ -114,6 +115,7 @@ export function toWikiDetail(row: WikiRow): WikiDetail {
   return {
     wiki_id: row.wiki_id,
     team_id: row.team_id,
+    project_id: row.project_id ?? null,
     name: row.name,
     service_url: row.service_url ?? null,
     summary: row.summary ?? null,
@@ -140,6 +142,7 @@ export interface CodeGraphStats {
 export interface CodeGraphDetail {
   code_graph_id: string;
   team_id: string;
+  project_id: string | null;
   repo_name: string;
   repo_url: string;
   branch: string;
@@ -168,6 +171,7 @@ export function toCodeGraphDetail(row: CodeGraphRow): CodeGraphDetail {
   return {
     code_graph_id: row.code_graph_id,
     team_id: row.team_id,
+    project_id: row.project_id ?? null,
     repo_name: row.repo_name,
     repo_url: row.repo_url,
     branch: row.branch,

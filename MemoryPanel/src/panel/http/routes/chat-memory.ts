@@ -168,6 +168,151 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
     },
   );
 
+  // ── 4.x 维度查询（project / user）──────────────────────────
+  //
+  // POST /chat-memory/list-scope  body: { project_id } 或 { owner_user_id }
+  //
+  // 复用上面 team-assets 的出参 shape，按协作轴(project)/用户轴(owner)切维度。
+  //   - project：asset/list-by-project（内核 requireProjectVisible 守卫 caller 可见性）
+  //   - user   ：asset/list-accessible + owner_user_id（内核判定 system_admin 可看任意 owner）
+  // agent 维度不在此（走既有 /chat-memory/agent-fixed）。
+  api.post(
+    "/chat-memory/list-scope",
+    validatePanelMetaHeaders(deps),
+    async (c) => {
+      const ctx = buildCtx(c);
+      const body = await readJson(c);
+      const projectId = typeof body?.project_id === "string" ? body.project_id : "";
+      const ownerUserId = typeof body?.owner_user_id === "string" ? body.owner_user_id : "";
+
+      let listEnv: MetaEnvelope<unknown>;
+      if (projectId) {
+        listEnv = await deps.metaKernel.invoke(
+          "asset/list-by-project",
+          // gateway 分页 schema 限制 limit<=100（metadata/pagination.ts max(100)），
+          // 之前传 500 会被 zod 拒（"limit: Too big: expected number to be <=100"）。
+          { project_id: projectId, asset_type: "chat_memory", limit: 100, offset: 0 },
+          ctx,
+        );
+      } else if (ownerUserId) {
+        const meUserId = await resolveCallerUserId(deps, ctx);
+        if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
+        listEnv = await deps.metaKernel.invoke(
+          "asset/list-accessible",
+          { user_id: meUserId, asset_type: "chat_memory", action: "read", owner_user_id: ownerUserId, limit: 100, offset: 0 },
+          ctx,
+        );
+      } else {
+        return respondControlError(c, 400, "MISSING_SCOPE");
+      }
+      if (listEnv.code !== 0) return respondEnvelope(c, listEnv);
+      const items = extractListItems<AssetRaw>(listEnv).filter(isActive);
+      const out: MemoryBlockOut[] = items.map((a) => ({
+        id: a.asset_id,
+        title: a.name,
+        summary: buildSummary(),
+        uploaded_by_user_id: a.owner_user_id,
+        updated_at_ms: toMs(a.updated_at),
+        layer_counts: emptyLayers(),
+      }));
+      return respondEnvelope(c, okEnvelope(c, { items: out, total: out.length }));
+    },
+  );
+
+  // ── 4.x 组合维度查询（团队 × 项目 × Agent × 用户 AND）────────
+  //
+  // POST /chat-memory/list-combined  body: { team_id?, project_ids?, agent_id?, owner_user_id? }
+  //
+  // 全部转发到内核 asset/list-accessible（该接口已支持这些过滤组合 AND），
+  // 语义为「当前用户在四维共同约束下可读的 chat_memory 资产」。
+  api.post(
+    "/chat-memory/list-combined",
+    validatePanelMetaHeaders(deps),
+    async (c) => {
+      const ctx = buildCtx(c);
+      const body = await readJson(c);
+      const meUserId = await resolveCallerUserId(deps, ctx);
+      if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
+
+      const teamId = typeof body?.team_id === "string" ? body.team_id : "";
+      const projectIds = Array.isArray(body?.project_ids)
+        ? (body.project_ids as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+        : [];
+      const agentId = typeof body?.agent_id === "string" ? body.agent_id : "";
+      const ownerUserId = typeof body?.owner_user_id === "string" ? body.owner_user_id : "";
+
+      const query: Record<string, unknown> = {
+        user_id: meUserId,
+        asset_type: "chat_memory",
+        action: "read",
+      };
+      if (teamId) query.team_id = teamId;
+      if (projectIds.length > 0) query.project_ids = projectIds;
+      if (agentId) query.agent_id = agentId;
+      if (ownerUserId) query.owner_user_id = ownerUserId;
+
+      const listEnv = await deps.metaKernel.invoke("asset/list-accessible", query, ctx);
+      if (listEnv.code !== 0) return respondEnvelope(c, listEnv);
+      const items = extractListItems<AssetRaw>(listEnv).filter(isActive);
+      const out: MemoryBlockOut[] = items.map((a) => ({
+        id: a.asset_id,
+        title: a.name,
+        summary: buildSummary(),
+        uploaded_by_user_id: a.owner_user_id,
+        updated_at_ms: toMs(a.updated_at),
+        layer_counts: emptyLayers(),
+      }));
+      return respondEnvelope(c, okEnvelope(c, { items: out, total: out.length }));
+    },
+  );
+
+  // ── 4.x 组合维度查询（团队 × 项目 × Agent × 用户 AND）────────
+  //
+  // POST /chat-memory/list-combined  body: { team_id?, project_ids?, agent_id?, owner_user_id? }
+  //
+  // 全部转发到内核 asset/list-accessible（该接口已支持这些过滤组合 AND），
+  // 语义为「当前用户在四维共同约束下可读的 chat_memory 资产」。
+  api.post(
+    "/chat-memory/list-combined",
+    validatePanelMetaHeaders(deps),
+    async (c) => {
+      const ctx = buildCtx(c);
+      const body = await readJson(c);
+      const meUserId = await resolveCallerUserId(deps, ctx);
+      if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
+
+      const teamId = typeof body?.team_id === "string" ? body.team_id : "";
+      const projectIds = Array.isArray(body?.project_ids)
+        ? (body.project_ids as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+        : [];
+      const agentId = typeof body?.agent_id === "string" ? body.agent_id : "";
+      const ownerUserId = typeof body?.owner_user_id === "string" ? body.owner_user_id : "";
+
+      const query: Record<string, unknown> = {
+        user_id: meUserId,
+        asset_type: "chat_memory",
+        action: "read",
+      };
+      if (teamId) query.team_id = teamId;
+      if (projectIds.length > 0) query.project_ids = projectIds;
+      if (agentId) query.agent_id = agentId;
+      if (ownerUserId) query.owner_user_id = ownerUserId;
+
+      const listEnv = await deps.metaKernel.invoke("asset/list-accessible", query, ctx);
+      if (listEnv.code !== 0) return respondEnvelope(c, listEnv);
+      const items = extractListItems<AssetRaw>(listEnv).filter(isActive);
+      const out: MemoryBlockOut[] = items.map((a) => ({
+        id: a.asset_id,
+        title: a.name,
+        summary: buildSummary(),
+        uploaded_by_user_id: a.owner_user_id,
+        updated_at_ms: toMs(a.updated_at),
+        layer_counts: emptyLayers(),
+      }));
+      return respondEnvelope(c, okEnvelope(c, { items: out, total: out.length }));
+    },
+  );
+
   // ── 4.2 固定资产 tab ─────────────────────────────────────
   //
   // POST /chat-memory/agent-fixed  body: { agent_id }
@@ -190,6 +335,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
 
       const meUserId = await resolveCallerUserId(deps, ctx);
       if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
+      const isAdmin = await resolveCallerIsAdmin(deps, ctx);
 
       // 查 agent 拿 owner 决定过滤策略
       const agentEnv = await deps.metaKernel.invoke(
@@ -202,7 +348,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
       }
       if (agentEnv.code !== 0) return respondEnvelope(c, agentEnv);
       const agent = agentEnv.data as AgentRaw;
-      if (agent.owner_user_id !== meUserId) {
+      if (agent.owner_user_id !== meUserId && !isAdmin) {
         return respondControlError(c, 403, "NOT_YOUR_AGENT");
       }
 
@@ -667,6 +813,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
 
       const meUserId = await resolveCallerUserId(deps, ctx);
       if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
+      const isAdmin = await resolveCallerIsAdmin(deps, ctx);
 
       const agentEnv = await deps.metaKernel.invoke(
         "agent/get",
@@ -680,7 +827,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
       const agent = agentEnv.data as AgentRaw;
       if (agent.team_id !== teamId)
         return respondControlError(c, 400, "AGENT_NOT_IN_TEAM");
-      if (agent.owner_user_id !== meUserId)
+      if (agent.owner_user_id !== meUserId && !isAdmin)
         return respondControlError(c, 403, "NOT_YOUR_AGENT");
 
       for (const blockId of importedIds) {
@@ -819,10 +966,11 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
       // 目标 asset 必须是 visibility=team（团队已共享），或者是自己 owner 的（自留自用也 OK）
       const meUserId = await resolveCallerUserId(deps, ctx);
       if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
-      if (agent.owner_user_id !== meUserId) {
+      const isAdmin = await resolveCallerIsAdmin(deps, ctx);
+      if (agent.owner_user_id !== meUserId && !isAdmin) {
         return respondControlError(c, 403, "NOT_YOUR_AGENT");
       }
-      if (asset.visibility !== "team" && asset.owner_user_id !== meUserId) {
+      if (asset.visibility !== "team" && asset.owner_user_id !== meUserId && !isAdmin) {
         return respondControlError(c, 403, "ASSET_NOT_SHARED");
       }
 
@@ -921,6 +1069,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
     // 权限校验（普通用户视角）：只能解绑"自己 owner 的 agent"上的借入
     const meUserId = await resolveCallerUserId(deps, ctx);
     if (!meUserId) return respondControlError(c, 401, "INVALID_USER_KEY");
+    const isAdmin = await resolveCallerIsAdmin(deps, ctx);
     const agentEnv = await deps.metaKernel.invoke(
       "agent/get",
       { agent_id: agentId },
@@ -932,7 +1081,7 @@ export function registerChatMemoryRoutes(api: Hono, deps: PanelDeps): void {
     if (agent.team_id !== teamId) {
       return respondControlError(c, 400, "AGENT_NOT_IN_TEAM");
     }
-    if (agent.owner_user_id !== meUserId) {
+    if (agent.owner_user_id !== meUserId && !isAdmin) {
       return respondControlError(c, 403, "NOT_YOUR_AGENT");
     }
 
@@ -1991,6 +2140,29 @@ async function resolveCallerUserId(
   if (!data?.valid) return null;
   const uid = data.user?.user_id;
   return typeof uid === "string" && uid.length > 0 ? uid : null;
+}
+
+/**
+ * 通过 auth/verify 反查 caller 是否为 system_admin。
+ * 失败返 false。
+ */
+async function resolveCallerIsAdmin(
+  deps: PanelDeps,
+  ctx: MetaCallContext,
+): Promise<boolean> {
+  if (!ctx.userKey) return false;
+  const env = await deps.metaKernel.invoke(
+    "auth/verify",
+    { user_key: ctx.userKey },
+    ctx,
+  );
+  if (env.code !== 0) return false;
+  const data = env.data as {
+    valid?: boolean;
+    user?: { user_type?: string };
+  } | null;
+  if (!data?.valid) return false;
+  return data.user?.user_type === "system_admin";
 }
 
 /**

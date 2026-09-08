@@ -91,6 +91,11 @@ export async function verifyUserKey(userKey: string, serviceId: string): Promise
     if (!resp.ok) {
       const reason = `auth service returned HTTP ${resp.status}`;
       log.warn("auth.verify.httpError", { status: resp.status, serviceId });
+      // 5xx = auth backend is up but broken — degrade to passthrough when configured.
+      if (config.degradeOnUnreachable && resp.status >= 500) {
+        log.warn("auth.verify.degraded", { error: reason, serviceId, mode: "passthrough" });
+        return { userId: "", rejected: false, rejectReason: reason };
+      }
       return { userId: "", rejected: true, rejectReason: reason };
     }
 
@@ -115,6 +120,12 @@ export async function verifyUserKey(userKey: string, serviceId: string): Promise
       ? `auth service timeout (${config.timeoutMs}ms)`
       : `auth service error: ${err instanceof Error ? err.message : String(err)}`;
     log.warn("auth.verify.error", { error: reason, serviceId });
+    // Auth backend unreachable (network error / timeout) — degrade to passthrough
+    // when configured so the proxy keeps serving while memory-core is down.
+    if (config.degradeOnUnreachable) {
+      log.warn("auth.verify.degraded", { error: reason, serviceId, mode: "passthrough" });
+      return { userId: "", rejected: false, rejectReason: reason };
+    }
     return { userId: "", rejected: true, rejectReason: reason };
   }
 }

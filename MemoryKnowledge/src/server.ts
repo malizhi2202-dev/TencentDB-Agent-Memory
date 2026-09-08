@@ -11,6 +11,7 @@ import { initTelemetry } from "./telemetry.js";
 initTelemetry();
 
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { swaggerUI } from "@hono/swagger-ui";
 import { readFileSync } from "node:fs";
@@ -57,6 +58,28 @@ export function createApp() {
   app.use("*", accessLog());
   app.onError(errorHandler);
 
+  // CORS — 允许浏览器前端（Panel 8123 / 开发源）直连 KS 的统一工具通道。
+  // 代码级集成：GitNexus 17 个工具由前端直连 /v3/tools/call 执行，不走 Panel 代理。
+  const allowedOrigins = (config.corsOrigins ?? []).length > 0
+    ? config.corsOrigins
+    : ["http://127.0.0.1:8123", "http://localhost:8123", "http://127.0.0.1:5173", "http://localhost:5173"];
+  app.use("/v3/*", cors({
+    origin: (origin) => {
+      if (!origin) return origin ?? "*";
+      return allowedOrigins.includes(origin) ? origin : null;
+    },
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "X-Tdai-Service-Id", "X-Tdai-User-Key", "X-Tdai-Service-Id"],
+  }));
+  app.use("/v3/*", cors({
+    origin: (origin) => {
+      if (!origin) return origin ?? "*";
+      return allowedOrigins.includes(origin) ? origin : null;
+    },
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "X-Tdai-Service-Id", "X-Tdai-User-Key", "X-Tdai-Service-Id"],
+  }));
+
   // Health (no prefix)
   app.route("/", createHealthRoutes());
 
@@ -74,13 +97,20 @@ export function createApp() {
     instancePool: knowledgeModule.instancePool,
     publicBaseUrl: config.publicBaseUrl,
   }));
+  api.route("/gitnexus", createGitNexusRoutes({
+    cgService: knowledgeModule.cgService,
+    instancePool: knowledgeModule.instancePool,
+  }));
 
-  // tools/list + tools/call — Agent self-discovery HTTP endpoints
+  // tools/list + tools/call — Agent self-discovery HTTP endpoints.
+  // GitNexus 的 17 个工具已并入该统一工具通道（gitnexus_ 前缀），
+  // 不再单独暴露 /v3/gitnexus/* 路由（代码级集成，避免网络路由）。
   api.route("/tools", createToolsRoutes({
     wikiService: knowledgeModule.wikiService,
     wikiMgr: knowledgeModule.wikiMgr,
     cgService: knowledgeModule.cgService,
     instancePool: knowledgeModule.instancePool,
+    resolveLlm: knowledgeModule.resolveLlm,
   }));
 
   // internal/* — control-plane endpoints (TMC / operator). Per-instance LLM routing.

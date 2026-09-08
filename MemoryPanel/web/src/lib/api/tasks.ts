@@ -57,13 +57,22 @@ export const tasksApi = {
    */
   listWithAgents: async (
     teamId: string,
-    params?: { limit?: number; offset?: number },
+    params?: {
+      limit?: number;
+      offset?: number;
+      agent_id?: string;
+      project_id?: string;
+      creator_user_id?: string;
+    },
   ): Promise<{ items: BackendTaskWithAgents[]; total: number }> => {
     const session = getPanelSession();
     if (!session) throw new ApiError(401, 'Unauthorized', 'no active panel session');
     const body: Record<string, unknown> = { team_id: teamId };
     if (params?.limit) body.limit = params.limit;
     if (params?.offset != null) body.offset = params.offset;
+    if (params?.agent_id) body.agent_id = params.agent_id;
+    if (params?.project_id) body.project_id = params.project_id;
+    if (params?.creator_user_id) body.creator_user_id = params.creator_user_id;
     const envelope = await request<MetaEnvelope<{ items: BackendTaskWithAgents[]; total: number }>>(
       'POST',
       '/api/v1/task/list-with-agents',

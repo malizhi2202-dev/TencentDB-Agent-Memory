@@ -1,0 +1,235 @@
+/* GitNexus Panel Styles */
+
+._gitnexus-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0;
+}
+
+._gitnexus-topbar {
+  padding: 0 0 16px 0;
+  border-bottom: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+  margin-bottom: 0;
+}
+
+._gitnexus-source-select {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+._gitnexus-stats {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+._gitnexus-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+}
+
+/* ── Sidebar ── */
+
+._gitnexus-sidebar {
+  width: 240px;
+  min-width: 240px;
+  border-right: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+  overflow-y: auto;
+  padding: 16px 12px;
+  background: var(--tea-color-bg-page, #f5f5f5);
+}
+
+._gitnexus-sidebar-title {
+  display: block;
+  padding: 0 8px 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+._gitnexus-category {
+  margin-bottom: 4px;
+}
+
+._gitnexus-category-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tea-color-text-primary, #333);
+  border-radius: 6px;
+  transition: background 0.15s;
+  text-align: left;
+}
+
+._gitnexus-category-toggle:hover {
+  background: var(--tea-color-bg-hover, #e8e8e8);
+}
+
+._gitnexus-category-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+._gitnexus-tool-list {
+  padding: 2px 0 4px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+._gitnexus-tool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--tea-color-text-secondary, #666);
+  border-radius: 6px;
+  transition: all 0.15s;
+  text-align: left;
+  width: 100%;
+}
+
+._gitnexus-tool-item:hover {
+  background: var(--tea-color-bg-hover, #e8e8e8);
+  color: var(--tea-color-text-primary, #333);
+}
+
+._gitnexus-tool-item.is-active {
+  background: var(--tea-color-primary-light, #e6f0ff);
+  color: var(--tea-color-primary, #006eff);
+  font-weight: 600;
+}
+
+._gitnexus-tool-item svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+._gitnexus-tool-item.is-active svg {
+  opacity: 1;
+}
+
+/* ── Main Area ── */
+
+._gitnexus-main {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+._gitnexus-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 8px;
+  color: var(--tea-color-text-placeholder, #bbb);
+  text-align: center;
+}
+
+._gitnexus-empty svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.3;
+  margin-bottom: 8px;
+}
+
+._gitnexus-tool-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+}
+
+._gitnexus-tool-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+._gitnexus-tool-header-info > :first-child {
+  font-size: 16px;
+}
+
+._gitnexus-params-card {
+  background: var(--tea-color-bg-page, #f5f5f5);
+}
+
+._gitnexus-result-card {
+  flex: 1;
+  min-height: 200px;
+}
+
+._gitnexus-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+}
+
+._gitnexus-result-body {
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+._gitnexus-result-body code {
+  background: var(--tea-color-bg-page, #f5f5f5);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+._gitnexus-result-body pre {
+  background: var(--tea-color-bg-page, #f5f5f5);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+  ._gitnexus-body {
+    flex-direction: column;
+  }
+
+  ._gitnexus-sidebar {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--tea-color-border-secondary, #e5e5e5);
+    max-height: 200px;
+    flex-shrink: 0;
+  }
+}

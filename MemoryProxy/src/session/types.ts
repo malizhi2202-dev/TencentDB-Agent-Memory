@@ -40,6 +40,10 @@ export interface SessionInitState {
   startedAt: number;
   attemptCount: number;
   sessionInfo?: SessionInfo | null;
+  /** True when the identity came from trusted identity headers (方案 B) — i.e. a mirror-managed client (penguin-harness). Used by session-refresh to rebuild the cache with the mirror-aware injection variant. */
+  mirrorManaged?: boolean;
+  /** True when the identity came from trusted identity headers (方案 B) — i.e. a mirror-managed client (penguin-harness). Used by session-refresh to rebuild the cache with the mirror-aware injection variant. */
+  mirrorManaged?: boolean;
   /** User ID from auth/verify (not from header). */
   userId?: string;
   /** 内核 /teams 返回的嵌套结构，用于渲染 form 与解析用户答复。 */
@@ -185,6 +189,8 @@ export interface AgentDetail {
   description?: string;
   /** The Agent's system-level prompt / persona, appended to system message. */
   prompt?: string;
+  /** 后端透传 JSON（含 `ui.llm` 每-agent 模型配置，用于运行时 model 覆盖）。 */
+  metadata_json?: string;
 }
 
 /** Full Task detail (fetched after selection) — content injected into system prompt. */

@@ -3,9 +3,9 @@
  *
  * 登录流程（无 Cookie、无 OAuth，Header 双凭证鉴权）：
  *   1. GET /api/v1/meta/instances              → 选记忆实例
- *   2. 用户输入自持的 user_key（sk-mem-…）
- *   3. POST /api/v1/meta/auth/verify（Header 仅 X-Tdai-Service-Id，body 带 user_key）
- *      → data.valid === true 登录成功；data.user 写入会话
+ *   2. 用户输入用户名 + 密码
+ *   3. POST /api/v1/meta/auth/login（Header 仅 X-Tdai-Service-Id，body 带 username+password）
+ *      → data.valid === true，data.user_key + data.user 返回
  *   4. 前端把 { instance_id, user_key, user } 缓存到 localStorage（见 lib/panelSession.ts），
  *      之后每个 meta 请求都从这里读出注入双 Header
  *
@@ -152,7 +152,8 @@ export default function LoginGate({
   const [instances, setInstances] = useState<MetadataInstance[]>([]);
   const [authMethods, setAuthMethods] = useState<AuthMethod[]>([]);
   const [instanceId, setInstanceId] = useState('');
-  const [userKey, setUserKey] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [instancesError, setInstancesError] = useState(false);
