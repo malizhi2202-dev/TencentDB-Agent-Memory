@@ -9,16 +9,18 @@
  * 本模块把规则统一组织，供 bridge.ts 的工具执行链应用。
  */
 
+// 策略实现位于 ../codeanalysis/（GitNexus 代码级集成的现行实现层）；
+// 此处以 MCP_* 别名导入，保持本模块的导出命名不变（bridge.ts 依赖）。
 import {
   applyMcpMaxTokens,
   resolveMcpMaxTokens,
-  MCP_TRUNCATION_MARKER,
-} from "./mcp/output-budget.js";
+  TRUNCATION_MARKER as MCP_TRUNCATION_MARKER,
+} from "../codeanalysis/output-budget.js";
 import {
-  MCP_READ_ONLY_TOOLS,
-  resolveMcpReadOnlyMode,
-  assertMcpReadOnlyToolCall,
-} from "./mcp/read-only-policy.js";
+  READ_ONLY_TOOLS as MCP_READ_ONLY_TOOLS,
+  resolveReadOnlyMode as resolveMcpReadOnlyMode,
+  assertReadOnlyToolCall as assertMcpReadOnlyToolCall,
+} from "../codeanalysis/read-only-policy.js";
 
 // ─────────────────────── 忽略清单（来自 GitNexus ignore-service.ts） ───────────────────────
 

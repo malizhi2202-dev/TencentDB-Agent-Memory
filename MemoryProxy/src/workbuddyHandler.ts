@@ -57,6 +57,7 @@ import { recordTdaiTurn } from "./tdai/recorder.js";
 import { trackWrite, withL0Retry } from "./tdai/pending-writes.js";
 import type { TdaiIdentity, TdaiMessage } from "./tdai/types.js";
 import { triggerSkillExtractIfReady } from "./skill/handler-glue.js";
+import { buildSessionInitWithTrustedIdentity } from "./session/trust-identity.js";
 import { isExtractionAllowed, logExtractionSkipped } from "./extraction-gate.js";
 
 // ── Handler-level constants ──────────────────────────────────────────────────
@@ -873,6 +874,10 @@ export async function handleWorkbuddyEndpoint(
     headers[k.toLowerCase()] = v;
   }
 
+  // ── 方案 B：受信请求头身份（见 session/trust-identity.ts，与 handler.ts 对称）──
+  // 命中时 session-init gate 内换用强制身份 cfg；injection 段标记 mirrorManaged。
+  const trustedResolve = buildSessionInitWithTrustedIdentity(config.sessionInit, headers);
+
   // ── 4. Classify request ──────────────────────────────────────────────────
   // 关闭 workbuddyRequestRouting.enabled 时强制视为 main，走完全等价 aux 分流
   // 未启用的老链路。运维回滚保险；默认启用。对齐 CC 的 ccRequestRouting.enabled
@@ -954,23 +959,27 @@ export async function handleWorkbuddyEndpoint(
         // ── 强制归档旧 agent 的 skill buffer（best-effort）──
         const oldState = store.get(compositeKey);
         if (oldState?.status === "initialized" && oldState.sessionInfo && config.coreSkill?.endpoint) {
-          const si = oldState.sessionInfo as Record<string, string>;
-          if (si.space_id && si.user_id && si.team_id && si.agent_id) {
+          const si = oldState.sessionInfo;
+          // 在 guard 内把窄化后的必填字段先捕获成局部 const —— .then() 回调里
+          // TS 不会保留属性窄化（回调可能晚于任何写执行），旧代码用
+          // `as Record<string, string>` 硬转掩盖了这一点。
+          const { space_id: siSpace, user_id: siUser, team_id: siTeam, agent_id: siAgent } = si;
+          if (siSpace && siUser && siTeam && siAgent) {
             import("./skill/core-client.js").then(({ getCoreSkillClient }) => {
               const client = getCoreSkillClient(config.coreSkill!);
               client.forceArchive(
                 {
-                  space_id: si.space_id,
-                  user_id: si.user_id,
-                  team_id: si.team_id,
-                  agent_id: si.agent_id,
+                  space_id: siSpace,
+                  user_id: siUser,
+                  team_id: siTeam,
+                  agent_id: siAgent,
                   session_id: sessionKey,
                   task_id: si.task_id || undefined,
                   reason: "session-reset",
                 },
-                { serviceId: si.space_id },
+                { serviceId: siSpace },
               ).then((res) => {
-                console.log(`[session-reset] force-archive old buffer: status=${res.status} session=${sessionKey} agent=${si.agent_id}`);
+                console.log(`[session-reset] force-archive old buffer: status=${res.status} session=${sessionKey} agent=${siAgent}`);
               }).catch((err) => {
                 console.warn(`[session-reset] force-archive failed (best-effort): ${err instanceof Error ? err.message : String(err)}`);
               });
@@ -998,7 +1007,7 @@ export async function handleWorkbuddyEndpoint(
       // WorkBuddy / Codex / Claude Code 桌面客户端携带的 bearer 就是用户 key，kernel 能识别；
       // 无需 config.tdai.apiKey 兜底（否则 config 里的 "local" 会覆盖真实用户 key，导致 401）。
       const metadataClient = getMetadataClient(config.coreSkill, spaceId, apiKey);
-      const presetIdentity = parsePresetIdentity(config.sessionInit, headers);
+      const presetIdentity = parsePresetIdentity(trustedResolve.cfg ?? config.sessionInit!, headers);
 
       const compositeKey = `codex:${sessionKey}`;
       const identity = {
@@ -1030,7 +1039,7 @@ export async function handleWorkbuddyEndpoint(
           : buildSessionContextBlockWithToggles(
               recovered.agentDetail ?? null,
               recovered.taskDetail ?? null,
-              config.sessionInit,
+              trustedResolve.cfg ?? config.sessionInit!,
               sessionKey,
             );
         initResult = {
@@ -1065,7 +1074,7 @@ export async function handleWorkbuddyEndpoint(
           sessionKey,
           userId || null,
           synthesizedMessages,
-          config.sessionInit,
+          trustedResolve.cfg ?? config.sessionInit!,
           store,
           {
             stream: isStream,
@@ -1213,15 +1222,13 @@ export async function handleWorkbuddyEndpoint(
           agentName: initResult.agentDetail?.name ?? "未知",
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 会截断成 "elthr7yn" 用户看不懂，与 team 截断问题对称。
-          agentIdShort: (initResult.sessionInfo as Record<string, unknown>)?.agent_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).agent_id) : "",
+          agentIdShort: initResult.sessionInfo?.agent_id ?? "",
           // teamName 来自 session-init 返回值（从 cachedTeams 里查得）；
           // teamIdShort 字段名沿用历史，但此处**存完整 team_id**（如 team-wyuyb7sion）。
           // 之前 slice(-8) 只留后 8 位会让用户看到 "uyb7sion" 这种截断串，配合
           // teamName 常为空导致的兜底路径显示极不完整。团队 id 本身就短，全量展示无害。
           teamName: initResult.teamName ?? undefined,
-          teamIdShort: (initResult.sessionInfo as Record<string, unknown>)?.team_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).team_id) : "",
+          teamIdShort: initResult.sessionInfo?.team_id ?? "",
           taskName: initResult.taskDetail?.name,
         };
       }
@@ -1399,7 +1406,7 @@ export async function handleWorkbuddyEndpoint(
       const sessionContextBlock = buildSessionContextBlockWithToggles(
         cachedAgentDetail as import("./session/types.js").AgentDetail | null,
         cachedTaskDetail as import("./session/types.js").TaskDetail | null,
-        config.sessionInit,
+        trustedResolve.cfg ?? config.sessionInit!,
         sessionKey,
       );
 
@@ -1427,6 +1434,8 @@ export async function handleWorkbuddyEndpoint(
           session: sessionInfo,
           userKey: callerUserKey ?? undefined,
           assetCapabilities,
+          // 方案 B 可信身份头 = 自带记忆镜像的客户端，tools 指南裁剪 L1 部分。
+          mirrorManaged: trustedResolve.trusted !== undefined,
         },
       });
 

@@ -17,8 +17,22 @@
 
 import { FileLogger } from "./file-logger.js";
 import { getObservabilityBackend } from "./factory.js";
+import type { LogAttrs as StrictLogAttrs } from "./types.js";
 
-export type LogAttrs = Record<string, string | number | boolean>;
+/**
+ * 调用方友好的日志属性类型：允许 undefined（optional chaining 直接内联传参）。
+ * undefined 值在入口处被剔除，后端始终收到 {@link StrictLogAttrs}。
+ */
+export type LogAttrs = { [key: string]: string | number | boolean | undefined };
+
+/** 剔除 undefined 值，收敛为后端要求的严格属性类型。 */
+function cleanAttrs(attrs: LogAttrs): StrictLogAttrs {
+  const out: StrictLogAttrs = {};
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
 
 // 初始化文件写入器（降级策略：初始化失败不影响业务）
 const obsFileLogger = new FileLogger({
@@ -38,9 +52,10 @@ export const obsLogger = {
    */
   info(eventName: string, attrs: LogAttrs = {}): void {
     try {
-      getObservabilityBackend().log.info(eventName, attrs);
+      const clean = cleanAttrs(attrs);
+      getObservabilityBackend().log.info(eventName, clean);
       // 同时写入本地日志文件
-      obsFileLogger.write("INFO", eventName, attrs as Record<string, unknown>);
+      obsFileLogger.write("INFO", eventName, clean as Record<string, unknown>);
     } catch {
       // 静默失败，不影响业务
     }
@@ -51,9 +66,10 @@ export const obsLogger = {
    */
   warn(eventName: string, attrs: LogAttrs = {}): void {
     try {
-      getObservabilityBackend().log.warn(eventName, attrs);
+      const clean = cleanAttrs(attrs);
+      getObservabilityBackend().log.warn(eventName, clean);
       // 同时写入本地日志文件
-      obsFileLogger.write("WARN", eventName, attrs as Record<string, unknown>);
+      obsFileLogger.write("WARN", eventName, clean as Record<string, unknown>);
     } catch {
       // 静默失败，不影响业务
     }
@@ -64,12 +80,13 @@ export const obsLogger = {
    */
   error(eventName: string, attrs: LogAttrs = {}, error?: Error): void {
     try {
+      let clean = cleanAttrs(attrs);
       if (error) {
-        attrs = { ...attrs, "error.message": error.message, "error.type": error.name };
+        clean = { ...clean, "error.message": error.message, "error.type": error.name };
       }
-      getObservabilityBackend().log.error(eventName, attrs, error);
+      getObservabilityBackend().log.error(eventName, clean, error);
       // 同时写入本地日志文件
-      obsFileLogger.write("ERROR", eventName, attrs as Record<string, unknown>);
+      obsFileLogger.write("ERROR", eventName, clean as Record<string, unknown>);
     } catch {
       // 静默失败，不影响业务
     }

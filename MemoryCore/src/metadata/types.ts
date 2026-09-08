@@ -31,7 +31,8 @@ export type AssetStatus =
   | "approved"
   | "deprecated"
   | "archived"
-  | "failed";
+  | "failed"
+  | "active";
 
 export type InjectionMode = "direct" | "summary" | "tool" | "reference";
 
@@ -465,19 +466,6 @@ export interface WriteApprovalFilter {
   team_id?: string;
   agent_id?: string;
   status?: WriteApprovalStatus;
-}
-  scope: KnowledgeScope;
-  /** team_id 或 project_id。 */
-  scope_id: string;
-  kind: KnowledgeKind;
-  title: string;
-  content: string | null;
-  status: string | null;
-  source: KnowledgeSource;
-  owner_user_id: string;
-  meta_json: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface TaskEntity {

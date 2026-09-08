@@ -62,7 +62,15 @@ async function handleKnowledgeCreate(
   if (!parsed.success) return errorEnvelope(400, formatZodErr(parsed.error), requestId);
   const store = getEntityStore(deps);
   if (!store?.createKnowledge) return missingEntityStore(requestId);
-  return successEnvelope<KnowledgeEntity>(await store.createKnowledge(parsed.data), requestId);
+  // schema 可省略的字段补默认值对齐实体必填列（summary/user_id 在库里是 NOT NULL 列，允许 NULL 值）。
+  return successEnvelope<KnowledgeEntity>(
+    await store.createKnowledge({
+      ...parsed.data,
+      summary: parsed.data.summary ?? null,
+      user_id: parsed.data.user_id ?? null,
+    }),
+    requestId,
+  );
 }
 
 async function handleKnowledgeGet(

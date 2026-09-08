@@ -30,14 +30,6 @@ import {
   type MemoryDomain,
   type WritePolicy,
 } from "./memory-domain.js";
-import {
-  canOverwrite,
-  defaultDomainForType,
-  defaultPolicyForDomain,
-  resolveWritePolicy,
-  type MemoryDomain,
-  type WritePolicy,
-} from "./memory-domain.js";
 import { redactSensitive } from "./redaction.js";
 
 // ============================

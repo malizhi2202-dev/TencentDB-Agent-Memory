@@ -16,7 +16,6 @@ import { parseConfig as parseMemoryConfig } from "../config.js";
 import type { MemoryTdaiConfig } from "../config.js";
 import type { StandaloneLLMConfig } from "../adapters/standalone/llm-runner.js";
 import type { OpenAICompatibleProviderConfig, ModelInfo } from "../model/index.js";
-import type { OpenAICompatibleProviderConfig, ModelInfo } from "../model/index.js";
 
 // ============================
 // Gateway config types
@@ -369,8 +368,8 @@ export interface GatewayConfig {
 
   /** State backend type. env: STATE_BACKEND. yaml: stateBackend */
   stateBackend?: "redis" | "local";
-  /** Default instance ID for standalone pipeline. env: TDAI_INSTANCE_ID. yaml: instanceId */
-  instanceId: string;
+  /** Default instance ID for standalone pipeline. env: TDAI_INSTANCE_ID. yaml: instanceId. 服务模式可为空（按请求头路由）。 */
+  instanceId?: string;
   redis: RedisConfig;
   shark: SharkConfig;
   scanner: ScannerConfig;
@@ -633,7 +632,8 @@ export function loadGatewayConfig(overrides?: GatewayConfigOverrides): GatewayCo
       model: llm.model,
       maxTokens: llm.maxTokens ?? 4096,
       timeoutMs: llm.timeoutMs ?? 120_000,
-      provider: llm.provider,
+      // memory.llm 的 provider 语义是二元（proxy 与否）；自定义 provider id 一律按 openai 直连处理。
+      provider: llm.provider === "proxy" ? "proxy" : "openai",
       proxy: {
         useMemorySystemUserKey: llm.proxy?.useMemorySystemUserKey ?? true,
       },

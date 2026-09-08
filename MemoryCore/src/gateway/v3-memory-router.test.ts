@@ -20,10 +20,11 @@ function call(
       headers: { "x-request-id": "req-1", "x-tdai-service-id": "inst-1" },
     } as unknown as IncomingMessage;
     const res = {} as ServerResponse;
-    const parseJsonBody = async () => body;
-    const sendJson = (_r: ServerResponse, status: number, b: { code: number; data?: unknown; message?: string }) => {
-      sent = { status, body: b };
-      resolve({ handled: true, sent, body: b.data });
+    const parseJsonBody = async <T>() => body as T;
+    const sendJson = (_r: ServerResponse, status: number, b: unknown) => {
+      const payload = b as { code: number; data?: unknown; message?: string };
+      sent = { status, body: payload };
+      resolve({ handled: true, sent, body: payload.data });
     };
     void handleV3MemoryRoute(
       req,

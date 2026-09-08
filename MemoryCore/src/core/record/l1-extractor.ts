@@ -19,8 +19,6 @@ import { writeMemory, generateMemoryId } from "./l1-writer.js";
 import type { ExtractedMemory, MemoryRecord, MemoryType, DedupDecision } from "./l1-writer.js";
 import { defaultDomainForType } from "./memory-domain.js";
 import { routeMemorySpace } from "./memory-write-router.js";
-import { defaultDomainForType } from "./memory-domain.js";
-import { routeMemorySpace } from "./memory-write-router.js";
 import { CleanContextRunner } from "../../utils/clean-context-runner.js";
 import { sanitizeJsonForParse, shouldExtractL1 } from "../../utils/sanitize.js";
 import type { IMemoryStore } from "../store/types.js";

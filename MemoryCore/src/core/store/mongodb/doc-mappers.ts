@@ -118,6 +118,10 @@ export interface L1Doc {
   updated_time: string;
   updated_time_ms: number;
   metadata_json: string;
+  /** Brain 域（P0.1）。旧文档缺省 → 读取侧按 type 推导。 */
+  domain?: string;
+  write_policy?: string;
+  space_id?: string;
 }
 
 export function l1RecordToDoc(record: MemoryRecord): L1Doc {
@@ -147,6 +151,9 @@ export function l1RecordToDoc(record: MemoryRecord): L1Doc {
     updated_time: record.updatedAt,
     updated_time_ms: isoToEpochMs(record.updatedAt),
     metadata_json: JSON.stringify(record.metadata ?? {}),
+    domain: record.domain,
+    write_policy: record.write_policy,
+    space_id: record.spaceId,
   };
 }
 
@@ -170,6 +177,9 @@ export function docToL1RecordRow(doc: L1Doc): L1RecordRow {
     created_time: doc.created_time ?? "",
     updated_time: doc.updated_time ?? "",
     metadata_json: doc.metadata_json ?? "{}",
+    domain: doc.domain ?? "",
+    write_policy: doc.write_policy ?? "",
+    space_id: doc.space_id ?? "",
   };
 }
 

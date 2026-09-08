@@ -123,15 +123,16 @@ export const zhCN = {
 
   // ===== LoginGate =====
   'login.welcome': 'Memory Hub',
-  'login.subtitle': '请选择记忆实例并输入你的 user_key 登录。',
+  'login.subtitle': '请选择记忆实例并输入用户名和密码登录。',
   'login.tagline': '集中管理 Agent 的记忆、技能与知识资产',
   'login.field.instance': '记忆实例',
   'login.field.userKey': 'User Key',
   'login.footer': 'TencentDB · AI 记忆中枢',
   'login.placeholder.instance': '加载记忆实例中…',
   'login.placeholder.instanceError': '加载失败，请刷新重试',
-  'login.placeholder.userKey': 'user_key，如 sk-mem-xxxxxxxxxxxxxxxx',
-  'login.hint.userKey': '请使用管理员为你分配的 user_key；若还没有，请联系团队管理员开号。',
+  'login.placeholder.username': '用户名',
+  'login.placeholder.password': '密码',
+  'login.hint.password': '请输入你的用户名和密码登录；账号由管理员创建并分配初始密码。',
   'login.submit': '登录',
   // 无独立的"登录方式选择页"：user_key 登录页与 iOA 流程各自内嵌一个跳转链接，
   // 用户点一下直达另一种方式，不经过中间选择页。
@@ -166,9 +167,9 @@ export const zhCN = {
   'login.submitting': '登录中…',
   'login.error.loadInstances': '加载记忆实例列表失败，请刷新页面重试{{detail}}',
   'login.error.selectInstance': '请选择记忆实例。',
-  'login.error.emptyKey': '请输入你的 user_key（sk-mem-…）。',
-  'login.error.invalidKey': 'user_key 无效或已吊销，请确认后重新输入。',
-  'login.error.noUser': '登录响应缺少用户信息（data.user 为空），请联系后端确认 auth/verify 契约。',
+  'login.error.emptyUsername': '请输入用户名。',
+  'login.error.emptyPassword': '请输入密码。',
+  'login.error.invalidCredentials': '用户名或密码错误，请确认后重新输入。',
 
   // ===== SettingsDialog =====
   'settings.caption': '设置 · 权限管理',

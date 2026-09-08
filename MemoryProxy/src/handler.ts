@@ -33,7 +33,7 @@ import {
 import { hasCostGuardMarker, matchWhitelistEndpoint } from "./routes/whitelist.js";
 import { writeRequestLog } from "./requestLog.js";
 import { prepareUpstreamRequest, notifyUpstreamResponse } from "./request-prepare-adapter.js";
-import { tryReportCreditFromPath, extractSpaceIdFromPath } from "./credit-reporter.js";
+import { tryReportCreditFromPath, extractSpaceIdFromPath, type CreditReportOutcome } from "./credit-reporter.js";
 import {
   getInstanceUpstreamConfigs,
   resolveUpstreamConfig,
@@ -52,6 +52,7 @@ import { trackWrite, withL0Retry } from "./tdai/pending-writes.js";
 import type { TdaiIdentity, TdaiMessage } from "./tdai/types.js";
 import { triggerSkillExtractIfReady } from "./skill/handler-glue.js";
 import { emitModelIntentTelemetry } from "./session/model-intent-telemetry.js";
+import { buildSessionInitWithTrustedIdentity } from "./session/trust-identity.js";
 import { isExtractionAllowed, logExtractionSkipped } from "./extraction-gate.js";
 import {
   enforceRateLimit,
@@ -683,6 +684,15 @@ export async function handleChatCompletions(
     lcHeaders[k.toLowerCase()] = v;
   }
 
+  // ── 方案 B：受信请求头身份解析（x-team-id / x-agent-id / x-task-id）─────────
+  // penguin-harness 等受信内部客户端在请求头里直接钉身份。命中时：
+  //   - 下面 session-init gate 内用 trustedResolve.cfg（强制身份版 cfg，复用
+  //     debugForceIdentity 通道 + 关闭 headerAutoSelect）注册；
+  //   - injection 段用 trustedResolve.trusted 标记 mirrorManaged（自带记忆镜像
+  //     的客户端，L1 由本地 MEMORY.md 镜像索引提供 → tools 指南裁剪 L1 部分）。
+  // 未命中 / 未启用时 cfg 原样透传，一切照旧。见 session/trust-identity.ts。
+  const trustedResolve = buildSessionInitWithTrustedIdentity(config.sessionInit, lcHeaders);
+
   // ── Session key: prefer conversation header, fallback to agent profile ───────────
   const { resolveConversationId } = await import("./session/session-key.js");
   const conversationId = resolveConversationId(c);
@@ -813,23 +823,27 @@ export async function handleChatCompletions(
         // reset 前旧 agent 累积的对话片段可能还没达到阈值，不 flush 会永久丢失。
         const oldState = store.get(compositeKey);
         if (oldState?.status === "initialized" && oldState.sessionInfo && config.coreSkill?.endpoint) {
-          const si = oldState.sessionInfo as Record<string, string>;
-          if (si.space_id && si.user_id && si.team_id && si.agent_id) {
+          const si = oldState.sessionInfo;
+          // 在 guard 内把窄化后的必填字段先捕获成局部 const —— .then() 回调里
+          // TS 不会保留属性窄化（回调可能晚于任何写执行），旧代码用
+          // `as Record<string, string>` 硬转掩盖了这一点。
+          const { space_id: siSpace, user_id: siUser, team_id: siTeam, agent_id: siAgent } = si;
+          if (siSpace && siUser && siTeam && siAgent) {
             import("./skill/core-client.js").then(({ getCoreSkillClient }) => {
               const client = getCoreSkillClient(config.coreSkill!);
               client.forceArchive(
                 {
-                  space_id: si.space_id,
-                  user_id: si.user_id,
-                  team_id: si.team_id,
-                  agent_id: si.agent_id,
+                  space_id: siSpace,
+                  user_id: siUser,
+                  team_id: siTeam,
+                  agent_id: siAgent,
                   session_id: sessionKey,
                   task_id: si.task_id || undefined,
                   reason: "session-reset",
                 },
-                { serviceId: si.space_id },
+                { serviceId: siSpace },
               ).then((res) => {
-                console.log(`[session-reset] force-archive old buffer: status=${res.status} session=${sessionKey} agent=${si.agent_id}`);
+                console.log(`[session-reset] force-archive old buffer: status=${res.status} session=${sessionKey} agent=${siAgent}`);
               }).catch((err) => {
                 console.warn(`[session-reset] force-archive failed (best-effort): ${err instanceof Error ? err.message : String(err)}`);
               });
@@ -872,7 +886,7 @@ export async function handleChatCompletions(
       // 与 workbuddyHandler.ts 里的 kernelUserKey 逻辑对齐（那里也是客户端优先）。
       const kernelUserKey = apiKey || config.tdai?.apiKey || "";
       metadataClient = getMetadataClient(config.coreSkill, spaceId, kernelUserKey);
-      const presetIdentity = parsePresetIdentity(config.sessionInit, lcHeaders);
+      const presetIdentity = parsePresetIdentity(trustedResolve.cfg ?? config.sessionInit!, lcHeaders);
 
       // ── Session Recovery: try L2b binding before falling into session-init form ──
       const compositeKey = `${agentSource}:${sessionKey}`;
@@ -925,7 +939,7 @@ export async function handleChatCompletions(
               inMsgs,
               recovered.agentDetail ?? null,
               recovered.taskDetail ?? null,
-              config.sessionInit,
+              trustedResolve.cfg ?? config.sessionInit!,
               sessionKey,
             );
         initResult = {
@@ -960,7 +974,7 @@ export async function handleChatCompletions(
           sessionKey,
           userId || null,
           body.messages as Array<Record<string, unknown>> ?? [],
-          config.sessionInit,
+          trustedResolve.cfg ?? config.sessionInit!,
           store,
           { stream: isStream, modelId: modelId as string, protocol: "openai", questionsAsArray, capabilities: _capabilities },
           agentSource,
@@ -1105,14 +1119,12 @@ export async function handleChatCompletions(
           // agentIdShort 字段名沿用历史，但此处**存完整 agent_id**（如 agt-1celthr7yn）。
           // 之前 slice(-8) 只留后 8 位会显示成 "elthr7yn" 这种截断串，用户完全看不懂，
           // 与 team 截断问题同源。agent id 本身就短，全量展示无害且更可读。
-          agentIdShort: (initResult.sessionInfo as Record<string, unknown>)?.agent_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).agent_id) : "",
+          agentIdShort: initResult.sessionInfo?.agent_id ?? "",
           // teamName 来自 session-init（cachedTeams[selected].team_name）；
           // teamId 存**完整** team_id（如 team-wyuyb7sion）—— 之前 slice(-8)
           // 会显示成 "uyb7sion" 用户看不懂，且 teamName 为空时兜底更差。
           teamName: initResult.teamName ?? undefined,
-          teamId: (initResult.sessionInfo as Record<string, unknown>)?.team_id
-            ? String((initResult.sessionInfo as Record<string, unknown>).team_id) : "",
+          teamId: initResult.sessionInfo?.team_id ?? "",
           taskName: initResult.taskDetail?.name,
         };
       }
@@ -2352,7 +2364,7 @@ function createUsageTapTransform(ctx: TapContext): TransformStream<Uint8Array, U
     // only be observed via server logs (no way to retro-add response headers).
     // skipCreditReport: instance config custom model → user's expense, skip credit.
     (ctx.skipCreditReport
-      ? Promise.resolve({ attempted: false, ok: false })
+      ? Promise.resolve<CreditReportOutcome>({ attempted: false, ok: false })
       : tryReportCreditFromPath(
           ctx.config.creditReport,
           ctx.requestPath,

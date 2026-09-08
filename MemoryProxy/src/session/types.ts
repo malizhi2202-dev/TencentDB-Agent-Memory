@@ -42,8 +42,6 @@ export interface SessionInitState {
   sessionInfo?: SessionInfo | null;
   /** True when the identity came from trusted identity headers (方案 B) — i.e. a mirror-managed client (penguin-harness). Used by session-refresh to rebuild the cache with the mirror-aware injection variant. */
   mirrorManaged?: boolean;
-  /** True when the identity came from trusted identity headers (方案 B) — i.e. a mirror-managed client (penguin-harness). Used by session-refresh to rebuild the cache with the mirror-aware injection variant. */
-  mirrorManaged?: boolean;
   /** User ID from auth/verify (not from header). */
   userId?: string;
   /** 内核 /teams 返回的嵌套结构，用于渲染 form 与解析用户答复。 */

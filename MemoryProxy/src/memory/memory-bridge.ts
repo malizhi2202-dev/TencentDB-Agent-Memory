@@ -57,6 +57,13 @@ interface SessionIdFields {
   team_id: string;
   agent_id: string;
   session_id: string;
+  /**
+   * URL 路径侧的 agentSource（`claude-code` / `codebuddy` ...）—— 用于
+   * 埋点/遥测字段。从 SessionStore 里存储 session 的 keyId 反解出来
+   * （keyId 形如 `${agentSource}:${sessionId}`）；bare sessionId 兜底
+   * `claude-code`。与 skill-bridge 的同名字段语义一致。
+   */
+  agent_source: string;
   task_id?: string;
   user_key?: string;
   /**
@@ -99,10 +106,13 @@ function toIdFields(
   if (!state || state.status !== "initialized" || !state.sessionInfo) return null;
   const s = state.sessionInfo;
   if (!s.user_id || !s.team_id || !s.agent_id || !s.session_id) return null;
+  const colonIdx = compositeKey.indexOf(":");
+  const agentSource = colonIdx > 0 ? compositeKey.slice(0, colonIdx) : "claude-code";
   return {
     user_id: s.user_id,
     team_id: s.team_id,
     agent_id: s.agent_id,
+    agent_source: agentSource,
     session_id: s.session_id,
     task_id: s.task_id,
     user_key: s.user_key,
@@ -123,6 +133,7 @@ function bindingToIdFields(
     user_id: binding.userId,
     team_id: binding.teamId,
     agent_id: binding.agentId,
+    agent_source: agentSource,
     session_id: sessionId,
     task_id: binding.taskId,
     user_key: binding.userKey,

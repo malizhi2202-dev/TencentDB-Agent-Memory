@@ -79,7 +79,6 @@ import type {
   TaskFilter,
   AssetFilter,
   ProjectFilter,
-  ProjectFilter,
   BatchDeleteResult,
   ListPage,
   PaginationParams,
@@ -93,10 +92,15 @@ import type {
   UpsertInstanceUpstreamConfigInput,
   InstanceUpstreamConfigFilter,
   UpstreamConfigType,
+  AuditLogEntity,
+  AuditLogFilter,
+  UserPermissionEntity,
+  GrantPermissionInput,
+  PermissionFilter,
 } from "../types.js";
 import { DEFAULT_PAGINATION } from "../pagination.js";
 import { buildChatMemoryAssetId } from "../utils/chat-memory-asset.js";
-import { DuplicateUserKeyError } from "./interface.js";
+import { DuplicateUserKeyError, type IMetadataStore } from "./interface.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -406,11 +410,13 @@ export class MongoMetadataStore implements IMetadataStore {
     const now = nowIso();
     const defaultKeyValue = input.default_key_value ?? generateUserKey();
     for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      // 与 sqlite 存储层约定一致：auth_provider 缺省 local，external_id 缺省 user_id。
+      const userId = input.user_id ?? generateId(ID_PREFIX.user);
       const doc: UserEntity = {
-        user_id: input.user_id ?? generateId(ID_PREFIX.user),
+        user_id: userId,
         password: input.password ?? null,
-        auth_provider: input.auth_provider,
-        external_id: input.external_id,
+        auth_provider: input.auth_provider ?? "local",
+        external_id: input.external_id ?? userId,
         username: input.username,
         display_name: input.display_name ?? null,
         raw_profile_json: input.raw_profile_json ?? "{}",
@@ -717,11 +723,6 @@ export class MongoMetadataStore implements IMetadataStore {
     );
   }
 
-  async listTeams(filter?: { name?: string }, pagination?: PaginationParams | null): Promise<ListPage<TeamEntity>> {
-    const match: Document = {};
-    if (filter?.name) match.name = filter.name;
-    return this.paginatedFind("meta_teams", match, pagination, { created_at: -1 }, (d) => d as TeamEntity);
-  }
 
   async listTeams(filter?: { name?: string }, pagination?: PaginationParams | null): Promise<ListPage<TeamEntity>> {
     const match: Document = {};
@@ -802,52 +803,6 @@ export class MongoMetadataStore implements IMetadataStore {
     return mapTeamMemberWithProfile({ ...member, username: user?.username ?? "" });
   }
 
-  // ============================================================
-  // Project（M1：Mongo 后端暂未实现，SQLite 为默认后端）
-  // ============================================================
-  async createProject(_input: CreateProjectInput): Promise<ProjectEntity> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async getProjectById(_projectId: string): Promise<ProjectEntity | null> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async updateProject(_projectId: string, _patch: Partial<ProjectEntity>): Promise<ProjectEntity | null> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async deleteProjects(_projectIds: string[]): Promise<BatchDeleteResult> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async listProjects(_filter?: ProjectFilter, _pagination?: PaginationParams | null): Promise<ListPage<ProjectEntity>> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async addProjectMember(_input: AddProjectMemberInput): Promise<ProjectMemberEntity> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async removeProjectMember(_projectId: string, _userId: string): Promise<void> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async listProjectMembers(_projectId: string, _pagination?: PaginationParams | null): Promise<ListPage<ProjectMemberEntity>> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async getProjectMember(_projectId: string, _userId: string): Promise<ProjectMemberEntity | null> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async listProjectMembersWithProfile(_projectId: string, _pagination?: PaginationParams | null): Promise<ListPage<ProjectMemberView>> {
-    throw new Error("project not supported on mongodb backend");
-  }
-
-  async getProjectMemberWithProfile(_projectId: string, _userId: string): Promise<ProjectMemberView | null> {
-    throw new Error("project not supported on mongodb backend");
-  }
 
   // ============================================================
   // Project（M1：Mongo 后端暂未实现，SQLite 为默认后端）
@@ -931,42 +886,6 @@ export class MongoMetadataStore implements IMetadataStore {
     return this.col<AgentEntity>("meta_agents").findOne({ agent_id: agentId } as Document, PROJECT_NO_ID) as Promise<AgentEntity | null>;
   }
 
-  async createAgentSpaces(spaces: CreateAgentSpaceInput[]): Promise<void> {
-    if (spaces.length === 0) return;
-    const now = nowIso();
-    for (const s of spaces) {
-      // (agent_id, space_id) 幂等 upsert：重复调用只 setOnInsert，不改已有记录
-      await this.col("meta_agent_spaces").updateOne(
-        { agent_id: s.agent_id, space_id: s.space_id } as Document,
-        {
-          $setOnInsert: {
-            id: generateRelationId(),
-            agent_id: s.agent_id,
-            space_id: s.space_id,
-            owner_type: s.owner_type,
-            owner_id: s.owner_id,
-            domain: s.domain,
-            write_policy: s.write_policy,
-            source: s.source ?? "default_mount",
-            created_at: now,
-          },
-        },
-        { upsert: true },
-      );
-    }
-  }
-
-  async getAgentSpaces(agentId: string): Promise<AgentSpaceEntity[]> {
-    const docs = await this.col("meta_agent_spaces")
-      .find({ agent_id: agentId } as Document, { projection: PROJECT_NO_ID })
-      .sort({ created_at: 1 })
-      .toArray();
-    return docs as unknown as AgentSpaceEntity[];
-  }
-
-  async deleteAgentSpaces(agentId: string): Promise<void> {
-    await this.col("meta_agent_spaces").deleteMany({ agent_id: agentId } as Document);
-  }
 
   async createAgentSpaces(spaces: CreateAgentSpaceInput[]): Promise<void> {
     if (spaces.length === 0) return;
@@ -1746,14 +1665,6 @@ export class MongoMetadataStore implements IMetadataStore {
     return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
   }
 
-  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
-    const q: Document = { project_id: projectId };
-    if (filter?.asset_type) q.asset_type = filter.asset_type;
-    if (filter?.status) q.status = filter.status;
-    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
-    if (filter?.visibility) q.visibility = filter.visibility;
-    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
-  }
 
   async listAssetsByOwner(ownerUserId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
     const q: Document = { owner_user_id: ownerUserId };
@@ -1763,23 +1674,6 @@ export class MongoMetadataStore implements IMetadataStore {
     return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
   }
 
-  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
-    const q: Document = { project_id: projectId };
-    if (filter?.asset_type) q.asset_type = filter.asset_type;
-    if (filter?.status) q.status = filter.status;
-    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
-    if (filter?.visibility) q.visibility = filter.visibility;
-    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
-  }
-
-  async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
-    const q: Document = { project_id: projectId };
-    if (filter?.asset_type) q.asset_type = filter.asset_type;
-    if (filter?.status) q.status = filter.status;
-    if (filter?.owner_user_id) q.owner_user_id = filter.owner_user_id;
-    if (filter?.visibility) q.visibility = filter.visibility;
-    return this.paginatedFind("meta_assets", q, pagination, { created_at: -1 }, (d) => d as AssetEntity);
-  }
 
   async listAssetsByProject(projectId: string, pagination?: PaginationParams | null, filter?: AssetFilter): Promise<ListPage<AssetEntity>> {
     const q: Document = { project_id: projectId };
@@ -1872,7 +1766,7 @@ export class MongoMetadataStore implements IMetadataStore {
     // 类型过滤：先按 asset_type 拿 asset_id 集合，再用它过滤 binding。
     const assetIds = await this.col("meta_assets")
       .find({ asset_type: { $in: [...types] } } as Document, { projection: { asset_id: 1 } })
-      .map((d) => (d as { asset_id: string }).asset_id)
+      .map((d) => (d as unknown as { asset_id: string }).asset_id)
       .toArray();
     if (assetIds.length === 0) {
       return { items: [], total: 0 };
@@ -2030,6 +1924,20 @@ export class MongoMetadataStore implements IMetadataStore {
     return doc ? (doc as unknown as ConfigParamEntity) : null;
   }
 
+  async deleteConfigParam(
+    scope: "global" | "user",
+    userId: string | null,
+    module: string,
+    paramName: string,
+  ): Promise<boolean> {
+    const filter: Document =
+      scope === "global"
+        ? { scope: "global", user_id: null, module, param_name: paramName }
+        : { scope: "user", user_id: userId, module, param_name: paramName };
+    const result = await this.col("meta_config_params").deleteOne(filter);
+    return (result.deletedCount ?? 0) > 0;
+  }
+
   async upsertConfigParam(input: UpsertConfigParamInput): Promise<ConfigParamEntity> {
     const now = nowIso();
     const filter: Document =
@@ -2164,5 +2072,78 @@ export class MongoMetadataStore implements IMetadataStore {
       { agent_source: agentSource, type } as Document,
     );
     return (result.deletedCount ?? 0) > 0;
+  }
+
+  // ============================================================
+  // AuditLog
+  // ============================================================
+  async createAuditLog(input: {
+    id?: string;
+    actor_user_id: string;
+    action: string;
+    entity_type: string;
+    entity_id: string;
+    detail: string;
+  }): Promise<AuditLogEntity> {
+    const now = nowIso();
+    const id = input.id ?? generateRelationId();
+    await this.col("meta_audit_logs").insertOne({
+      id,
+      actor_user_id: input.actor_user_id,
+      action: input.action,
+      entity_type: input.entity_type,
+      entity_id: input.entity_id,
+      detail: input.detail,
+      created_at: now,
+    });
+    return {
+      id,
+      actor_user_id: input.actor_user_id,
+      action: input.action,
+      entity_type: input.entity_type,
+      entity_id: input.entity_id,
+      detail: input.detail,
+      created_at: now,
+    };
+  }
+
+  async listAuditLogs(filter?: AuditLogFilter, pagination?: PaginationParams | null): Promise<ListPage<AuditLogEntity>> {
+    const match: Document = {};
+    if (filter?.actor_user_id) match.actor_user_id = filter.actor_user_id;
+    if (filter?.action) match.action = filter.action;
+    if (filter?.entity_type) match.entity_type = filter.entity_type;
+    if (filter?.entity_id) match.entity_id = filter.entity_id;
+    return this.paginatedFind("meta_audit_logs", match, pagination, { created_at: -1 }, (d) => d as unknown as AuditLogEntity);
+  }
+
+  // ── UserPermission（方案B RBAC）──
+  async grantPermission(input: GrantPermissionInput): Promise<UserPermissionEntity> {
+    const existing = await this.getPermissionByUserAndPerm(input.user_id, input.permission);
+    if (existing) return existing; // 幂等：已存在直接返回
+    const doc = {
+      id: generateRelationId(),
+      user_id: input.user_id,
+      permission: input.permission,
+      granted_by: input.granted_by ?? "system",
+      created_at: new Date().toISOString(),
+    };
+    await this.col("meta_user_permissions").insertOne({ ...doc });
+    return doc as unknown as UserPermissionEntity;
+  }
+
+  async revokePermission(userId: string, permission: string): Promise<boolean> {
+    const res = await this.col("meta_user_permissions").deleteMany({ user_id: userId, permission } as Document);
+    return (res.deletedCount ?? 0) > 0;
+  }
+
+  async listUserPermissions(filter?: PermissionFilter, pagination?: PaginationParams | null): Promise<ListPage<UserPermissionEntity>> {
+    const match: Document = {};
+    if (filter?.user_id) match.user_id = filter.user_id;
+    return this.paginatedFind("meta_user_permissions", match, pagination, { created_at: -1 }, (d) => d as unknown as UserPermissionEntity);
+  }
+
+  async getPermissionByUserAndPerm(userId: string, permission: string): Promise<UserPermissionEntity | null> {
+    const d = await this.col("meta_user_permissions").findOne({ user_id: userId, permission } as Document);
+    return (d as unknown as UserPermissionEntity) ?? null;
   }
 }

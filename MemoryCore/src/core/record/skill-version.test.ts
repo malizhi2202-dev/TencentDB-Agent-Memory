@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { transitionSkillVersion, isSkillUsable, isSkillTerminal, skillLifecyclePath } from "./skill-version.js";
+import type { SkillVersionEvent } from "./skill-version.js";
 
 describe("skill-version — skill 版本生命周期（§5.3）", () => {
   it("完整发布链：draft → pending → published → evaluating → published", () => {
@@ -45,8 +46,8 @@ describe("skill-version — skill 版本生命周期（§5.3）", () => {
   });
 });
 
-function eventFor(from: string, to: string) {
-  const map: Record<string, string> = {
+function eventFor(from: string, to: string): SkillVersionEvent {
+  const map: Record<string, SkillVersionEvent> = {
     "draft|pending": "submit_review",
     "pending|published": "approve",
     "published|evaluating": "start_eval",

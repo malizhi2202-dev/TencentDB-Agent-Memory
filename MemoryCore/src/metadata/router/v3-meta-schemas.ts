@@ -7,12 +7,11 @@
 import { z } from "zod";
 import { paginationInputSchema } from "./pagination.js";
 import { isGlobalPermission } from "../global-permissions.js";
-import { isGlobalPermission } from "../global-permissions.js";
 
 // ── 枚举 ──
 const assetType = z.enum(["skill", "llm_wiki", "code_graph", "chat_memory"]);
 const visibility = z.enum(["private", "team", "restricted", "agent", "task"]);
-const assetStatus = z.enum(["draft", "candidate", "approved", "deprecated", "archived", "failed"]);
+const assetStatus = z.enum(["draft", "candidate", "approved", "deprecated", "archived", "failed", "active"]);
 const injectionMode = z.enum(["direct", "summary", "tool", "reference"]);
 const permission = z.enum(["read", "write", "delete", "assign", "share", "use"]);
 const teamRole = z.enum(["admin", "member", "reviewer"]);
@@ -587,6 +586,209 @@ export const instanceUpstreamResetSchema = z.object({
   type: upstreamConfigType.default("conversation"),
 });
 
+// ── GitCredential（私有 git 仓库凭据）──
+// secret 承载 password / token / SSH 私钥，上限 16KB 覆盖 RSA-4096 私钥。
+export const gitCredentialCreateSchema = z.object({
+  name: nonEmpty,
+  auth_type: z.enum(["password", "token", "ssh"]),
+  host: z.string().max(255).optional().nullable(),
+  username: z.string().max(255).optional().nullable(),
+  secret: z.string().min(1).max(16384),
+  passphrase: z.string().max(1024).optional().nullable(),
+});
+export const gitCredentialGetSchema = z.object({ credential_id: nonEmpty });
+export const gitCredentialDeleteSchema = z.object({ credential_id: nonEmpty });
+export const gitCredentialListSchema = z.object({});
+
+// ── KnowledgeEntry（项目级五类 + 团队级工作模式）──
+const knowledgeScope = z.enum(["team", "project"]);
+const knowledgeKind = z.enum(["objective", "decision", "deliverable", "discussion", "convention", "methodology", "mindset"]);
+const knowledgeSource = z.enum(["memory", "external", "hybrid"]);
+export const knowledgeCreateSchema = z.object({
+  scope: knowledgeScope,
+  scope_id: nonEmpty,
+  kind: knowledgeKind,
+  title: nonEmpty,
+  content: z.string().optional(),
+  status: z.string().optional(),
+  source: knowledgeSource,
+  owner_user_id: nonEmpty,
+  meta_json: z.string().optional(),
+});
+export const knowledgeGetSchema = z.object({ entry_id: nonEmpty });
+export const knowledgeUpdateSchema = z.object({
+  entry_id: nonEmpty,
+  title: z.string().min(1).optional(),
+  content: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  source: knowledgeSource.optional(),
+  kind: knowledgeKind.optional(),
+  meta_json: z.string().optional(),
+});
+export const knowledgeDeleteSchema = z.object({ entry_ids: idList });
+export const knowledgeListSchema = z
+  .object({
+    scope: knowledgeScope,
+    scope_id: nonEmpty,
+    kind: knowledgeKind.optional(),
+    source: knowledgeSource.optional(),
+    status: z.string().optional(),
+  })
+  .merge(paginationInputSchema);
+
+// ── ToolSource（MCP Server / REST API）──
+const toolSourceKind = z.enum(["mcp", "rest"]);
+export const toolSourceCreateSchema = z.object({
+  kind: toolSourceKind,
+  team_id: nonEmpty,
+  name: nonEmpty,
+  description: z.string().optional(),
+  endpoint_url: z.string().optional(),
+  transport: z.string().optional(),
+  auth_config_json: z.string().optional(),
+  status: z.string().optional(),
+  source: knowledgeSource,
+  owner_user_id: nonEmpty,
+  meta_json: z.string().optional(),
+});
+export const toolSourceGetSchema = z.object({ tool_id: nonEmpty });
+export const toolSourceUpdateSchema = z.object({
+  tool_id: nonEmpty,
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  endpoint_url: z.string().nullable().optional(),
+  transport: z.string().nullable().optional(),
+  auth_config_json: z.string().optional(),
+  status: z.string().nullable().optional(),
+  source: knowledgeSource.optional(),
+  kind: toolSourceKind.optional(),
+  meta_json: z.string().optional(),
+});
+export const toolSourceDeleteSchema = z.object({ tool_ids: idList });
+export const toolSourceListSchema = z
+  .object({
+    team_id: nonEmpty,
+    kind: toolSourceKind.optional(),
+    source: knowledgeSource.optional(),
+    status: z.string().optional(),
+  })
+  .merge(paginationInputSchema);
+
+// ── AgentTeam（多 Agent 编排）──
+export const agentTeamCreateSchema = z.object({
+  team_id: nonEmpty,
+  name: nonEmpty,
+  description: z.string().optional(),
+  owner_user_id: nonEmpty,
+  status: z.string().optional(),
+  source: knowledgeSource,
+  meta_json: z.string().optional(),
+  linked_agents: z.array(z.object({ agent_id: nonEmpty, role: z.string().optional() })).optional(),
+});
+export const agentTeamGetSchema = z.object({ agent_team_id: nonEmpty });
+export const agentTeamUpdateSchema = z.object({
+  agent_team_id: nonEmpty,
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  source: knowledgeSource.optional(),
+  meta_json: z.string().optional(),
+});
+export const agentTeamDeleteSchema = z.object({ agent_team_ids: idList });
+export const agentTeamListSchema = z
+  .object({
+    team_id: nonEmpty,
+    source: knowledgeSource.optional(),
+    status: z.string().optional(),
+  })
+  .merge(paginationInputSchema);
+export const agentTeamMemberAddSchema = z.object({
+  agent_team_id: nonEmpty,
+  agent_id: nonEmpty,
+  role: z.string().optional(),
+});
+export const agentTeamMemberRemoveSchema = z.object({ agent_team_id: nonEmpty, agent_id: nonEmpty });
+export const agentTeamMemberListSchema = z.object({ agent_team_id: nonEmpty }).merge(paginationInputSchema);
+
+// ── Automation（自动化编排）──
+const automationTriggerType = z.enum(["cron", "webhook", "manual", "event"]);
+const automationActionType = z.enum(["run_agent", "run_task", "notify"]);
+export const automationCreateSchema = z.object({
+  team_id: nonEmpty,
+  name: nonEmpty,
+  description: z.string().optional(),
+  trigger_type: automationTriggerType,
+  trigger_config_json: z.string().optional(),
+  action_type: automationActionType,
+  action_config_json: z.string().optional(),
+  target_id: z.string().nullable().optional(),
+  status: z.string().optional(),
+  source: knowledgeSource,
+  owner_user_id: nonEmpty,
+  meta_json: z.string().optional(),
+});
+export const automationGetSchema = z.object({ automation_id: nonEmpty });
+export const automationUpdateSchema = z.object({
+  automation_id: nonEmpty,
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  trigger_type: automationTriggerType.optional(),
+  trigger_config_json: z.string().optional(),
+  action_type: automationActionType.optional(),
+  action_config_json: z.string().optional(),
+  target_id: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  source: knowledgeSource.optional(),
+  meta_json: z.string().optional(),
+});
+export const automationDeleteSchema = z.object({ automation_ids: idList });
+export const automationListSchema = z
+  .object({
+    team_id: nonEmpty,
+    trigger_type: automationTriggerType.optional(),
+    action_type: automationActionType.optional(),
+    status: z.string().optional(),
+  })
+  .merge(paginationInputSchema);
+
+// ── RunTrace（会话回放）──
+const runTraceKind = z.enum(["run", "trace"]);
+export const runTraceCreateSchema = z.object({
+  team_id: nonEmpty,
+  agent_id: z.string().nullable().optional(),
+  task_id: z.string().nullable().optional(),
+  kind: runTraceKind,
+  title: nonEmpty,
+  status: z.string().optional(),
+  input_summary: z.string().nullable().optional(),
+  output_summary: z.string().nullable().optional(),
+  trace_json: z.string().optional(),
+  source: knowledgeSource,
+  owner_user_id: nonEmpty,
+  meta_json: z.string().optional(),
+});
+export const runTraceGetSchema = z.object({ run_id: nonEmpty });
+export const runTraceUpdateSchema = z.object({
+  run_id: nonEmpty,
+  title: z.string().min(1).optional(),
+  status: z.string().nullable().optional(),
+  input_summary: z.string().nullable().optional(),
+  output_summary: z.string().nullable().optional(),
+  trace_json: z.string().optional(),
+  source: knowledgeSource.optional(),
+  kind: runTraceKind.optional(),
+  meta_json: z.string().optional(),
+});
+export const runTraceDeleteSchema = z.object({ run_ids: idList });
+export const runTraceListSchema = z
+  .object({
+    team_id: nonEmpty,
+    agent_id: z.string().optional(),
+    kind: runTraceKind.optional(),
+    status: z.string().optional(),
+  })
+  .merge(paginationInputSchema);
+
 export const V3_SCHEMAS = {
   "/v3/meta/user/create": userCreateSchema,
   "/v3/meta/user/create-with-key": userCreateWithKeySchema,
@@ -607,16 +809,6 @@ export const V3_SCHEMAS = {
   "/v3/meta/team-member/remove": teamMemberRemoveSchema,
   "/v3/meta/team-member/list": teamMemberListSchema,
   "/v3/meta/team-member/get": teamMemberGetSchema,
-  "/v3/meta/project/create": projectCreateSchema,
-  "/v3/meta/project/get": projectGetSchema,
-  "/v3/meta/project/update": projectUpdateSchema,
-  "/v3/meta/project/delete": projectDeleteSchema,
-  "/v3/meta/project/list": projectListSchema,
-  "/v3/meta/project-member/add": projectMemberAddSchema,
-  "/v3/meta/project-member/remove": projectMemberRemoveSchema,
-  "/v3/meta/project-member/list": projectMemberListSchema,
-  "/v3/meta/project-member/get": projectMemberGetSchema,
-  "/v3/meta/project/set-manager": projectSetManagerSchema,
   "/v3/meta/project/create": projectCreateSchema,
   "/v3/meta/project/get": projectGetSchema,
   "/v3/meta/project/update": projectUpdateSchema,
@@ -675,6 +867,40 @@ export const V3_SCHEMAS = {
   "/v3/meta/instance-upstream/get": instanceUpstreamGetSchema,
   "/v3/meta/instance-upstream/list": instanceUpstreamListSchema,
   "/v3/meta/instance-upstream/reset": instanceUpstreamResetSchema,
+  "/v3/meta/config/global/get": configGlobalGetSchema,
+  "/v3/meta/config/global/set": configGlobalSetSchema,
+  "/v3/meta/git-credential/create": gitCredentialCreateSchema,
+  "/v3/meta/git-credential/list": gitCredentialListSchema,
+  "/v3/meta/git-credential/get": gitCredentialGetSchema,
+  "/v3/meta/git-credential/delete": gitCredentialDeleteSchema,
+  "/v3/meta/knowledge-entry/create": knowledgeCreateSchema,
+  "/v3/meta/knowledge-entry/get": knowledgeGetSchema,
+  "/v3/meta/knowledge-entry/update": knowledgeUpdateSchema,
+  "/v3/meta/knowledge-entry/delete": knowledgeDeleteSchema,
+  "/v3/meta/knowledge-entry/list": knowledgeListSchema,
+  "/v3/meta/tool-source/create": toolSourceCreateSchema,
+  "/v3/meta/tool-source/get": toolSourceGetSchema,
+  "/v3/meta/tool-source/update": toolSourceUpdateSchema,
+  "/v3/meta/tool-source/delete": toolSourceDeleteSchema,
+  "/v3/meta/tool-source/list": toolSourceListSchema,
+  "/v3/meta/agent-team/create": agentTeamCreateSchema,
+  "/v3/meta/agent-team/get": agentTeamGetSchema,
+  "/v3/meta/agent-team/update": agentTeamUpdateSchema,
+  "/v3/meta/agent-team/delete": agentTeamDeleteSchema,
+  "/v3/meta/agent-team/list": agentTeamListSchema,
+  "/v3/meta/agent-team-member/add": agentTeamMemberAddSchema,
+  "/v3/meta/agent-team-member/remove": agentTeamMemberRemoveSchema,
+  "/v3/meta/agent-team-member/list": agentTeamMemberListSchema,
+  "/v3/meta/automation/create": automationCreateSchema,
+  "/v3/meta/automation/get": automationGetSchema,
+  "/v3/meta/automation/update": automationUpdateSchema,
+  "/v3/meta/automation/delete": automationDeleteSchema,
+  "/v3/meta/automation/list": automationListSchema,
+  "/v3/meta/run-trace/create": runTraceCreateSchema,
+  "/v3/meta/run-trace/get": runTraceGetSchema,
+  "/v3/meta/run-trace/update": runTraceUpdateSchema,
+  "/v3/meta/run-trace/delete": runTraceDeleteSchema,
+  "/v3/meta/run-trace/list": runTraceListSchema,
 } as const;
 
 export type V3Route = keyof typeof V3_SCHEMAS;

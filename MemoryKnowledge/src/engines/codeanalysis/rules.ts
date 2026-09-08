@@ -1,3 +1,20 @@
+/**
+ * 代码分析规则入口 — 检查规则表 + 统一规则应用（执行前只读校验 / 执行后输出预算）。
+ * 策略实现来自同目录 output-budget.ts / read-only-policy.ts（GitNexus 代码级集成），
+ * CheckRule 类型与 gitnexus/rules.ts 共享（同一张检查规则表形状）。
+ */
+import type { CheckRule } from "../gitnexus/rules.js";
+import {
+  READ_ONLY_TOOLS,
+  resolveReadOnlyMode,
+  assertReadOnlyToolCall,
+} from "./read-only-policy.js";
+import {
+  TRUNCATION_MARKER,
+  resolveMcpMaxTokens,
+  applyMcpMaxTokens,
+} from "./output-budget.js";
+
 export const ANALYSIS_CHECK_RULES: CheckRule[] = [
   {
     id: "todo-fixme-hack",

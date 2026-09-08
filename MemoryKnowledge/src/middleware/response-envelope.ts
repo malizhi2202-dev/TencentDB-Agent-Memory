@@ -38,14 +38,21 @@ export function accessLog(): MiddlewareHandler {
     c.set("requestId", requestId);
 
     // 缓存 request body（body 只能读一次，失败时用于日志）
-    // Hono 的 bodyCache 期望 Promise（c.req.json()/text() 会对缓存值调 .then()）
+    // hono 的类型把 bodyCache 声明为 Partial<Body>（text: string），但运行时
+    // #cachedBody 缓存的正是 raw[key]() 返回的 Promise（hono request.js），
+    // 且跨键取值会对缓存值调 .then()。此处按运行时语义存 Promise，用断言
+    // 绕过声明与实现的差异。
     let reqBody: unknown = undefined;
     if (c.req.method === 'POST' || c.req.method === 'PUT') {
       try {
         const raw = await c.req.text();
         reqBody = raw ? JSON.parse(raw) : undefined;
-        c.req.bodyCache.text = Promise.resolve(raw);
-        if (reqBody) c.req.bodyCache.json = Promise.resolve(reqBody);
+        const promiseCache = c.req.bodyCache as unknown as {
+          text?: Promise<string>;
+          json?: Promise<unknown>;
+        };
+        promiseCache.text = Promise.resolve(raw);
+        if (reqBody) promiseCache.json = Promise.resolve(reqBody);
       } catch {
         // 非 JSON body，忽略
       }

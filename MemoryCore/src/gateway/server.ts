@@ -32,6 +32,7 @@ import { SessionFilter } from "../utils/session-filter.js";
 import { WorkerPermitPool } from "../services/worker-permit-pool.js";
 import { createExtractorAdapter, SkillExtractor as SkillExtractorClass } from "../core/skill/skill-extractor.js";
 import type { SkillCore as SkillCoreType } from "../core/skill/skill-core.js";
+import { SkillCoreError } from "../core/skill/skill-core.js";
 import type {
   HealthResponse,
   RecallRequest,
@@ -49,8 +50,7 @@ import type {
   GatewayErrorResponse,
 } from "./types.js";
 import type { Logger } from "../core/types.js";
-import type { IsolationFilter } from "../core/store/types.js";
-import type { IsolationFilter } from "../core/store/types.js";
+import type { IsolationFilter, IMemoryStore } from "../core/store/types.js";
 import { InstanceConfigProvider } from "../core/instance-config-provider.js";
 import type { VdbConfig, MongoConfig } from "../core/instance-config-provider.js";
 import { wrapWithTrace } from "../core/report/trace-middleware.js";
@@ -66,11 +66,9 @@ import { handleV2Route, errorEnvelope, makeRequestId } from "./v2-router.js";
 import type { V2RouterDeps } from "./v2-router.js";
 import { handleV3MetaRoute, V3_PREFIX } from "../metadata/router/v3-meta-router.js";
 import { handleV3MemoryRoute, V3_MEMORY_PREFIX } from "./v3-memory-router.js";
-import { handleV3MemoryRoute, V3_MEMORY_PREFIX } from "./v3-memory-router.js";
 import { handleInternalMetaRoute, V3_INTERNAL_PREFIX } from "../metadata/router/internal-meta-router.js";
 import { MetadataService } from "../metadata/service/metadata-service.js";
 import { ConfigParamService } from "../metadata/service/config-param-service.js";
-import { GitCredentialService } from "../metadata/service/git-credential-service.js";
 import { GitCredentialService } from "../metadata/service/git-credential-service.js";
 import { loadDefaultRegistry } from "../metadata/config/param-registry.js";
 import type { IMetadataStore } from "../metadata/store/interface.js";
@@ -87,8 +85,6 @@ import type { MemorySystemUserConfig } from "../metadata/system-user.js";
 import { validateLlmProviderConfig, LlmResolveError } from "./llm-resolver.js";
 import type { StandaloneLLMConfig } from "../adapters/standalone/llm-runner.js";
 import { resolveStandaloneLlmForRuntime } from "../adapters/standalone/llm-provider-resolver.js";
-import { buildProvidersFromConfig } from "../adapters/standalone/llm-runner.js";
-import { ModelRuntime, OpenAICompatibleAdapter } from "../model/index.js";
 import { buildProvidersFromConfig } from "../adapters/standalone/llm-runner.js";
 import { ModelRuntime, OpenAICompatibleAdapter } from "../model/index.js";
 import { resolveReportedCredit } from "./quota-credit-policy.js";
@@ -165,10 +161,10 @@ function nowLocalIso(): string {
 
 function createConsoleLogger(): Logger {
   return {
-    debug: (msg: string) => console.debug(`${nowLocalIso()} DEBUG ${TAG} ${msg}`),
-    info: (msg: string) => console.info(`${nowLocalIso()} INFO  ${TAG} ${msg}`),
-    warn: (msg: string) => console.warn(`${nowLocalIso()} WARN  ${TAG} ${msg}`),
-    error: (msg: string) => console.error(`${nowLocalIso()} ERROR ${TAG} ${msg}`),
+    debug: (...args: unknown[]) => console.debug(`${nowLocalIso()} DEBUG ${TAG}`, ...args),
+    info: (...args: unknown[]) => console.info(`${nowLocalIso()} INFO  ${TAG}`, ...args),
+    warn: (...args: unknown[]) => console.warn(`${nowLocalIso()} WARN  ${TAG}`, ...args),
+    error: (...args: unknown[]) => console.error(`${nowLocalIso()} ERROR ${TAG}`, ...args),
   };
 }
 
@@ -329,6 +325,9 @@ export class TdaiGateway {
   // ── COS: global shared client singleton + per-instance StorageAdapter cache ──
   private sharedCosClient: import("../integrations/cos/cos-backend.js").SharedCosClient | null = null;
   private cosStorageCache: Map<string, StorageAdapter> | null = null;
+
+  // ── Model runtime (lazy): built from config.llm for /v3/llm/* endpoints ──
+  private modelRuntime: import("../model/index.js").ModelRuntime | null = null;
 
   // ── Metadata (v3): shared store pool + per-instance MetadataService ──
   private metadataStorePool: MetadataStorePool | null = null;
@@ -497,7 +496,7 @@ export class TdaiGateway {
       const rawSvc = new MetadataService(
         wrapApiStoreForTrace(store, storeSource),
         instanceId,
-        this.logger,
+        { debug: (msg: string) => { this.logger.debug?.(msg); } },
         this.config.metadata,
         this.memorySystemUserConfig,
       );
@@ -506,7 +505,6 @@ export class TdaiGateway {
       const configSvc = new ConfigParamService(store, registry);
       await configSvc.initDefaults(registry, this.config.metadata);
       rawSvc.setConfigParamService(configSvc);
-      rawSvc.setGitCredentialService(new GitCredentialService(store));
       rawSvc.setGitCredentialService(new GitCredentialService(store));
 
       // 归档 Agent 时连带清掉它的 chat_memory 内容（L0–L3 + 向量 + 文件）。
@@ -639,19 +637,19 @@ export class TdaiGateway {
           tenantId: obsCfg.otel.tenantId,
           logExportIntervalMs: obsCfg.otel.logExportInterval * 1000,
           clickhouse: obsCfg.clickhouse.enabled
-            ? Object.fromEntries([
-                ["endpoint", obsCfg.clickhouse.endpoint],
-                ["username", obsCfg.clickhouse.username],
-                ["password", obsCfg.clickhouse.password],
-                ["database", obsCfg.clickhouse.database],
-              ])
+            ? {
+                endpoint: obsCfg.clickhouse.endpoint,
+                username: obsCfg.clickhouse.username,
+                password: obsCfg.clickhouse.password,
+                database: obsCfg.clickhouse.database,
+              }
             : false,
           langfuse: obsCfg.langfuse.enabled
-            ? Object.fromEntries([
-                ["host", obsCfg.langfuse.host],
-                ["publicKey", obsCfg.langfuse.publicKey],
-                ["secretKey", obsCfg.langfuse.secretKey],
-              ])
+            ? {
+                host: obsCfg.langfuse.host,
+                publicKey: obsCfg.langfuse.publicKey,
+                secretKey: obsCfg.langfuse.secretKey,
+              }
             : false,
         });
         this.logger.info(`OTel SDK initialized: ${otelOk ? "enabled" : "skipped (deps not available)"}`);
@@ -976,18 +974,6 @@ export class TdaiGateway {
         return await this.handleLlmRoute(req, res, pathname, method);
       }
 
-      // ── /v3/memory/* — 记忆能力端点（feedback/审批/剧本/质量/评测/指标等）──
-      // 纯计算端点无租户；consolidation/execute、space/list 依赖 store/metadata。Bearer apiKey 同 /v3/meta。
-      if (pathname.startsWith(`${V3_MEMORY_PREFIX}/`)) {
-        if (!this.checkAuthForV2(req, res)) return;
-        const handledMemory = await handleV3MemoryRoute(req, res, pathname, method, parseJsonBody, sendJson, {
-          getStore: () => this.core.getVectorStore(),
-          getMetadataService: (instanceId) => this.ensureMetadataService(instanceId),
-          logger: this.logger,
-        });
-        if (handledMemory) return;
-      }
-
       // ── /v3/llm/* — 模型层端点（添加模型 / 适配层 / 运行模型）──
       // Bearer apiKey 鉴权同 v3/meta；无 x-tdai-user-key（host 级资源，非租户级）。
       if (pathname.startsWith("/v3/llm/")) {
@@ -1136,7 +1122,7 @@ export class TdaiGateway {
         resolveStorage: v2Deps.resolveStorage,
         getStorage: v2Deps.getStorage ?? (() => undefined),
         logger: this.logger,
-        stateBackend: this.stateBackend,
+        stateBackend: this.stateBackend ?? undefined,
         config: { ...this.config.offload, l1Model: "", l15Model: "", l2Model: "" },
       };
       const offloadHandled = await handleOffloadV2Route(req, res, pathname, method, parseJsonBody, sendJson, offloadDeps);
@@ -2112,12 +2098,13 @@ export class TdaiGateway {
     const executor = new TracedTaskExecutor(rawExecutor, (info) => {
       const task = info.task;
       // 仅记录具备 team 上下文的运行；instance 级旧任务无 team 则跳过。
-      if (!task.teamId) return;
+      const teamId = task.teamId;
+      if (!teamId) return;
       void (async () => {
         try {
           const svc = await this.ensureMetadataService(task.instanceId);
           await svc.recordRunAuto({
-            team_id: task.teamId,
+            team_id: teamId,
             agent_id: task.agentId ?? null,
             task_id: task.id ?? null,
             kind: "run",

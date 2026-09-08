@@ -7,7 +7,8 @@ import {
 import type { PanelDeps } from '../../panel-deps.js';
 import { respondControlError } from '../envelope.js';
 import { readCookie } from '../../auth/cookies.js';
-const AUTH_VERIFY = 'auth/verify';
+/** 无需 x-tdai-user-key 的公开 auth action（登录前尚无 user_key）。 */
+const NO_USER_KEY_ACTIONS = new Set(['auth/verify', 'auth/login']);
 
 export interface PanelMetaContext {
   instanceId: string;
@@ -49,7 +50,7 @@ export function validatePanelMetaHeaders(deps: PanelDeps) {
       throw err;
     }
 
-    const omitUserKey = action === AUTH_VERIFY;
+    const omitUserKey = NO_USER_KEY_ACTIONS.has(action);
     const headerUserKey = c.req.header(META_HEADER_USER_KEY)?.trim();
     const idpSession = !headerUserKey && !omitUserKey
       ? deps.auth.resolveSession(

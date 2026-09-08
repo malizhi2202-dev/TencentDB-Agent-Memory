@@ -658,7 +658,6 @@ export class SqliteKnowledgeStore implements IKnowledgeStore {
       page_count: r.pageCount,
       service_url: r.serviceUrl ?? null,
       summary: r.summary ?? null,
-      git_auth: r.gitAuth ?? null,
       version: r.version,
       last_sync_at: r.lastSyncAt,
       created_at: r.createdAt,

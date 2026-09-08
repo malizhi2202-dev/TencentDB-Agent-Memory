@@ -80,6 +80,11 @@ import type {
   UpsertInstanceUpstreamConfigInput,
   InstanceUpstreamConfigFilter,
   UpstreamConfigType,
+  AuditLogEntity,
+  AuditLogFilter,
+  UserPermissionEntity,
+  GrantPermissionInput,
+  PermissionFilter,
 } from "../types.js";
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -362,6 +367,13 @@ export interface IMetadataStore {
   ): MaybePromise<ConfigParamEntity | null>;
   upsertConfigParam(input: UpsertConfigParamInput): MaybePromise<ConfigParamEntity>;
   listConfigParams(filter: ListConfigParamsFilter): MaybePromise<ConfigParamEntity[]>;
+  /** 删除配置参数（git-credential 等模块的按名删除）。返回是否删到行。 */
+  deleteConfigParam(
+    scope: "global" | "user",
+    userId: string | null,
+    module: string,
+    paramName: string,
+  ): MaybePromise<boolean>;
 
   // ── InstanceUpstreamConfig ──
   getInstanceUpstreamConfig(
@@ -378,6 +390,23 @@ export interface IMetadataStore {
     agentSource: string,
     type: UpstreamConfigType,
   ): MaybePromise<boolean>;
+
+  // ── AuditLog ──
+  createAuditLog(input: {
+    id?: string;
+    actor_user_id: string;
+    action: string;
+    entity_type: string;
+    entity_id: string;
+    detail: string;
+  }): MaybePromise<AuditLogEntity>;
+  listAuditLogs(filter?: AuditLogFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<AuditLogEntity>>;
+
+  // ── UserPermission（方案B RBAC）──
+  grantPermission(input: GrantPermissionInput): MaybePromise<UserPermissionEntity>;
+  revokePermission(userId: string, permission: string): MaybePromise<boolean>;
+  listUserPermissions(filter?: PermissionFilter, pagination?: PaginationParams | null): MaybePromise<ListPage<UserPermissionEntity>>;
+  getPermissionByUserAndPerm(userId: string, permission: string): MaybePromise<UserPermissionEntity | null>;
 }
 
 /** 后端类型。 */

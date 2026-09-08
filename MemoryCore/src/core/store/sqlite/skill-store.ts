@@ -14,7 +14,7 @@
  * 本文件改名为 `skill-store.ts`。
  */
 
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 
 import { randomBase62 } from "../../../utils/short-id.js";
 import { SKILLS_DDL, SKILL_FTS_DDL, SKILL_VEC_DDL_TEMPLATE, FTS_CONTENT_MAX } from "../../skill/skill-store-ddl.js";
@@ -281,7 +281,7 @@ export class SqliteSkillStore implements ISkillStore {
         .prepare(
           "SELECT * FROM skills WHERE team_id=? AND owner_agent_id=? AND name=? AND is_head=1 AND status='active' LIMIT 1",
         )
-        .get(tid, oid, input.name) as SkillRowRaw | undefined;
+        .get(tid, oid, input.name) as unknown as SkillRowRaw | undefined;
       if (dupRaw) {
         throw new SkillStoreError("SKILL_NAME_DUPLICATE", `name '${input.name}' already exists for agent in team`);
       }
@@ -365,7 +365,7 @@ export class SqliteSkillStore implements ISkillStore {
     // 取回新行（事务外读取，节省持锁时间）
     const inserted = this.db
       .prepare("SELECT * FROM skills WHERE row_id=?")
-      .get(newRowId) as SkillRowRaw;
+      .get(newRowId) as unknown as SkillRowRaw;
     return toSkill(inserted);
   }
 
@@ -374,7 +374,7 @@ export class SqliteSkillStore implements ISkillStore {
   // ────────────────────────────────────────────────────────────────────
   async archiveHead(skillId: string, teamId?: string): Promise<{ archived: boolean }> {
     const where = teamId ? "skill_id=? AND team_id=? AND is_head=1" : "skill_id=? AND is_head=1";
-    const args: unknown[] = teamId ? [this.now(), skillId, teamId] : [this.now(), skillId];
+    const args: SQLInputValue[] = teamId ? [this.now(), skillId, teamId] : [this.now(), skillId];
     const r = this.db
       .prepare(`UPDATE skills SET status='archived', updated_at_ms=? WHERE ${where}`)
       .run(...args);
@@ -407,12 +407,12 @@ export class SqliteSkillStore implements ISkillStore {
     if (teamId) {
       const raw = this.db
         .prepare("SELECT * FROM skills WHERE skill_id=? AND team_id=? AND is_head=1 AND status='active' LIMIT 1")
-        .get(skillId, teamId) as SkillRowRaw | undefined;
+        .get(skillId, teamId) as unknown as SkillRowRaw | undefined;
       return raw ? toSkill(raw) : null;
     }
     const raw = this.db
       .prepare("SELECT * FROM skills WHERE skill_id=? AND is_head=1 AND status='active' LIMIT 1")
-      .get(skillId) as SkillRowRaw | undefined;
+      .get(skillId) as unknown as SkillRowRaw | undefined;
     return raw ? toSkill(raw) : null;
   }
 
@@ -424,12 +424,12 @@ export class SqliteSkillStore implements ISkillStore {
     if (teamId) {
       const raw = this.db
         .prepare("SELECT * FROM skills WHERE skill_id=? AND team_id=? AND is_head=1 LIMIT 1")
-        .get(skillId, teamId) as SkillRowRaw | undefined;
+        .get(skillId, teamId) as unknown as SkillRowRaw | undefined;
       return raw ? toSkill(raw) : null;
     }
     const raw = this.db
       .prepare("SELECT * FROM skills WHERE skill_id=? AND is_head=1 LIMIT 1")
-      .get(skillId) as SkillRowRaw | undefined;
+      .get(skillId) as unknown as SkillRowRaw | undefined;
     return raw ? toSkill(raw) : null;
   }
 
@@ -437,12 +437,12 @@ export class SqliteSkillStore implements ISkillStore {
     if (teamId) {
       const raw = this.db
         .prepare("SELECT * FROM skills WHERE skill_id=? AND version=? AND team_id=? LIMIT 1")
-        .get(skillId, version, teamId) as SkillRowRaw | undefined;
+        .get(skillId, version, teamId) as unknown as SkillRowRaw | undefined;
       return raw ? toSkill(raw) : null;
     }
     const raw = this.db
       .prepare("SELECT * FROM skills WHERE skill_id=? AND version=? LIMIT 1")
-      .get(skillId, version) as SkillRowRaw | undefined;
+      .get(skillId, version) as unknown as SkillRowRaw | undefined;
     return raw ? toSkill(raw) : null;
   }
 
@@ -456,12 +456,12 @@ export class SqliteSkillStore implements ISkillStore {
     if (teamId) {
       const rows = this.db
         .prepare("SELECT * FROM skills WHERE skill_id=? AND team_id=? ORDER BY version DESC LIMIT ? OFFSET ?")
-        .all(skillId, teamId, limit, offset) as SkillRowRaw[];
+        .all(skillId, teamId, limit, offset) as unknown as SkillRowRaw[];
       return rows.map(toSkill);
     }
     const rows = this.db
       .prepare("SELECT * FROM skills WHERE skill_id=? ORDER BY version DESC LIMIT ? OFFSET ?")
-      .all(skillId, limit, offset) as SkillRowRaw[];
+      .all(skillId, limit, offset) as unknown as SkillRowRaw[];
     return rows.map(toSkill);
   }
 
@@ -488,7 +488,7 @@ export class SqliteSkillStore implements ISkillStore {
     const offset = Math.max(opts.offset ?? 0, 0);
 
     const where: string[] = ["is_head=1"];
-    const args: unknown[] = [];
+    const args: SQLInputValue[] = [];
 
     // 四个 ID：传了就过滤，不传不限制
     if (opts.team_id) {
@@ -521,7 +521,7 @@ export class SqliteSkillStore implements ISkillStore {
     const totalRow = this.db.prepare(`SELECT COUNT(*) AS c FROM skills WHERE ${whereSql}`).get(...args) as { c: number };
     const rows = this.db
       .prepare(`SELECT * FROM skills WHERE ${whereSql} ORDER BY updated_at_ms DESC LIMIT ? OFFSET ?`)
-      .all(...args, limit, offset) as SkillRowRaw[];
+      .all(...args, limit, offset) as unknown as SkillRowRaw[];
 
     return { items: rows.map(toSkill), total: totalRow.c };
   }
@@ -602,7 +602,7 @@ export class SqliteSkillStore implements ISkillStore {
         .prepare(
           `SELECT * FROM skills WHERE skill_id=? AND is_head=1 AND status='active' LIMIT 1`,
         )
-        .get(r.skill_id) as SkillRowRaw | undefined;
+        .get(r.skill_id) as unknown as SkillRowRaw | undefined;
       if (!row) continue;
       // bm25 越小越相关 → 转为越大越好的 score
       hits.push({
@@ -659,9 +659,9 @@ export class SqliteSkillStore implements ISkillStore {
    */
   async deleteAllVersions(skillId: string, teamId?: string): Promise<number> {
     const where = teamId ? "skill_id=? AND team_id=?" : "skill_id=?";
-    const args: unknown[] = teamId ? [skillId, teamId] : [skillId];
+    const args: SQLInputValue[] = teamId ? [skillId, teamId] : [skillId];
     const r = this.db.prepare(`DELETE FROM skills WHERE ${where}`).run(...args);
-    const changes = r.changes ?? 0;
+    const changes = Number(r.changes ?? 0);
     // 仅当主表真的删掉了行时才 DELETE 附属表 —— 避免跨 team 校验失败时误清 fts
     if (changes > 0) {
       try {

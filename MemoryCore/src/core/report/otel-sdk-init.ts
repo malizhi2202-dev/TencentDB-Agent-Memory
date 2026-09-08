@@ -121,13 +121,19 @@ export async function initOTelSDK(options: OTelSDKInitOptions = {}): Promise<boo
 
     // 兼容新旧版本 @opentelemetry/resources
     // 新版使用 resourceFromAttributes()，旧版使用 new Resource()
-    const createResource = (attrs: Record<string, string>) => {
-      if ("resourceFromAttributes" in resourcesModule) {
-        return (resourcesModule as { resourceFromAttributes: (a: Record<string, string>) => unknown }).resourceFromAttributes(attrs);
+    const createResource = (attrs: Record<string, string>): import("@opentelemetry/resources").Resource => {
+      const mod = resourcesModule as unknown as {
+        resourceFromAttributes?: (a: Record<string, string>) => import("@opentelemetry/resources").Resource;
+        Resource?: new (a: Record<string, string>) => import("@opentelemetry/resources").Resource;
+      };
+      if (mod.resourceFromAttributes) {
+        return mod.resourceFromAttributes(attrs);
       }
       // 旧版 fallback
-      const ResourceClass = (resourcesModule as { Resource: new (a: Record<string, string>) => unknown }).Resource;
-      return new ResourceClass(attrs);
+      if (mod.Resource) {
+        return new mod.Resource(attrs);
+      }
+      throw new Error("[otel-sdk-init] @opentelemetry/resources exposes neither resourceFromAttributes nor Resource");
     };
 
     const logsApiModule = "@opentelemetry/api-logs";
@@ -167,11 +173,20 @@ export async function initOTelSDK(options: OTelSDKInitOptions = {}): Promise<boo
     const resource = createResource(resourceAttrs);
 
     // Trace Exporter（仅当有主 OTel endpoint 时创建）
+    // grpc exporter 配置：OTLP v2 移除了 headers，改用 gRPC Metadata。
+    let grpcMetadata: import("@grpc/grpc-js").Metadata | undefined;
+    if (protocol === "grpc" && headers) {
+      const { Metadata } = await import("@grpc/grpc-js");
+      const md = new Metadata();
+      for (const [k, v] of Object.entries(headers)) md.set(k, v);
+      grpcMetadata = md;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let traceExporter: any = null;
     if (hasMainOtel) {
       traceExporter = protocol === "grpc"
-        ? new GrpcTraceExporter({ url: endpoint, headers })
+        ? new GrpcTraceExporter({ url: endpoint, metadata: grpcMetadata })
         : new HttpTraceExporter({ url: `${endpoint}/v1/traces`, headers });
     }
 
@@ -182,7 +197,7 @@ export async function initOTelSDK(options: OTelSDKInitOptions = {}): Promise<boo
     let logExporter: any = null;
     if (hasMainOtel) {
       logExporter = protocol === "grpc"
-        ? new GrpcLogExporter({ url: endpoint, headers })
+        ? new GrpcLogExporter({ url: endpoint, metadata: grpcMetadata })
         : new HttpLogExporter({ url: `${endpoint}/v1/logs`, headers });
     }
 

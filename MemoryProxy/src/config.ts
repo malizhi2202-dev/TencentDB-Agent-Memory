@@ -448,6 +448,14 @@ export function buildConfig(overrides: CliOverrides = {}): ProxyConfig {
       ? yaml.sessionInit.debugForceUserId.trim()
       : undefined,
     debugVerboseLogging: yaml.sessionInit?.debugVerboseLogging ?? false,
+    // 方案 B：受信请求头直采身份（详见 types.ts SessionInitConfig.trustIdentityHeaders）。
+    trustIdentityHeaders: {
+      enabled: yaml.sessionInit?.trustIdentityHeaders?.enabled ?? false,
+      teamHeader: (yaml.sessionInit?.trustIdentityHeaders?.teamHeader ?? "x-team-id").toLowerCase(),
+      agentHeader: (yaml.sessionInit?.trustIdentityHeaders?.agentHeader ?? "x-agent-id").toLowerCase(),
+      taskHeader: (yaml.sessionInit?.trustIdentityHeaders?.taskHeader ?? "x-task-id").toLowerCase(),
+      userIdHeader: (yaml.sessionInit?.trustIdentityHeaders?.userIdHeader ?? "x-user-id").toLowerCase(),
+    },
   },
     tdai: {
       enabled: yaml.tdai?.enabled ?? DEFAULT_CONFIG.tdai.enabled,

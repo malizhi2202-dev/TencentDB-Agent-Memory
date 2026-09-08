@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { VectorStore } from "../store/sqlite.js";
+import { VectorStore } from "../store/sqlite/memory-store.js";
 import { writeMemory, type ExtractedMemory, type DedupDecision, type MemoryType } from "./l1-writer.js";
 
 function makeMemory(type: MemoryType, content: string): ExtractedMemory {

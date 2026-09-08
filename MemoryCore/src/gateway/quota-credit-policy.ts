@@ -15,7 +15,7 @@
  * proxy 完全不知情，必须由内核负责上报。
  */
 
-export type LlmProvider = "openai" | "proxy";
+export type LlmProvider = "openai" | "proxy" | (string & {});
 
 export function shouldSkipCreditReport(provider: LlmProvider | undefined): boolean {
   return (provider ?? "openai") === "proxy";

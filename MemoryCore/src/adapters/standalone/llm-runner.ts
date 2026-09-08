@@ -42,12 +42,15 @@ export interface StandaloneLLMConfig {
   maxTokens?: number;
   /** Request timeout in milliseconds (default: 120_000). */
   timeoutMs?: number;
+  /** Whether to request streaming responses (default: false). */
+  stream?: boolean;
   /**
    * 默认 provider 路由键（向后兼容）：
    *   - "openai": 直连通用 OpenAI 兼容服务（默认）
    *   - "proxy" : 走 context_proxy（baseUrl 已被 resolver 改写 + sk-mem apiKey）
    */
-  provider?: "openai" | "proxy";
+  /** provider 路由键：内置 "openai" | "proxy"，或 providers[] 中声明的自定义 id。 */
+  provider?: string;
   /** provider=proxy 时的可选配置。 */
   proxy?: {
     /** 是否用 memory systemUser.userKey 作为 Authorization（默认 true）。 */

@@ -120,6 +120,8 @@ export interface SessionInitResult {
    * 常量供跨 handler 判定即可。
    */
   bypassReason?: "default-gate";
+  /** 本次注册是 session-reset 触发的（pre-hook 设 resetFlow=true → 保留到 completeRegistration）。 */
+  resetFlow?: boolean;
   /**
    * Anthropic-only: pre-built `<session_context>` string the caller must
    * append to `body.system` (the ClaudeCode init module populates this;

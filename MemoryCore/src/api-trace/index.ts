@@ -8,9 +8,9 @@ export {
   type ApiTraceInitOptions,
   type ApiTraceLogConfig,
   type ApiTracePolicy,
-  type ApiTraceProfile,
   type ApiTraceRuntimeConfig,
 } from "./api-log-config.js";
+export { type ApiTraceProfile } from "./api-trace-policy.js";
 export {
   runWithApiRequestContext,
   getApiRequestContext,

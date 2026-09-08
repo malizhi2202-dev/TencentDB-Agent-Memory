@@ -366,6 +366,18 @@ export interface MemoryTdaiConfig {
    * Skill module is not constructed (host-side gate). Shape: SkillConfigInput.
    */
   skill?: import("./core/skill/types.js").SkillConfigInput;
+
+  /**
+   * Optional COS credential probe inputs (service mode only). Used solely by
+   * the Skill env probe (`hasCosCredentials`) to decide whether the skill
+   * content backend may run on COS or must degrade to `local`. Never
+   * populated in standalone mode — credentials live in Shark, not here.
+   */
+  cos?: {
+    secretId?: string;
+    secretKey?: string;
+    bucket?: string;
+  };
 }
 
 // ============================

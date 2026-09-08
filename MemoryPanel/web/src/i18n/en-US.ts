@@ -134,16 +134,17 @@ export const enUS = {
 
   // ===== LoginGate =====
   'login.welcome': 'Memory Hub',
-  'login.subtitle': 'Please select a memory instance and enter your user_key to log in.',
+  'login.subtitle': 'Please select a memory instance and enter your username and password.',
   'login.tagline': 'Centrally manage Agent memory, skills, and knowledge assets',
   'login.field.instance': 'Memory Instance',
   'login.field.userKey': 'User Key',
   'login.footer': 'TencentDB · AI Memory Hub',
   'login.placeholder.instance': 'Loading memory instances…',
   'login.placeholder.instanceError': 'Load failed, please refresh and retry',
-  'login.placeholder.userKey': 'user_key, e.g. sk-mem-xxxxxxxxxxxxxxxx',
-  'login.hint.userKey':
-    "Use the user_key assigned by your admin. If you don't have one, contact your team admin.",
+  'login.placeholder.username': 'Username',
+  'login.placeholder.password': 'Password',
+  'login.hint.password':
+    'Sign in with the username and password created by your admin.',
   'login.submit': 'Log In',
   // No standalone method-picker page: each login surface embeds one link that jumps
   // straight to the other method. From the user_key page it's "Log in with X";
@@ -177,10 +178,9 @@ export const enUS = {
   'login.error.loadInstances':
     'Failed to load memory instance list. Please refresh and retry.{{detail}}',
   'login.error.selectInstance': 'Please select a memory instance.',
-  'login.error.emptyKey': 'Please enter your user_key (sk-mem-…).',
-  'login.error.invalidKey': 'The user_key is invalid or revoked. Please verify and re-enter.',
-  'login.error.noUser':
-    'Login response is missing user info (data.user is null). Please contact backend to verify the auth/verify contract.',
+  'login.error.emptyUsername': 'Please enter your username.',
+  'login.error.emptyPassword': 'Please enter your password.',
+  'login.error.invalidCredentials': 'Invalid username or password. Please verify and re-enter.',
 
   // ===== SettingsDialog =====
   'settings.caption': 'Settings · Permissions',

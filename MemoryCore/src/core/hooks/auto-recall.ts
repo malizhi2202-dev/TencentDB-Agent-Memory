@@ -21,9 +21,7 @@ import { hasClientEmbedding, type EmbeddingService, type EmbeddingCallOptions } 
 import { sanitizeText } from "../../utils/sanitize.js";
 import path from "node:path";
 import { estimateTokens, recencyDecay, queryOverlapScore, selectRetention, retentionPriority } from "../record/retention.js";
-import { estimateTokens, recencyDecay, queryOverlapScore, selectRetention, retentionPriority } from "../record/retention.js";
 import { isHighRiskInjection } from "../record/guardrail.js";
-import { isRecallableDomain } from "../record/memory-domain.js";
 import { isRecallableDomain } from "../record/memory-domain.js";
 import { scopeProfileStorageView, type StorageAdapter } from "../storage/adapter.js";
 import { StoragePaths } from "../storage/types.js";
@@ -528,7 +526,7 @@ async function searchMemories(
     // Hybrid: if the store natively supports hybrid search (e.g. TCVDB does
     // server-side dense + sparse + RRF in a single API call), short-circuit
     // to avoid a redundant second HTTP request and a wasted local embed().
-    if (vectorStore?.getCapabilities().nativeHybridSearch) {
+    if (vectorStore?.getCapabilities().nativeHybridSearch && vectorStore.searchL1Hybrid) {
       const tNative = performance.now();
       const results = await vectorStore.searchL1Hybrid({ query: cleanText, topK: maxResults, filter });
       const nativeMs = performance.now() - tNative;

@@ -64,13 +64,17 @@ export async function createStateBackend(config: StateBackendConfig): Promise<IS
     }
 
     // Dynamically import the remote backend client only when needed.
-    const { default: Redis } = await import("ioredis");
+    // NodeNext（无 esModuleInterop）下 ioredis 的 default 导出类型收敛异常，
+    // 这里显式收窄为构造器签名，构造产物仅作为不透明 client 传给后端。
+    const RedisCtor = (await import("ioredis")).default as unknown as new (
+      urlOrOpts: string | { host?: string; port?: number; password?: string; db?: number },
+    ) => unknown;
 
     let client;
     if (redisCfg.url) {
-      client = new Redis(redisCfg.url);
+      client = new RedisCtor(redisCfg.url);
     } else {
-      client = new Redis({
+      client = new RedisCtor({
         host: redisCfg.host ?? "127.0.0.1",
         port: redisCfg.port ?? 6379,
         password: redisCfg.password,

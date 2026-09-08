@@ -236,6 +236,31 @@ export interface SkillManifestEntry {
 }
 
 // ============================
+// SKILL.md 文件形态（skill-format 解析产物）
+// ============================
+
+/** Frontmatter `resources[*]` 条目（声明式资源清单，未落库前的形态）。 */
+export interface SkillFileResource {
+  path: string;
+  type: "text" | "executable" | "binary";
+}
+
+/** SKILL.md 解析后的内存形态：frontmatter + body + 原文。 */
+export interface SkillFile {
+  frontmatter: {
+    name: string;
+    description: string;
+    category?: string;
+    created_at?: string;
+    updated_at?: string;
+    source?: "auto" | "manual";
+    resources?: SkillFileResource[];
+  };
+  body: string;
+  raw: string;
+}
+
+// ============================
 // Skill dedup / propose types (M13 — two-step confirmation)
 // ============================
 

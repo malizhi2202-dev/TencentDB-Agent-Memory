@@ -16,6 +16,13 @@ import {
   type ProfileScopeOptions,
 } from "./profile-scope.js";
 
+// 供测试与下游直接经 facade 引用（真实定义在 profile-scope.ts）。
+export {
+  DEFAULT_PROFILE_SCOPE,
+  buildProfileIsolationScope,
+  parseProfileIsolationScope,
+} from "./profile-scope.js";
+
 function resolveProfileScope(options?: ProfileScopeOptions): { scope: string; isolation?: ProfileIsolation } {
   const scope = options?.scope ?? buildProfileIsolationScope(options?.isolation);
   return { scope, isolation: options?.isolation ?? parseProfileIsolationScope(scope) };

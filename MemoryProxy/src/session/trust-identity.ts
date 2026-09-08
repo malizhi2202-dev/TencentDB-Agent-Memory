@@ -48,13 +48,18 @@ export function resolveTrustedIdentity(
  * Also disables `headerAutoSelect` for this request — a trusted identity is
  * already final, and running the kernel-validating preset on top of it would
  * only mismatch in standalone/offline deployments.
+ *
+ * 接受 `cfg: SessionInitConfig | undefined`：handlers 在 session-init gate 之外
+ * （injection 段读 `trusted` 标记 mirrorManaged）也要调用本函数，那时
+ * `config.sessionInit` 可能未配置 —— 未配置时 trusted 恒 undefined、cfg 原样
+ * 透传，调用方零行为变化。
  */
 export function buildSessionInitWithTrustedIdentity(
-  cfg: SessionInitConfig,
+  cfg: SessionInitConfig | undefined,
   lcHeaders: Record<string, string>,
-): { cfg: SessionInitConfig; trusted: TrustedIdentity | undefined } {
+): { cfg: SessionInitConfig | undefined; trusted: TrustedIdentity | undefined } {
   const trusted = resolveTrustedIdentity(cfg, lcHeaders);
-  if (!trusted) return { cfg, trusted };
+  if (!trusted || !cfg) return { cfg, trusted: undefined };
   return {
     trusted,
     cfg: {

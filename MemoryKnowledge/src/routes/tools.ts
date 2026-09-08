@@ -20,12 +20,18 @@ import { executeTool as executeCodeTool } from "../engines/code/index.js";
 import { executeGitNexusTool } from "../engines/gitnexus/bridge.js";
 import { wrapOk, wrapError, isValidIdSegment } from "../api-helpers.js";
 import { isWikiId, isCodeGraphId } from "../store/ids.js";
+import type { LlmConfig } from "../config.js";
+import { createLlmClient } from "../engines/wiki/ingest-v2/llm.js";
+import type { LlmClient } from "../engines/wiki/ingest-v2/llm.js";
+import { executeEngineAnalysisTool } from "../engines/codeanalysis/engine-client.js";
 
 export interface ToolsRouteDeps {
   wikiService: WikiService;
   wikiMgr: WikiSourceManager;
   cgService: CodeGraphService;
   instancePool: CodeGraphInstancePool;
+  /** 按服务实例解析 LLM 配置（internal LLM 路由）。 */
+  resolveLlm: (serviceId: string) => LlmConfig;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -92,7 +98,7 @@ const WIKI_TOOLS: HttpToolDef[] = [
   },
 ];
 
-/** Code-Graph tools (9) — read-only query tools for LLM agents. */
+/** Code-Graph tools (10) — read-only query tools for LLM agents. */
 const CODE_GRAPH_TOOLS: HttpToolDef[] = [
   {
     name: "get_info",
@@ -174,6 +180,16 @@ const CODE_GRAPH_TOOLS: HttpToolDef[] = [
       path: { type: "string", required: false, description: "按目录前缀过滤（如 \"src/components\"），不传则返回全部" },
       pattern: { type: "string", required: false, description: "按 glob 模式过滤（如 \"*.tsx\"、\"**/*.test.ts\"）" },
       format: { type: "string", required: false, default: "tree", enum: ["tree", "flat", "grouped"], description: "输出格式：tree（层级，默认）、flat（平铺列表）、grouped（按语言分组）" },
+    },
+  },
+  {
+    name: "analysis_ask",
+    description:
+      "【AI 分析】RAG 式代码问答：用引擎混合检索（BM25 + 语义）拉取与问题相关的代码上下文，交给 LLM 基于上下文直接回答（答案标注 filePath 与行号）。适合「这段逻辑是干什么的 / 为什么这样设计 / 某行为的入口在哪」这类开放问题；要精确符号定位请改用 explore/search。",
+    params: {
+      question: { type: "string", required: true, description: "用自然语言描述的代码问题" },
+      task_context: { type: "string", required: false, description: "任务上下文（补充检索的语义信号）" },
+      limit: { type: "integer", required: false, default: 8, description: "检索上下文的符号数上限（1-30）" },
     },
   },
 ];
@@ -424,6 +440,7 @@ async function executeCodeGraphTool(
   params: Record<string, unknown>,
   cgService: CodeGraphService,
   instancePool: CodeGraphInstancePool,
+  resolveLlm: (serviceId: string) => LlmConfig,
 ): Promise<Response> {
   const { code_graph_id, team_id } = row;
 
@@ -437,6 +454,11 @@ async function executeCodeGraphTool(
   // All other tools require synced status
   if (row.status !== "ready") {
     return Response.json(wrapOk({ text: "", isError: false }));
+  }
+
+  // analysis_ask：RAG 问答走独立链路（图谱检索 + LLM），无需加载 code-graph 实例
+  if (toolName === "analysis_ask") {
+    return executeAnalysisAsk(serviceId, team_id, code_graph_id, params, cgService, resolveLlm);
   }
 
   // Load instance
@@ -623,16 +645,3 @@ function safeStringify(value: unknown): string {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  AI 分析 (analysis_ask)
-// ═══════════════════════════════════════════════════════════════════════
-    const answer = await client.chat({
-      system,
-      prompt: `用户问题：${question}\n\n相关代码上下文：\n${contextText}`,
-      label: "analysis_ask",
-    });
-    return Response.json(wrapOk({ text: answer, isError: false }), { status: 200 });
-  } catch (err) {
-    return Response.json(wrapError(500, `AI 分析失败：${err instanceof Error ? err.message : String(err)}`), { status: 500 });
-  }
-}

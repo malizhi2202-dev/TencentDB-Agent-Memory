@@ -294,6 +294,27 @@ export interface SessionInitConfig {
     /** header 值在用户可见列表中查不到时：'form' 回退交互表单（默认）| 'bypass' 直接跳过 session init。 */
     onMismatch: "form" | "bypass";
   };
+  /**
+   * 方案 B：直接采信客户端请求头身份（x-team-id / x-agent-id / x-task-id），
+   * 不做 kernel 校验。penguin-harness 侧通过 TENCENTDB_MEMORY_* env 在请求头
+   * 携带项目身份 → 每个项目可带自己的 team/agent/task 共用本 proxy。
+   *
+   * 安全：这是对「受信任的内部客户端」的显式 opt-in —— 它绕过了
+   * headerAutoSelect 所做的 tenant 校验（kernel /v3/meta/* 可用性、team
+   * membership、…）。绝不在公网端点上开启。默认关闭。
+   */
+  trustIdentityHeaders?: {
+    /** 是否启用（默认 false，opt-in）。 */
+    enabled: boolean;
+    /** 携带 team_id 的请求头名（小写）。默认 "x-team-id"。 */
+    teamHeader: string;
+    /** 携带 agent_id 的请求头名（小写）。默认 "x-agent-id"。 */
+    agentHeader: string;
+    /** 携带 task_id 的请求头名（小写）。默认 "x-task-id"。 */
+    taskHeader: string;
+    /** 携带 user_id 的请求头名（小写）。默认 "x-user-id"。 */
+    userIdHeader: string;
+  };
 }
 
 export interface TdaiConfig {
@@ -886,6 +907,14 @@ export interface RawYamlConfig {
     injectAgentContext?: boolean;
     injectTaskContext?: boolean;
     defaultTaskId?: string;
+    skipAssetConfirm?: boolean;
+    trustIdentityHeaders?: {
+      enabled?: boolean;
+      teamHeader?: string;
+      agentHeader?: string;
+      taskHeader?: string;
+      userIdHeader?: string;
+    };
     debugForceIdentity?: {
       team_id?: string;
       agent_id?: string;
@@ -968,6 +997,13 @@ export interface RequestLogEntry {
    * upstream did not return one. Used for cross-system tracing/audit.
    */
   upstreamRequestId?: string;
+  /**
+   * Proxy-local trace id (from `x-request-id` header / generated per request).
+   * Used to correlate a request log line with injection-pipeline and langfuse
+   * spans that carry the same traceId. Written by codexHandler's SSE path;
+   * optional everywhere else.
+   */
+  traceId?: string;
 }
 
 /** usage event — written after LLM response is received. */

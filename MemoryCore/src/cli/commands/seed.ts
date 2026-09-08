@@ -16,6 +16,7 @@ import type { SeedCliContext } from "../index.ts";
 import type { SeedCommandOptions } from "../../core/seed/types.js";
 import { loadAndValidateInput, fillTimestamps, SeedValidationError } from "../../core/seed/input.js";
 import { executeSeed } from "../../core/seed/seed-runtime.js";
+import type { Logger } from "../../core/types.js";
 
 const TAG = "[memory-tdai] [seed-cmd]";
 
@@ -149,7 +150,7 @@ async function runSeedCommand(opts: SeedCommandOptions, ctx: SeedCliContext): Pr
     openclawConfig: ctx.config,
     pluginConfig: mergedPluginConfig,
     inputFile: opts.input,
-    logger,
+    logger: logger as unknown as Logger,
     onProgress: (progress) => {
       const pct = ((progress.currentRound / progress.totalRounds) * 100).toFixed(0);
       process.stdout.write(

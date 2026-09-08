@@ -31,6 +31,14 @@ export interface ExtractedSkillCandidate {
   skill_id?: string;
   version?: number;
   description?: string;
+  /**
+   * 透传字段（与 queue/types.js 的 ExtractedCandidate 对齐）：
+   * 工具调用点能自然提供时填，否则留空 —— extractor 端原样透传到审计/trace。
+   */
+  confidence?: number;
+  reason?: string;
+  file_path?: string;
+  file_type?: "text" | "executable" | "binary";
 }
 
 export interface CreateSkillToolsOptions {

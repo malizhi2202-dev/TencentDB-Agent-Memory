@@ -321,39 +321,9 @@ export class MetadataClient {
     );
   }
 
-  /**
-   * List projects where the user is a member (owner 含在内 —— create 时自动加为 manager)。
-   * 内核 listProjectsForCaller 对非 admin 返回「member ∪ 所属 team 公共」。
-   */
-  async listProjects(userId: string): Promise<ProjectSummary[]> {
-    return this.fetchAll<ProjectSummary>(
-      "/v3/meta/project/list",
-      { member_user_id: userId },
-      LIST_PAGE_SIZE,
-    );
-  }
-
   /** Get a single agent by ID. Throws NotFoundError on 404. */
   async getAgent(agentId: string): Promise<AgentEntity> {
     return this.getOne<AgentEntity>("/v3/meta/agent/get", { agent_id: agentId }, "agent");
-  }
-
-  /**
-   * 公共默认 LLM 配置（内核 /v3/meta/config/global/get，module=llm_default）。
-   *
-   * 返回 model / provider / protocol 三字段；空 model 表示「未配置、沿用客户端模型」。
-   * 调用侧应自行加 TTL 缓存，避免每请求一次内核往返。
-   */
-  async getGlobalLlmDefault(): Promise<{ model: string; provider: string; protocol: string }> {
-    interface Item { param_name: string; effective_value: string; }
-    interface View { items: Item[]; }
-    const view = await this.fetch<View>("/v3/meta/config/global/get", { module: "llm_default" });
-    const byName = new Map(view.items.map((it) => [it.param_name, it.effective_value]));
-    return {
-      model: byName.get("model") ?? "",
-      provider: byName.get("provider") ?? "",
-      protocol: byName.get("protocol") ?? "",
-    };
   }
 
   /**

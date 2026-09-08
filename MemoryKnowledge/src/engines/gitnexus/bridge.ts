@@ -7,7 +7,6 @@
 
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import Graph from "graphology";
 import type { CodeGraphInstance } from "../code/bridge.js";
 import {
@@ -304,14 +303,13 @@ export async function queryGraph(
  */
 export async function cypherQuery(
   instance: CodeGraphInstance,
-  params: { query: string },
+  params: Record<string, unknown>,
 ): Promise<GitNexusToolResult> {
-  const q = (params.query ?? "").trim();
+  const q = String(params.query ?? "").trim();
   if (!q) {
     return { text: "Error: query is required", isError: true };
   }
 
-  const graph = getGraph(instance);
   const nodes = getAllNodes(instance);
 
   try {
@@ -560,11 +558,17 @@ export async function checkCode(
  */
 export async function renameSymbol(
   instance: CodeGraphInstance,
-  params: { symbol: string; new_name: string; dry_run?: boolean },
+  params: Record<string, unknown>,
 ): Promise<GitNexusToolResult> {
-  const node = findNode(instance, params.symbol);
+  const symbol = String(params.symbol ?? "");
+  const newName = String(params.new_name ?? "");
+  const dryRun = typeof params.dry_run === "boolean" ? params.dry_run : true;
+  if (!symbol || !newName) {
+    return { text: "Error: symbol and new_name are required", isError: true };
+  }
+  const node = findNode(instance, symbol);
   if (!node) {
-    return { text: `Symbol not found: ${params.symbol}`, isError: true };
+    return { text: `Symbol not found: ${symbol}`, isError: true };
   }
 
   const uid = node.uid ?? node.id ?? "";
@@ -602,9 +606,9 @@ export async function renameSymbol(
   });
 
   const result = {
-    symbol: params.symbol,
-    new_name: params.new_name,
-    dry_run: params.dry_run ?? true,
+    symbol,
+    new_name: newName,
+    dry_run: dryRun,
     references: deduped,
     reference_count: deduped.length,
     files_affected: [...new Set(deduped.map((r) => r.filePath))],
@@ -703,7 +707,12 @@ export async function impactAnalysis(
     riskSummary: `${totalAffected} symbols affected across ${maxDepth} depth levels. Risk: ${riskLevel}.`,
   };
 
-  return { text: JSON.stringify(result, null, 2), isError: false, metadata: result };
+  return {
+    text: JSON.stringify(result, null, 2),
+    isError: false,
+    // 展开为对象字面量以满足 metadata 的 Record<string, unknown>（接口无隐式索引签名）。
+    metadata: { ...result },
+  };
 }
 
 /**
@@ -951,14 +960,6 @@ export async function toolMap(
 ): Promise<GitNexusToolResult> {
   const root = instance.projectRoot;
   const tools: GitNexusToolInfo[] = [];
-
-  // Check common CLI entry points
-  const cliPatterns = [
-    { file: "package.json", field: "bin" },
-    { file: "Makefile", field: null },
-    { file: "Taskfile.yml", field: null },
-    { file: "justfile", field: null },
-  ];
 
   const fs = await import("node:fs/promises");
   const path = await import("node:path");

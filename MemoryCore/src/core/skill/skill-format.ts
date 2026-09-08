@@ -116,8 +116,10 @@ export function parseSkillFile(raw: string): SkillFile {
 
   return {
     frontmatter: {
-      name: fm.name,
-      description: fm.description,
+      // fm 是 YAML 宽松记录；name/description 已在上方 coerce 并回写，
+      // 这里直接使用局部强类型变量，避免 unknown 逃逸到 SkillFile 契约。
+      name,
+      description,
       category: typeof fm.category === "string" ? fm.category : undefined,
       created_at: typeof fm.created_at === "string" ? fm.created_at : undefined,
       updated_at: typeof fm.updated_at === "string" ? fm.updated_at : undefined,

@@ -12,7 +12,7 @@
 
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { generateText, tool, stepCountIs, jsonSchema } from "ai";
+import { generateText, tool, stepCountIs, jsonSchema, type ToolSet } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { report } from "../core/report/reporter.js";
 import type { Logger } from "../core/types.js";
@@ -54,8 +54,11 @@ export interface OpenAICompatibleProviderConfig {
 // telemetry.metadata 组装（与 standalone runner 语义一致）
 // ============================
 
-function buildTelemetryMetadata(params: ModelCompleteOptions): Record<string, unknown> {
-  const meta: Record<string, unknown> = {
+import type { AttributeValue } from "@opentelemetry/api";
+
+/** OTel telemetry metadata — 值域限定为 AttributeValue（string/number/boolean 及其数组）。 */
+function buildTelemetryMetadata(params: ModelCompleteOptions): Record<string, AttributeValue> {
+  const meta: Record<string, AttributeValue> = {
     instanceId: params.instanceId ?? "unknown",
   };
   if (params.traceName) {
@@ -282,7 +285,6 @@ export class OpenAICompatibleAdapter extends ModelAdapter {
     const provider = createOpenAI({
       baseURL: cfg.baseUrl,
       apiKey: cfg.apiKey,
-      compatibility: "compatible",
     });
 
     let tools: Record<string, unknown> | undefined;
@@ -308,7 +310,7 @@ export class OpenAICompatibleAdapter extends ModelAdapter {
         system: options.systemPrompt,
         prompt: options.prompt,
         ...(tools && Object.keys(tools).length > 0
-          ? { tools, stopWhen: stepCountIs(maxIterations) }
+          ? { tools: tools as ToolSet, stopWhen: stepCountIs(maxIterations) }
           : {}),
         maxOutputTokens: maxTokens,
         abortSignal: combinedSignal,
@@ -322,11 +324,12 @@ export class OpenAICompatibleAdapter extends ModelAdapter {
       const text = (result.text ?? "").trim();
       const totalMs = Date.now() - runStartMs;
 
+      // ai-sdk v5: LanguageModelUsage 使用 inputTokens/outputTokens（旧 promptTokens/completionTokens 已改名）
       const usage: LLMUsage | undefined = result.usage
         ? {
-            promptTokens: result.usage.promptTokens ?? 0,
-            completionTokens: result.usage.completionTokens ?? 0,
-            totalTokens: (result.usage.promptTokens ?? 0) + (result.usage.completionTokens ?? 0),
+            promptTokens: result.usage.inputTokens ?? 0,
+            completionTokens: result.usage.outputTokens ?? 0,
+            totalTokens: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0),
           }
         : undefined;
 

@@ -895,6 +895,9 @@ export class TcvdbMemoryStore implements IMemoryStore {
           created_time: epochMsToIso(Number(doc.created_time_ms ?? 0)),
           updated_time: epochMsToIso(Number(doc.updated_time_ms ?? 0)),
           metadata_json: String(doc.metadata_json ?? "{}"),
+          domain: String(doc.domain ?? ""),
+          write_policy: String(doc.write_policy ?? ""),
+          space_id: String(doc.space_id ?? ""),
         }));
       }
 
@@ -927,6 +930,9 @@ export class TcvdbMemoryStore implements IMemoryStore {
         created_time: epochMsToIso(Number(doc.created_time_ms ?? 0)),
         updated_time: epochMsToIso(Number(doc.updated_time_ms ?? 0)),
         metadata_json: String(doc.metadata_json ?? "{}"),
+        domain: String(doc.domain ?? ""),
+        write_policy: String(doc.write_policy ?? ""),
+        space_id: String(doc.space_id ?? ""),
       }));
     } catch (err) {
       this.logger?.warn(`${TAG} [L1-query] FAILED: ${err instanceof Error ? err.message : String(err)}`);
@@ -1951,6 +1957,9 @@ export class TcvdbMemoryStore implements IMemoryStore {
         created_time: d.created_time_ms ? new Date(d.created_time_ms).toISOString() : "",
         updated_time: d.updated_time_ms ? new Date(d.updated_time_ms).toISOString() : "",
         metadata_json: d.metadata_json ?? "{}",
+        domain: String(d.domain ?? ""),
+        write_policy: String(d.write_policy ?? ""),
+        space_id: String(d.space_id ?? ""),
       }));
 
       return { rows, total };

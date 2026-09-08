@@ -73,7 +73,7 @@ async function main(): Promise<void> {
 
   const backend = new LocalBackend();
   await backend.init();
-  console.error(`[engine-service] LocalBackend initialized with ${backend.repos?.size ?? 0} repos`);
+  console.error(`[engine-service] LocalBackend initialized with ${(await backend.listRepos()).length} repos`);
 
   const send = (res: http.ServerResponse, status: number, body: unknown): void => {
     const payload = JSON.stringify(body);
@@ -162,7 +162,7 @@ async function main(): Promise<void> {
     // ─── Health ───
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      send(res, 200, { ok: true, engine: 'codeanalysis', version: '1.6.9', repos: backend.repos?.size ?? 0 });
+      send(res, 200, { ok: true, engine: 'codeanalysis', version: '1.6.9', repos: (await backend.listRepos()).length });
       return;
     }
 
@@ -448,7 +448,7 @@ async function main(): Promise<void> {
               try {
                 const params = JSON.parse(fn.arguments);
                 if (fn.name === 'cypher_query') {
-                  toolResult = JSON.stringify((await cypherQuery(repo, params.query)).slice(0, 30));
+                  toolResult = JSON.stringify(((await cypherQuery(repo, params.query)) as unknown[]).slice(0, 30));
                 } else if (fn.name === 'read_file') {
                   toolResult = (await readRepoFile(repo, params.path)).slice(0, 4000);
                 } else if (fn.name === 'search_code') {

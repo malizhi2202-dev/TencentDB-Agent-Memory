@@ -52,7 +52,8 @@ import type { Skill, ResolvedSkillConfig } from "../core/skill/types.js";
 import { DEFAULT_COMPRESS_OPTIONS } from "../core/skill/conversation-add/message-compressor.js";
 import { DEFAULT_OVERSIZE_OPTIONS } from "../core/skill/conversation-add/oversize-strategy.js";
 import { prepareArchivePayload } from "../core/skill/conversation-add/prepare-archive.js";
-import type { CompressibleMessage } from "../core/skill/conversation-add/message-compressor.js";
+import type { CompressibleMessage, CompressOptions } from "../core/skill/conversation-add/message-compressor.js";
+import type { OversizeOptions } from "../core/skill/conversation-add/oversize-strategy.js";
 import { trace } from "../core/report/trace.js";
 import { metricProducer } from "../core/report/kafka-metric-producer.js";
 import { obsLogger } from "../core/report/obs-logger.js";
@@ -215,7 +216,9 @@ async function precheck<T>(
 
 /**
  * 写路径的 precheck：与 precheck 逻辑完全一致，只是名字更明确表达"写入语义"。
- * 保留以维持既有 handler 命名一致性；两者可以合并，但先保持向后兼容。
+ * 2026-09 重复块清理：实现委托给 precheck（单一实现、双名保留）——
+ * 写 handler 的调用点不变，读/写路径 store 解析逻辑天生对齐（见上方
+ * 2026-07-04 修复注释），这里不再复制第二份实现。
  */
 async function precheckWrite<T>(
   schema: { safeParse(b: unknown): { success: true; data: T } | { success: false; error: ZodError } },
@@ -224,17 +227,7 @@ async function precheckWrite<T>(
   deps: SkillRouterDeps,
   requestId: string,
 ): Promise<{ ok: true; core: SkillCore; data: T } | { ok: false; envelope: ApiResponseEnvelope }> {
-  let core: SkillCore | undefined;
-  if (deps.resolveSkillCore) {
-    core = await deps.resolveSkillCore(auth.serviceId);
-  }
-  if (!core) {
-    core = deps.getSkillCore();
-  }
-  if (!core) return { ok: false, envelope: errorEnvelope(404, "Skill module not enabled", requestId) };
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) return { ok: false, envelope: errorEnvelope(40001, formatZodErr(parsed.error), requestId) };
-  return { ok: true, core, data: parsed.data };
+  return precheck<T>(schema, body, auth, deps, requestId);
 }
 
 // 把 Skill 行形成 SkillSummary 形态（不带 content；带 manifest 当 detail 时再加）
@@ -283,7 +276,7 @@ export async function handleCreate(body: unknown, auth: V2AuthContext, requestId
   if (deps.quotaManager) {
     const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, 1);
     if (!check.allowed) {
-      obsLogger.warn("skill.handleCreate.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current, limit: check.limit });
+      obsLogger.warn("skill.handleCreate.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current ?? 0, limit: check.limit ?? 0 });
       return errorEnvelope(4291, `Memory limit exceeded (current=${check.current}, limit=${check.limit})`, requestId);
     }
   }
@@ -340,7 +333,7 @@ export async function handleUpdate(body: unknown, auth: V2AuthContext, requestId
   if (deps.quotaManager) {
     const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, 1);
     if (!check.allowed) {
-      obsLogger.warn("skill.handleUpdate.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current, limit: check.limit });
+      obsLogger.warn("skill.handleUpdate.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current ?? 0, limit: check.limit ?? 0 });
       return errorEnvelope(4291, `Memory limit exceeded (current=${check.current}, limit=${check.limit})`, requestId);
     }
   }
@@ -351,8 +344,8 @@ export async function handleUpdate(body: unknown, auth: V2AuthContext, requestId
     obsLogger.info("skill.handleUpdate.done", { req_id: requestId, code: 0, dur_ms: Date.now() - t0, skill_id: r.skill_id, name: r.name, version: r.version });
     return successEnvelope(toSummary(r), requestId);
   } catch (e) {
-    obsLogger.error("skill.handleUpdate.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id, expected_version: pre.data.expected_version }, e instanceof Error ? e : undefined);
-    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id, expected_version: pre.data.expected_version });
+    obsLogger.error("skill.handleUpdate.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id }, e instanceof Error ? e : undefined);
+    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id });
   }
 }
 
@@ -364,7 +357,7 @@ export async function handlePatch(body: unknown, auth: V2AuthContext, requestId:
   if (deps.quotaManager) {
     const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, 1);
     if (!check.allowed) {
-      obsLogger.warn("skill.handlePatch.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current, limit: check.limit });
+      obsLogger.warn("skill.handlePatch.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current ?? 0, limit: check.limit ?? 0 });
       return errorEnvelope(4291, `Memory limit exceeded (current=${check.current}, limit=${check.limit})`, requestId);
     }
   }
@@ -375,8 +368,8 @@ export async function handlePatch(body: unknown, auth: V2AuthContext, requestId:
     obsLogger.info("skill.handlePatch.done", { req_id: requestId, code: 0, dur_ms: Date.now() - t0, skill_id: r.skill_id, name: r.name, version: r.version });
     return successEnvelope(toSummary(r), requestId);
   } catch (e) {
-    obsLogger.error("skill.handlePatch.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id, expected_version: pre.data.expected_version }, e instanceof Error ? e : undefined);
-    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id, expected_version: pre.data.expected_version });
+    obsLogger.error("skill.handlePatch.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id }, e instanceof Error ? e : undefined);
+    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id });
   }
 }
 
@@ -423,8 +416,8 @@ export async function handleDelete(body: unknown, _auth: V2AuthContext, requestI
     obsLogger.info("skill.handleDelete.done", { req_id: requestId, code: 0, dur_ms: Date.now() - t0, skill_id: r.skill_id, archived: r.archived, asset_synced: assetSynced });
     return successEnvelope(r, requestId);
   } catch (e) {
-    obsLogger.error("skill.handleDelete.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id, expected_version: pre.data.expected_version }, e instanceof Error ? e : undefined);
-    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id, expected_version: pre.data.expected_version });
+    obsLogger.error("skill.handleDelete.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id }, e instanceof Error ? e : undefined);
+    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id });
   }
 }
 
@@ -591,7 +584,7 @@ export async function handleFilesWrite(body: unknown, auth: V2AuthContext, reque
   if (deps.quotaManager) {
     const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, 1);
     if (!check.allowed) {
-      obsLogger.warn("skill.handleFilesWrite.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current, limit: check.limit });
+      obsLogger.warn("skill.handleFilesWrite.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current ?? 0, limit: check.limit ?? 0 });
       return errorEnvelope(4291, `Memory limit exceeded (current=${check.current}, limit=${check.limit})`, requestId);
     }
   }
@@ -601,8 +594,8 @@ export async function handleFilesWrite(body: unknown, auth: V2AuthContext, reque
     obsLogger.info("skill.handleFilesWrite.done", { req_id: requestId, code: 0, dur_ms: Date.now() - t0, skill_id: r.skill_id, version: r.version, files: pre.data.files.length });
     return successEnvelope(toSummary(r), requestId);
   } catch (e) {
-    obsLogger.error("skill.handleFilesWrite.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id, expected_version: pre.data.expected_version }, e instanceof Error ? e : undefined);
-    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id, expected_version: pre.data.expected_version });
+    obsLogger.error("skill.handleFilesWrite.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id }, e instanceof Error ? e : undefined);
+    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id });
   }
 }
 
@@ -614,7 +607,7 @@ export async function handleFilesRemove(body: unknown, auth: V2AuthContext, requ
   if (deps.quotaManager) {
     const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, 1);
     if (!check.allowed) {
-      obsLogger.warn("skill.handleFilesRemove.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current, limit: check.limit });
+      obsLogger.warn("skill.handleFilesRemove.done", { req_id: requestId, code: 4291, dur_ms: Date.now() - t0, reason: "quota", current: check.current ?? 0, limit: check.limit ?? 0 });
       return errorEnvelope(4291, `Memory limit exceeded (current=${check.current}, limit=${check.limit})`, requestId);
     }
   }
@@ -624,8 +617,8 @@ export async function handleFilesRemove(body: unknown, auth: V2AuthContext, requ
     obsLogger.info("skill.handleFilesRemove.done", { req_id: requestId, code: 0, dur_ms: Date.now() - t0, skill_id: r.skill_id, version: r.version, paths: pre.data.paths.length });
     return successEnvelope(toSummary(r), requestId);
   } catch (e) {
-    obsLogger.error("skill.handleFilesRemove.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id, expected_version: pre.data.expected_version }, e instanceof Error ? e : undefined);
-    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id, expected_version: pre.data.expected_version });
+    obsLogger.error("skill.handleFilesRemove.done", { req_id: requestId, dur_ms: Date.now() - t0, skill_id: pre.data.skill_id }, e instanceof Error ? e : undefined);
+    return mapCoreError(e, requestId, deps, { skill_id: pre.data.skill_id });
   }
 }
 
@@ -806,15 +799,17 @@ export async function handleExtract(body: unknown, auth: V2AuthContext, requestI
   //   ③ 压缩后仍 ≥ chunkMax → 走 oversize 兜底截断 (保留头 + 尾, 中间砍掉)
   // 从 resolvedSkillConfig 取参数; DEFAULT_* 仅作 fallback (standalone 未配置场景)。
   const skillCfg = deps.getResolvedSkillConfig?.();
-  const compressOpts = skillCfg
+  const compressOpts: CompressOptions = skillCfg
     ? {
+        ...DEFAULT_COMPRESS_OPTIONS,
         toolContentThresholdBytes: skillCfg.compress.toolContentThresholdBytes,
         headBytes: skillCfg.compress.headBytes,
         tailBytes: skillCfg.compress.tailBytes,
       }
     : DEFAULT_COMPRESS_OPTIONS;
-  const oversizeOpts = skillCfg
+  const oversizeOpts: OversizeOptions = skillCfg
     ? {
+        ...DEFAULT_OVERSIZE_OPTIONS,
         chunkMaxBytes: skillCfg.extraction.chunkMaxBytes,
         headKeepBytes: skillCfg.extraction.headKeepBytes,
         tailKeepBytes: skillCfg.extraction.tailKeepBytes,

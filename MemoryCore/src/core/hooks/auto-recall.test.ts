@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { performAutoRecall } from "./auto-recall.js";
 import type { MemoryTdaiConfig } from "../../config.js";
-import type { IMemoryStore, IsolationFilter } from "../store/types.js";
+import type { IMemoryStore, IsolationFilter, L1FtsResult, L1RecordRow } from "../store/types.js";
 
 /**
  * P0 #C2 — Recall 侧 scope 隔离回归测试。
@@ -132,7 +132,7 @@ describe("performAutoRecall — tenant isolation 传递（P0 #C2）", () => {
 });
 
 describe("performAutoRecall — Retention 层（P0.2）", () => {
-  function makeFtsResult(id: string, content: string): Record<string, unknown> {
+  function makeFtsResult(id: string, content: string): L1FtsResult {
     return {
       record_id: id,
       content,
@@ -224,7 +224,7 @@ describe("performAutoRecall — Retention 层（P0.2）", () => {
       queryL1Records: vi.fn(async () => [
         { record_id: "m-arch", domain: "archive" },
         { record_id: "m-ok", domain: "semantic" },
-      ]),
+      ] as L1RecordRow[]),
     });
     const embedding = makeEmbedding();
     const cfg = {

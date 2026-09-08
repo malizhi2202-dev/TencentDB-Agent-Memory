@@ -27,6 +27,7 @@ export { metaInstancesApi, type MetadataInstance } from './api/meta-instances';
 // ── Auth + Environment Bindings ──
 export {
   authVerifyApi,
+  authLoginApi,
   authMethodsApi,
   userKeyLoginApi,
   environmentBindingsApi,

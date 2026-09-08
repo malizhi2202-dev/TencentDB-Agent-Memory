@@ -5,10 +5,12 @@ import { ConsoleLogger } from './infra/console-logger.js';
 import { FetchKernelHttpAdapter } from './kernel/adapters/fetch-kernel-http-adapter.js';
 import { FetchMetaKernelAdapter } from './kernel/adapters/fetch-meta-kernel-adapter.js';
 import { FetchSkillKernelAdapter } from './kernel/adapters/fetch-skill-kernel-adapter.js';
+import { FetchMemoryKernelAdapter } from './kernel/adapters/fetch-memory-kernel-adapter.js';
 import { FetchAnalyticsKernelAdapter } from './kernel/adapters/fetch-analytics-kernel-adapter.js';
 import type { KernelHttpPort } from './kernel/ports/kernel-http-port.js';
 import type { MetaKernelPort } from './kernel/ports/meta-kernel-port.js';
 import type { SkillKernelPort } from './kernel/ports/skill-kernel-port.js';
+import type { MemoryKernelPort } from './kernel/ports/memory-kernel-port.js';
 import type { AnalyticsKernelPort } from './kernel/ports/analytics-kernel-port.js';
 import type { Logger } from './infra/logger.js';
 import type { KnowledgeClientPort } from './kernel/ports/knowledge-client-port.js';
@@ -28,8 +30,6 @@ export interface PanelDeps {
   /** 按请求 instanceId 构造 KS 客户端（x-tdai-service-id = instanceId）。 */
   knowledgeClientFactory: (instanceId: string) => KnowledgeClientPort;
   skillKernel: SkillKernelPort;
-  /** 内核 /v3/memory/* 记忆能力透明代理。 */
-  memoryKernel: MemoryKernelPort;
   /** 内核 /v3/memory/* 记忆能力透明代理。 */
   memoryKernel: MemoryKernelPort;
   /** 内核 /v3/analytics/* 查询面透明代理（GET/POST 按 action 分流）。 */
@@ -95,6 +95,7 @@ export function buildPanelDeps(config: PanelConfig): PanelDeps {
     metaKernel,
     knowledgeClientFactory,
     skillKernel,
+    memoryKernel,
     analyticsKernel,
     knowledgeTaskRegistry,
     ingestProgressStore,

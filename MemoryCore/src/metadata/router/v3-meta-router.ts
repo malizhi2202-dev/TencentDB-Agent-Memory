@@ -351,10 +351,6 @@ const routeTable: Record<string, Handler> = {
     const { project_id, limit, offset, ...filter } = d;
     return s.listAssetsByProjectForCaller(project_id, c, resolvePagination({ limit, offset }), filter);
   }),
-  [`${V3_PREFIX}/asset/list-by-project`]: bind(S.assetListByProjectSchema, (d, c, s) => {
-    const { project_id, limit, offset, ...filter } = d;
-    return s.listAssetsByProjectForCaller(project_id, c, resolvePagination({ limit, offset }), filter);
-  }),
 
   [`${V3_PREFIX}/asset/touch-usage`]: bind(S.assetTouchUsageSchema, async (d, c, s) => {
     await s.touchAssetUsageForCaller(d.asset_id, c);
@@ -412,21 +408,6 @@ const routeTable: Record<string, Handler> = {
     );
   }),
 
-  [`${V3_PREFIX}/audit/list`]: bind(S.auditListSchema, async (d, c, s) => {
-    if (!(await s.hasPermission(c, "audit.view"))) {
-      throw new MetadataError("permission_denied", "audit list requires audit.view");
-    }
-    return s.listAuditLogs(
-      {
-        actor_user_id: d.actor_user_id,
-        action: d.action,
-        entity_type: d.entity_type,
-        entity_id: d.entity_id,
-      },
-      resolvePagination(d),
-    );
-  }),
-
   // 全局能力权限项（方案B RBAC）
   [`${V3_PREFIX}/permission/grant`]: bind(S.permissionGrantSchema, async (d, c, s) => {
     return s.grantPermissionForCaller({ user_id: d.user_id, permission: d.permission }, c);
@@ -450,13 +431,6 @@ const routeTable: Record<string, Handler> = {
     }
     return { valid: true, user_key: result.default_key_value, user: result.user };
   }),
-  [`${V3_PREFIX}/auth/login`]: bind(S.authLoginSchema, async (d, _c, s) => {
-    const result = await s.loginWithPassword(d.username, d.password);
-    if (!result) {
-      throw new MetadataError("invalid_credentials", "invalid username or password");
-    }
-    return { valid: true, user_key: result.default_key_value, user: result.user };
-  }),
 
   // ConfigParam (v3.2)
   [`${V3_PREFIX}/instance-quota/get`]: bind(S.instanceQuotaGetSchema, async (_d, _c, s) => {
@@ -471,6 +445,13 @@ const routeTable: Record<string, Handler> = {
     await requireEntity(s, EntityType.User, d.user_id);
     s.assertCallerIsOwner(d.user_id, c.userId!);
     return s.configParams.setUserConfigForCaller(d);
+  }),
+  [`${V3_PREFIX}/config/global/get`]: bind(S.configGlobalGetSchema, async (d, _c, s) => {
+    return s.configParams.getGlobalConfigView(d.module, d.param_name ? [d.param_name] : undefined);
+  }),
+  [`${V3_PREFIX}/config/global/set`]: bind(S.configGlobalSetSchema, async (d, c, s) => {
+    await s.assertPermission(c, "config.manage");
+    return s.configParams.setGlobalConfig(d.module, d.params);
   }),
 
   // InstanceUpstreamConfig
@@ -489,6 +470,110 @@ const routeTable: Record<string, Handler> = {
   [`${V3_PREFIX}/instance-upstream/reset`]: bind(S.instanceUpstreamResetSchema, async (d, c, s) => {
     s.assertCanManageUsers(c);
     return s.resetInstanceUpstreamConfig(d.agent_source, d.type);
+  }),
+
+  // GitCredential（私有 git 仓库凭据，owner 私有：仅本人可读写，system_admin 也不越权）。
+  [`${V3_PREFIX}/git-credential/create`]: bind(S.gitCredentialCreateSchema, async (d, c, s) => {
+    const userId = requireCallerUserId(c);
+    return s.gitCredentials.create(userId, d);
+  }),
+  [`${V3_PREFIX}/git-credential/list`]: bind(S.gitCredentialListSchema, async (_d, c, s) => {
+    const userId = requireCallerUserId(c);
+    const items = await s.gitCredentials.list(userId);
+    return { items, total: items.length };
+  }),
+  [`${V3_PREFIX}/git-credential/get`]: bind(S.gitCredentialGetSchema, async (d, c, s) => {
+    const userId = requireCallerUserId(c);
+    const rec = await s.gitCredentials.get(userId, d.credential_id);
+    if (!rec) throw new MetadataError("not_found", `git credential not found: ${d.credential_id}`);
+    return rec;
+  }),
+  [`${V3_PREFIX}/git-credential/delete`]: bind(S.gitCredentialDeleteSchema, async (d, c, s) => {
+    const userId = requireCallerUserId(c);
+    await s.gitCredentials.deleteCredential(userId, d.credential_id);
+    return { deleted: true };
+  }),
+
+  // KnowledgeEntry（项目级五类 + 团队级工作模式）
+  [`${V3_PREFIX}/knowledge-entry/create`]: bind(S.knowledgeCreateSchema, (d, c, s) => s.createKnowledgeEntryForCaller(d, c)),
+  [`${V3_PREFIX}/knowledge-entry/get`]: bind(S.knowledgeGetSchema, (d, c, s) => s.getKnowledgeEntryForCaller(d.entry_id, c)),
+  [`${V3_PREFIX}/knowledge-entry/update`]: bind(S.knowledgeUpdateSchema, (d, c, s) => {
+    const { entry_id, ...patch } = d;
+    return s.updateKnowledgeEntryForCaller(entry_id, patch, c);
+  }),
+  [`${V3_PREFIX}/knowledge-entry/delete`]: bind(S.knowledgeDeleteSchema, (d, c, s) => s.deleteKnowledgeEntriesForCaller(d.entry_ids, c)),
+  [`${V3_PREFIX}/knowledge-entry/list`]: bind(S.knowledgeListSchema, async (d, c, s) => {
+    const filter: KnowledgeEntryFilter = { scope: d.scope, scope_id: d.scope_id };
+    if (d.kind) filter.kind = d.kind;
+    if (d.source) filter.source = d.source;
+    if (d.status) filter.status = d.status;
+    return s.listKnowledgeEntriesForCaller(filter, c, resolvePagination(d));
+  }),
+
+  // ToolSource（MCP Server / REST API）
+  [`${V3_PREFIX}/tool-source/create`]: bind(S.toolSourceCreateSchema, (d, c, s) => s.createToolSourceForCaller(d, c)),
+  [`${V3_PREFIX}/tool-source/get`]: bind(S.toolSourceGetSchema, (d, c, s) => s.getToolSourceForCaller(d.tool_id, c)),
+  [`${V3_PREFIX}/tool-source/update`]: bind(S.toolSourceUpdateSchema, (d, c, s) => {
+    const { tool_id, ...patch } = d;
+    return s.updateToolSourceForCaller(tool_id, patch, c);
+  }),
+  [`${V3_PREFIX}/tool-source/delete`]: bind(S.toolSourceDeleteSchema, (d, c, s) => s.deleteToolSourcesForCaller(d.tool_ids, c)),
+  [`${V3_PREFIX}/tool-source/list`]: bind(S.toolSourceListSchema, async (d, c, s) => {
+    const filter: ToolSourceFilter = { team_id: d.team_id };
+    if (d.kind) filter.kind = d.kind;
+    if (d.source) filter.source = d.source;
+    if (d.status) filter.status = d.status;
+    return s.listToolSourcesForCaller(filter, c, resolvePagination(d));
+  }),
+
+  // AgentTeam（多 Agent 编排）
+  [`${V3_PREFIX}/agent-team/create`]: bind(S.agentTeamCreateSchema, (d, c, s) => s.createAgentTeamForCaller(d, c)),
+  [`${V3_PREFIX}/agent-team/get`]: bind(S.agentTeamGetSchema, (d, c, s) => s.getAgentTeamForCaller(d.agent_team_id, c)),
+  [`${V3_PREFIX}/agent-team/update`]: bind(S.agentTeamUpdateSchema, (d, c, s) => {
+    const { agent_team_id, ...patch } = d;
+    return s.updateAgentTeamForCaller(agent_team_id, patch, c);
+  }),
+  [`${V3_PREFIX}/agent-team/delete`]: bind(S.agentTeamDeleteSchema, (d, c, s) => s.deleteAgentTeamsForCaller(d.agent_team_ids, c)),
+  [`${V3_PREFIX}/agent-team/list`]: bind(S.agentTeamListSchema, async (d, c, s) => {
+    const filter: AgentTeamFilter = { team_id: d.team_id };
+    if (d.source) filter.source = d.source;
+    if (d.status) filter.status = d.status;
+    return s.listAgentTeamsForCaller(filter, c, resolvePagination(d));
+  }),
+  [`${V3_PREFIX}/agent-team-member/add`]: bind(S.agentTeamMemberAddSchema, (d, c, s) => s.addAgentTeamMemberForCaller(d, c)),
+  [`${V3_PREFIX}/agent-team-member/remove`]: bind(S.agentTeamMemberRemoveSchema, (d, c, s) => s.removeAgentTeamMemberForCaller(d.agent_team_id, d.agent_id, c)),
+  [`${V3_PREFIX}/agent-team-member/list`]: bind(S.agentTeamMemberListSchema, (d, c, s) => s.listAgentTeamMembersForCaller(d.agent_team_id, c, resolvePagination(d))),
+
+  // Automation（自动化编排）
+  [`${V3_PREFIX}/automation/create`]: bind(S.automationCreateSchema, (d, c, s) => s.createAutomationForCaller(d, c)),
+  [`${V3_PREFIX}/automation/get`]: bind(S.automationGetSchema, (d, c, s) => s.getAutomationForCaller(d.automation_id, c)),
+  [`${V3_PREFIX}/automation/update`]: bind(S.automationUpdateSchema, (d, c, s) => {
+    const { automation_id, ...patch } = d;
+    return s.updateAutomationForCaller(automation_id, patch, c);
+  }),
+  [`${V3_PREFIX}/automation/delete`]: bind(S.automationDeleteSchema, (d, c, s) => s.deleteAutomationsForCaller(d.automation_ids, c)),
+  [`${V3_PREFIX}/automation/list`]: bind(S.automationListSchema, async (d, c, s) => {
+    const filter: AutomationFilter = { team_id: d.team_id };
+    if (d.trigger_type) filter.trigger_type = d.trigger_type;
+    if (d.action_type) filter.action_type = d.action_type;
+    if (d.status) filter.status = d.status;
+    return s.listAutomationsForCaller(filter, c, resolvePagination(d));
+  }),
+
+  // RunTrace（会话回放）
+  [`${V3_PREFIX}/run-trace/create`]: bind(S.runTraceCreateSchema, (d, c, s) => s.createRunTraceForCaller(d, c)),
+  [`${V3_PREFIX}/run-trace/get`]: bind(S.runTraceGetSchema, (d, c, s) => s.getRunTraceForCaller(d.run_id, c)),
+  [`${V3_PREFIX}/run-trace/update`]: bind(S.runTraceUpdateSchema, (d, c, s) => {
+    const { run_id, ...patch } = d;
+    return s.updateRunTraceForCaller(run_id, patch, c);
+  }),
+  [`${V3_PREFIX}/run-trace/delete`]: bind(S.runTraceDeleteSchema, (d, c, s) => s.deleteRunTracesForCaller(d.run_ids, c)),
+  [`${V3_PREFIX}/run-trace/list`]: bind(S.runTraceListSchema, async (d, c, s) => {
+    const filter: RunTraceFilter = { team_id: d.team_id };
+    if (d.agent_id) filter.agent_id = d.agent_id;
+    if (d.kind) filter.kind = d.kind;
+    if (d.status) filter.status = d.status;
+    return s.listRunTracesForCaller(filter, c, resolvePagination(d));
   }),
 };
 

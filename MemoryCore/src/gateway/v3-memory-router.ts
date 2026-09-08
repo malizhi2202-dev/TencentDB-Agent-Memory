@@ -191,7 +191,7 @@ const routeTable: Record<string, Handler> = {
     (d) => publishScene(d.scene, d.version, d.publishedAt),
   ),
   [`${V3_MEMORY_PREFIX}/scene/validate`]: bind(
-    z.object({ scene: sceneDefSchema, supplied: z.record(z.unknown()) }),
+    z.object({ scene: sceneDefSchema, supplied: z.record(z.string(), z.unknown()) }),
     (d) => validateForm(d.scene, d.supplied),
   ),
 
