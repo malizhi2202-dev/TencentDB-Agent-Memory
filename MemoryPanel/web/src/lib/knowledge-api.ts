@@ -141,6 +141,20 @@ export interface CodeGraphDetail {
   updated_at: string;
 }
 
+/** 注册仓库时的 Git 认证信息（password/token/ssh）。 */
+export interface GitAuthInput {
+  kind: 'password' | 'token' | 'ssh';
+  username: string | null;
+  secret: string;
+  passphrase: string | null;
+}
+
+/** 工作区检测结果（detect-workspace）。 */
+export interface WorkspaceDetection {
+  has_code: boolean;
+  git_repos: Array<{ remote_url: string | null; branch: string | null; path: string }>;
+}
+
 // ---- 兼容旧类型（平滑过渡） ----
 
 /** @deprecated 用 WikiDetail 替代 */
@@ -417,6 +431,17 @@ export const knowledgeApi = {
       return details.filter((d): d is WikiDetail => !!d);
     },
 
+    /** 组合维度（团队 × 项目 × Agent × 用户 AND）查询 wiki，四者都可同时生效。 */
+    listCombined: async (opts: {
+      team_id?: string;
+      project_ids?: string[];
+      agent_id?: string;
+      owner_user_id?: string;
+    }): Promise<WikiDetail[]> => {
+      const d = await panelPost<{ items: KnowledgeAssetItem[]; total: number }>('/wiki/list-combined', opts);
+      return (d.items ?? []).map(assetItemToWiki);
+    },
+
     /** 获取详情（含 status，用于 ingest 后轮询） */
     get: (wikiId: string): Promise<WikiDetail> =>
       panelPost('/wiki/get', { wiki_id: wikiId }),
@@ -537,9 +562,9 @@ export const knowledgeApi = {
   // ---- Code-Graph ----
 
   code: {
-    /** 创建（注册仓库） */
-    create: (teamId: string, repoUrl: string, branch?: string, repoName?: string): Promise<CodeGraphDetail> =>
-      panelPost('/code-graph/create', { team_id: teamId, repo_url: repoUrl, branch: branch ?? 'main', repo_name: repoName }),
+    /** 创建（注册仓库）。auth 为 git 认证信息（password/token/ssh），可选。 */
+    create: (teamId: string, repoUrl: string, branch?: string, repoName?: string, auth?: GitAuthInput): Promise<CodeGraphDetail> =>
+      panelPost('/code-graph/create', { team_id: teamId, repo_url: repoUrl, branch: branch ?? 'main', repo_name: repoName, auth }),
 
     /** @deprecated 使用 teamAssets */
     list: async (teamId: string): Promise<CodeGraphDetail[]> => {
@@ -609,6 +634,10 @@ export const knowledgeApi = {
     analyze: (codeGraphId: string): Promise<ProjectAnalysis> =>
       panelPost('/code-graph/analyze', { code_graph_id: codeGraphId }),
 
+    /** 检测 harness 工作区（可选 path），返回 git 仓库列表 + has_code 标记。 */
+    detectWorkspace: (path?: string): Promise<WorkspaceDetection> =>
+      panelPost('/code-graph/detect-workspace', { path }),
+
     /** 详情（用于 sync 后轮询） */
     get: (codeGraphId: string): Promise<CodeGraphDetail> =>
       panelPost('/code-graph/get', { code_graph_id: codeGraphId }),
@@ -650,6 +679,22 @@ export const knowledgeApi = {
         'analysis_ask', codeGraphId, { question },
       );
       return { text: raw.text ?? '', isError: raw.isError ?? false };
+    },
+  },
+
+  // ---- GitNexus（17 个代码图 MCP 工具，同样走 KS /v3/tools/call 统一通道） ----
+
+  gitnexus: {
+    /**
+     * 执行 GitNexus 工具（gitnexus_ 前缀，经 KS 统一工具通道）。
+     * 返回 { text, isError }；text 为工具输出的文本/JSON。
+     */
+    query: async (tool: string, codeGraphId: string, params: Record<string, unknown>): Promise<{ text: string; isError: boolean }> => {
+      const raw = await ksToolsCall<{ isError: boolean; content: unknown }>(`gitnexus_${tool}`, codeGraphId, params);
+      const text = typeof raw.content === 'string'
+        ? raw.content
+        : JSON.stringify(raw.content, null, 2);
+      return { text, isError: raw.isError ?? false };
     },
   },
 

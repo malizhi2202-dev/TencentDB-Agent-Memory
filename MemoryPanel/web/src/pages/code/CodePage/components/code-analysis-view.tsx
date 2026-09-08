@@ -23,11 +23,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: '其他',
 };
 
-function formatMermaidBlock(diagram: string): string {
-  if (!diagram) return '';
-  return `\`\`\`mermaid\n${diagram}\n\`\`\``;
-}
-
 export function CodeAnalysisView({
   data,
   loading,

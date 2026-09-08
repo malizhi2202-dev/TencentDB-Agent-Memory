@@ -113,10 +113,4 @@ export const assetsApi = {
       project_id: projectId,
       asset_type: params?.asset_type,
     }),
-  /** 列出某 project 下的资产（协作轴聚合视图，caller 须 project 可见）。 */
-  listByProject: (projectId: string, params?: { asset_type?: AssetType }) =>
-    metaListAll<Asset>('asset/list-by-project', {
-      project_id: projectId,
-      asset_type: params?.asset_type,
-    }),
 };

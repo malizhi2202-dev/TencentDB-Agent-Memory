@@ -36,6 +36,11 @@ export interface GraphEdge {
   source: string; target: string; type: string; color: string; weight: number;
 }
 
+/** 节点类型图例项（NodeTypeLegend 用）：类型名 + 颜色 + 计数 */
+export interface NodeTypeInfo { type: string; color: string; count: number; }
+/** 边类型图例项（NodeTypeLegend 用）：类型名 + 颜色 + 计数 */
+export interface EdgeTypeInfo { type: string; color: string; count: number; }
+
 export interface CodeGraphPageProps {
   /** 固定仓库（仓库详情页传入）：锁定仓库，隐藏顶部仓库选择器 */
   fixedCgId?: string;

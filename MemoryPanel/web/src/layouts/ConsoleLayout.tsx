@@ -24,7 +24,7 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   '/code': 'code',
   '/skills': 'skills',
   '/memory': 'chat_memory',
-  '/analytics': 'analytics',
+  '/analysis': 'analysis',
   '/team/members': 'team_members',
   '/team/agents': 'team_agents',
   '/team/api-keys': 'api_keys',
@@ -156,7 +156,7 @@ export function ConsoleLayout() {
     for (const meta of Object.values(PAGE_META)) {
       if (userRole === 'reviewer' && meta.id === 'team_members') continue;
       // 「可观测」仅 system_admin 可见，且需面板开关开启 + 内核已配置 CH
-      if (meta.id === 'analytics') {
+      if (meta.id === 'analysis') {
         if (userRole !== 'admin' || !analyticsVisible) continue;
       }
       const list = byGroup.get(meta.group) ?? [];

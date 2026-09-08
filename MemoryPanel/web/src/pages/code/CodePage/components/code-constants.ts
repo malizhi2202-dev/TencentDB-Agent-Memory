@@ -28,6 +28,14 @@ export function isValidGitHttpUrl(raw: string): boolean {
 }
 
 /**
+ * 校验是否为合法的 SSH Git 仓库地址（git@host:path.git 或 ssh://git@host/path.git）。
+ */
+const GIT_SSH_URL_RE = /^(?:ssh:\/\/)?git@[^\s/]+[\/:][^\s]+\.git$/i;
+export function isValidSshGitUrl(raw: string): boolean {
+  return GIT_SSH_URL_RE.test(raw.trim());
+}
+
+/**
  * 从 Git URL 提取可读的仓库名称。
  *
  * repo_name 可能为空（旧数据），此时回退到 URL 会显得很长。

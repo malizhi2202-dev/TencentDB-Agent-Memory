@@ -8,7 +8,7 @@ import { Alert, Button, Card, Form, Input, Justify, MetricsBoard, Modal, SearchB
 import { ChevronRightIcon, CodeIcon, DeleteIcon, RefreshIcon, UsergroupIcon, ViewListIcon, ViewModuleIcon } from 'tea-icons-react';
 import { knowledgeApi } from '@/lib/knowledge-api';
 import { tea } from '@/lib/tea-bridge';
-import AllocateAssetDialog from '@/pages/ResourcePage/components/AllocateAssetDialog';
+import AllocateAssetDialog from '@/components/asset/AllocateAssetDialog';
 import { AssetPageHeader } from '@/pages/ResourcePage/components/AssetPageHeader';
 import { formatRepoName, formatShortTime, isValidGitHttpUrl, type ScopeTab, type StatusFilter, type ViewMode } from './code-constants';
 import { CodeOwnerLabel, statusLabel } from './code-ui';

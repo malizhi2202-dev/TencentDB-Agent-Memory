@@ -45,9 +45,9 @@ import './team-management-panel.css';
 import { MAX_IMPORTED_CHAT_MEMORIES, importedChatMemoryIds, type AgentCard } from './types';
 import { useAgentMountedCounts, syncChatMemoryBindings } from './useAgentAssets';
 import AgentGrid from './AgentGrid';
-import { TeamHeaderCard } from './TeamHeaderCard';
+import { TeamHeaderCard } from '@/components/team/TeamHeaderCard';
 import { MemberSection, AddMemberDialog, CreatedUserKeyModal } from './MemberSection';
-import CreateTeamDialog from './CreateTeamDialog';
+import CreateTeamDialog from '@/components/team/CreateTeamDialog';
 import CreateAgentDialog from './CreateAgentDialog';
 import AgentEditDialog from './AgentEditDialog';
 

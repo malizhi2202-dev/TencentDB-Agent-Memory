@@ -18,7 +18,7 @@ import {
   Tag,
   Text,
 } from 'tea-component';
-import { SettingIcon } from 'tea-icons-react';
+import { SettingIcon, LockOnIcon, UserIcon } from 'tea-icons-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SettingsDialog } from '@/components/SettingsDialog';
@@ -46,6 +46,10 @@ export function GlobalHeader({
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const canManageUsers = usePermission('user.view');
+  const canConfig = usePermission('config.manage');
+  const canGrant = usePermission('permission.grant');
+  const canAudit = usePermission('audit.view');
 
   return (
     <header className="_memory-global-header">

@@ -115,6 +115,20 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
       .catch(() => {
         if (!cancelled) setAllUsers([]);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
+
+  // ── 数据加载 ──
+  // 请求序号防竞态：快速切换 tab 时，先发的请求可能后返回，
+  // 旧 tab 的数据会覆盖新 tab 的数据。每次 fetch 递增序号，
+  // 响应回来时校验序号是否仍是最新，不是就丢弃。
+  const fetchSeqRef = useRef(0);
+  // L0「自动扩展时间范围」的连续次数上限：窗口内到最早时自动往前扩展 24h，
+  // 直到后端确认该记忆块在更早时间也没有记录（重新加载返回空 → l0Ended 置位）为止。
+  const l0AutoExpandCountRef = useRef(0);
+
   const fetchBlocks = useCallback(async () => {
     if (!activeTeamId) {
       setBlocks([]);
@@ -167,8 +181,6 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
         bound_agent_count: b.bound_agent_count,
         layers: { L0: [], L1: [], L2: [], L3: [] },
         // 初始只填后端返回的**真实**计数（>0）；为 0 / 未落地的层留 undefined＝「未知」。
-        // 未知层的徽章显示占位，用户切到该 layer tab 时才按需请求真实计数，
-        // 避免选中一个块就顺带把其余 3 层各 ping 一次（纯预请求用户还没看的东西）。
         layerCounts: buildInitialLayerCounts(b.layer_counts),
       }));
       setBlocks(mapped);
@@ -179,37 +191,13 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     } finally {
       if (seq === fetchSeqRef.current) setBlocksLoading(false);
     }
-    // 注：不再在这里 setSelectedId —— 之前 fetchBlocks 的 useCallback 依赖
-    // 了 selectedId，导致每次选中一个 block 都重新 fetch 整个列表（卡顿主因）。
-    // 默认选中的逻辑改由下方独立 effect 处理。
   }, [activeTeamId, scopeTab, agentFilter, selectedProject, selectedOwner, currentUserId, t]);
 
   // 触发 fetchBlocks：依赖原始参数 + fetchBlocks，并用 key 去重防止短时间内重复触发。
-  // 之前直接 `useEffect(() => fetchBlocks(), [fetchBlocks])` 会因 fetchBlocks 引用变化
-  // （agentFilter 等依赖异步同步）触发多次，导致同一个接口被反复请求。
   const fetchKeyRef = useRef<string>('');
   useEffect(() => {
-    // 只有 agent/project/user 维度才纳入对应次级选择器；team 维度数据源（teamAssets）
-    // 与选中 agent 无关。若把 agentFilter 纳入 team 的 key，ownedTeamAgents 异步加载完后
-    // agentFilter 会从 '' 变成首个 agent，导致 key 变化、再触发一次**完全重复**的
-    // teamAssets 请求（进页面即多打一次接口）。
     const scopeKey =
       scopeTab === 'agent'
-        ? agentFilter
-        : scopeTab === 'project'
-          ? selectedProject
-          : scopeTab === 'user'
-            ? selectedOwner || currentUserId
-            : scopeTab === 'team'
-              ? selectedTeam
-              : '';
-    const key = `${activeTeamId}|${scopeTab}|${scopeKey}`;
-    if (fetchKeyRef.current === key) return;
-    fetchKeyRef.current = key;
-    void fetchBlocks();
-  }, [activeTeamId, scopeTab, agentFilter, selectedTeam, selectedProject, selectedOwner, currentUserId, fetchBlocks]);
-
-  // 列表变化后，仅当当前选中的记忆块已不在列表中时清空选中。
         ? agentFilter
         : scopeTab === 'project'
           ? selectedProject
@@ -247,224 +235,248 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
   // ── 层计数：选中块即并行拉取四层计数 ──
   // 业务确认：teamAssets / agentFixed / myAgents 返回的 layer_counts 不可靠，
   // 必须对选中的 block 调用 L0/L1/L2/L3 四个 layer 接口才能拿到准确计数。
-/* __GAP__ line 250 */
-/* __GAP__ line 251 */
-/* __GAP__ line 252 */
-/* __GAP__ line 253 */
-/* __GAP__ line 254 */
-/* __GAP__ line 255 */
-/* __GAP__ line 256 */
-/* __GAP__ line 257 */
-/* __GAP__ line 258 */
-/* __GAP__ line 259 */
-/* __GAP__ line 260 */
-/* __GAP__ line 261 */
-/* __GAP__ line 262 */
-/* __GAP__ line 263 */
-/* __GAP__ line 264 */
-/* __GAP__ line 265 */
-/* __GAP__ line 266 */
-/* __GAP__ line 267 */
-/* __GAP__ line 268 */
-/* __GAP__ line 269 */
-/* __GAP__ line 270 */
-/* __GAP__ line 271 */
-/* __GAP__ line 272 */
-/* __GAP__ line 273 */
-/* __GAP__ line 274 */
-/* __GAP__ line 275 */
-/* __GAP__ line 276 */
-/* __GAP__ line 277 */
-/* __GAP__ line 278 */
-/* __GAP__ line 279 */
-/* __GAP__ line 280 */
-/* __GAP__ line 281 */
-/* __GAP__ line 282 */
-/* __GAP__ line 283 */
-/* __GAP__ line 284 */
-/* __GAP__ line 285 */
-/* __GAP__ line 286 */
-/* __GAP__ line 287 */
-/* __GAP__ line 288 */
-/* __GAP__ line 289 */
-/* __GAP__ line 290 */
-/* __GAP__ line 291 */
-/* __GAP__ line 292 */
-/* __GAP__ line 293 */
-/* __GAP__ line 294 */
-/* __GAP__ line 295 */
-/* __GAP__ line 296 */
-/* __GAP__ line 297 */
-/* __GAP__ line 298 */
-/* __GAP__ line 299 */
-/* __GAP__ line 300 */
-/* __GAP__ line 301 */
-/* __GAP__ line 302 */
-/* __GAP__ line 303 */
-/* __GAP__ line 304 */
-/* __GAP__ line 305 */
-/* __GAP__ line 306 */
-/* __GAP__ line 307 */
-/* __GAP__ line 308 */
-/* __GAP__ line 309 */
-/* __GAP__ line 310 */
-/* __GAP__ line 311 */
-/* __GAP__ line 312 */
-/* __GAP__ line 313 */
-/* __GAP__ line 314 */
-/* __GAP__ line 315 */
-/* __GAP__ line 316 */
-/* __GAP__ line 317 */
-/* __GAP__ line 318 */
-/* __GAP__ line 319 */
-/* __GAP__ line 320 */
-/* __GAP__ line 321 */
-/* __GAP__ line 322 */
-/* __GAP__ line 323 */
-/* __GAP__ line 324 */
-/* __GAP__ line 325 */
-/* __GAP__ line 326 */
-/* __GAP__ line 327 */
-/* __GAP__ line 328 */
-/* __GAP__ line 329 */
-/* __GAP__ line 330 */
-/* __GAP__ line 331 */
-/* __GAP__ line 332 */
-/* __GAP__ line 333 */
-/* __GAP__ line 334 */
-/* __GAP__ line 335 */
-/* __GAP__ line 336 */
-/* __GAP__ line 337 */
-/* __GAP__ line 338 */
-/* __GAP__ line 339 */
-/* __GAP__ line 340 */
-/* __GAP__ line 341 */
-/* __GAP__ line 342 */
-/* __GAP__ line 343 */
-/* __GAP__ line 344 */
-/* __GAP__ line 345 */
-/* __GAP__ line 346 */
-/* __GAP__ line 347 */
-/* __GAP__ line 348 */
-/* __GAP__ line 349 */
-/* __GAP__ line 350 */
-/* __GAP__ line 351 */
-/* __GAP__ line 352 */
-/* __GAP__ line 353 */
-/* __GAP__ line 354 */
-/* __GAP__ line 355 */
-/* __GAP__ line 356 */
-/* __GAP__ line 357 */
-/* __GAP__ line 358 */
-/* __GAP__ line 359 */
-/* __GAP__ line 360 */
-/* __GAP__ line 361 */
-/* __GAP__ line 362 */
-/* __GAP__ line 363 */
-/* __GAP__ line 364 */
-/* __GAP__ line 365 */
-/* __GAP__ line 366 */
-/* __GAP__ line 367 */
-/* __GAP__ line 368 */
-/* __GAP__ line 369 */
-/* __GAP__ line 370 */
-/* __GAP__ line 371 */
-/* __GAP__ line 372 */
-/* __GAP__ line 373 */
-/* __GAP__ line 374 */
-/* __GAP__ line 375 */
-/* __GAP__ line 376 */
-/* __GAP__ line 377 */
-/* __GAP__ line 378 */
-/* __GAP__ line 379 */
-/* __GAP__ line 380 */
-/* __GAP__ line 381 */
-/* __GAP__ line 382 */
-/* __GAP__ line 383 */
-/* __GAP__ line 384 */
-/* __GAP__ line 385 */
-/* __GAP__ line 386 */
-/* __GAP__ line 387 */
-/* __GAP__ line 388 */
-/* __GAP__ line 389 */
-/* __GAP__ line 390 */
-/* __GAP__ line 391 */
-/* __GAP__ line 392 */
-/* __GAP__ line 393 */
-/* __GAP__ line 394 */
-/* __GAP__ line 395 */
-/* __GAP__ line 396 */
-/* __GAP__ line 397 */
-/* __GAP__ line 398 */
-/* __GAP__ line 399 */
-/* __GAP__ line 400 */
-/* __GAP__ line 401 */
-/* __GAP__ line 402 */
-/* __GAP__ line 403 */
-/* __GAP__ line 404 */
-/* __GAP__ line 405 */
-/* __GAP__ line 406 */
-/* __GAP__ line 407 */
-/* __GAP__ line 408 */
-/* __GAP__ line 409 */
-/* __GAP__ line 410 */
-/* __GAP__ line 411 */
-/* __GAP__ line 412 */
-/* __GAP__ line 413 */
-/* __GAP__ line 414 */
-/* __GAP__ line 415 */
-/* __GAP__ line 416 */
-/* __GAP__ line 417 */
-/* __GAP__ line 418 */
-/* __GAP__ line 419 */
-/* __GAP__ line 420 */
-/* __GAP__ line 421 */
-/* __GAP__ line 422 */
-/* __GAP__ line 423 */
-/* __GAP__ line 424 */
-/* __GAP__ line 425 */
-/* __GAP__ line 426 */
-/* __GAP__ line 427 */
-/* __GAP__ line 428 */
-/* __GAP__ line 429 */
-/* __GAP__ line 430 */
-/* __GAP__ line 431 */
-/* __GAP__ line 432 */
-/* __GAP__ line 433 */
-/* __GAP__ line 434 */
-/* __GAP__ line 435 */
-/* __GAP__ line 436 */
-/* __GAP__ line 437 */
-/* __GAP__ line 438 */
-/* __GAP__ line 439 */
-/* __GAP__ line 440 */
-/* __GAP__ line 441 */
-/* __GAP__ line 442 */
-/* __GAP__ line 443 */
-/* __GAP__ line 444 */
-/* __GAP__ line 445 */
-/* __GAP__ line 446 */
-/* __GAP__ line 447 */
-/* __GAP__ line 448 */
-/* __GAP__ line 449 */
-/* __GAP__ line 450 */
-/* __GAP__ line 451 */
-/* __GAP__ line 452 */
-/* __GAP__ line 453 */
-/* __GAP__ line 454 */
-/* __GAP__ line 455 */
-/* __GAP__ line 456 */
-/* __GAP__ line 457 */
-/* __GAP__ line 458 */
-/* __GAP__ line 459 */
-/* __GAP__ line 460 */
-/* __GAP__ line 461 */
-/* __GAP__ line 462 */
-/* __GAP__ line 463 */
-/* __GAP__ line 464 */
-/* __GAP__ line 465 */
-/* __GAP__ line 466 */
-/* __GAP__ line 467 */
+  const layerCountSeqRef = useRef(0);
+  useEffect(() => {
+    if (!selected?.id) return;
+    const blockId = selected.id;
+    const seq = ++layerCountSeqRef.current;
+    const layers: MemoryLayer[] = ['L0', 'L1', 'L2', 'L3'];
+    layers.forEach((l) => {
+      // 已经有真实计数的层不重复请求。
+      if (selected.layerCounts[l] !== undefined) return;
+      chatMemoryApi
+        .layer(blockId, l, 1, 0)
+        .then((res) => {
+          if (seq !== layerCountSeqRef.current) return; // 已被后续选中取代
+          setBlocks((prev) =>
+            prev.map((b) =>
+              b.id === blockId ? { ...b, layerCounts: { ...b.layerCounts, [l]: res.total } } : b,
+            ),
+          );
+        })
+        .catch(() => {
+          // 单层计数失败不阻断其他层，静默忽略
+        });
+    });
+  }, [selected?.id]);
+
+  // 切换记忆块时，时间筛选器重置为默认「前一天 ~ 当前」（业务确认：每次打开都重置）
+  useEffect(() => {
+    setTimeRange(defaultTimeRange());
+    setRangeTooLarge(false);
+  }, [selected?.id]);
+
+  // 切块 / 时间范围变化时，窗口内总数缓存作废（翻页与总数必须按新窗口重新计算）
+  useEffect(() => {
+    setWindowTotals({});
+  }, [selected?.id, timeRange.start, timeRange.end]);
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setLayerLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLayerLoading(true);
+    // 时间筛选仅对 L0 / L1 生效；L2 / L3 是聚合产物，不传时间参数
+    const useTimeFilter = layer === 'L0' || layer === 'L1';
+    const timeStart = useTimeFilter ? timeRange.start || undefined : undefined;
+    const timeEnd = useTimeFilter ? timeRange.end || undefined : undefined;
+    chatMemoryApi
+      .layer(
+        selected.id,
+        layer,
+        pageSize,
+        layerPage * pageSize,
+        undefined,
+        undefined,
+        timeStart,
+        timeEnd,
+      )
+      .then((res) => {
+        if (cancelled) return;
+        setRangeTooLarge(false);
+        // 带时间筛选时 res.total 是「当前时间窗口内」的数量，单独保存供分页用
+        setWindowTotals((prev) => ({
+          ...prev,
+          [selected.id]: { ...(prev[selected.id] ?? {}), [layer]: res.total },
+        }));
+        setBlocks((prev) =>
+          prev.map((b) => {
+            if (b.id !== selected.id) return b;
+            const updated = {
+              ...b,
+              layers: { ...b.layers },
+              ...(!useTimeFilter
+                ? { layerCounts: { ...b.layerCounts, [layer]: res.total } }
+                : {}),
+            };
+            if (res.layer === 'L0') {
+              updated.layers.L0 = res.items;
+              updated.l0Ended = res.items.length === 0;
+            } else if (res.layer === 'L1') updated.layers.L1 = res.items.map(mapLayerItem);
+            else if (res.layer === 'L2') updated.layers.L2 = res.items.map(mapLayerItem);
+            else if (res.layer === 'L3') updated.layers.L3 = res.items.map(mapLayerItem);
+            return updated;
+          }),
+        );
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        // 范围过大：不弹错误提示，交由 BlockDetail 渲染「记忆条数过多」引导
+        if (isRangeTooLargeError(e)) {
+          setRangeTooLarge(true);
+          return;
+        }
+        tea.notify.error(e instanceof Error ? e.message : t('memory.notify.layerFailed'));
+      })
+      .finally(() => {
+        if (!cancelled) setLayerLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, layer, layerPage, pageSize, timeRange.start, timeRange.end, t]);
+
+  const handleLayerPageChange = useCallback(
+    (nextPage: number) => {
+      if (!selected?.id) return;
+      setLayerPages((prev) => ({
+        ...prev,
+        [selected.id]: { ...(prev[selected.id] ?? {}), [layer]: Math.max(0, nextPage) },
+      }));
+    },
+    [selected?.id, layer],
+  );
+
+  // ── L0 加载更多（下拉/滚动到顶部触发） ──
+  const [l0MoreLoading, setL0MoreLoading] = useState(false);
+  const handleL0LoadMore = useCallback(async () => {
+    if (!selected?.id || layer !== 'L0' || l0MoreLoading) return;
+    const items = selected.layers.L0;
+    const total = selected.layerCounts.L0 ?? items.length;
+    if (selected.l0Ended) return;
+    if (items.length >= total) return;
+    // 游标：数组按新→旧排列，最后一条是最旧的已加载消息
+    const lastItem = items[items.length - 1];
+    const beforeTs = lastItem?.created_at;
+    setL0MoreLoading(true);
+    try {
+      const timeStart = timeRange.start || undefined;
+      const res = await chatMemoryApi.layer(
+        selected.id,
+        'L0',
+        pageSize,
+        0,
+        undefined,
+        beforeTs,
+        timeStart,
+      );
+      const noMore = res.items.length === 0;
+      setBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== selected.id) return b;
+          const existing = new Set(b.layers.L0.map((m) => m.id));
+          const more = res.items.filter((m) => !existing.has(m.id));
+          return {
+            ...b,
+            layers: { ...b.layers, L0: [...b.layers.L0, ...more] },
+            l0Ended: b.l0Ended || more.length === 0,
+          };
+        }),
+      );
+      if (noMore && timeRange.start && l0AutoExpandCountRef.current < 30) {
+        l0AutoExpandCountRef.current += 1;
+        const newStart = new Date(new Date(timeRange.start).getTime() - 24 * 60 * 60 * 1000);
+        setL0MoreLoading(false);
+        setTimeRange((prev) => ({ ...prev, start: newStart.toISOString() }));
+        return;
+      }
+    } catch (e: unknown) {
+      tea.notify.error((e instanceof Error ? e.message : String(e)) || t('memory.notify.layerFailed'));
+    } finally {
+      setL0MoreLoading(false);
+    }
+  }, [selected, layer, l0MoreLoading, pageSize, timeRange.start, t]);
+
+  const handleLayerItemLoad = useCallback(
+    async (itemId: string) => {
+      if (!selected?.id || layer !== 'L2') return;
+      const current = selected.layers.L2.find((item) => item.id === itemId);
+      if (!current) return;
+      if (current.body.trim()) {
+        setBlocks((prev) =>
+          prev.map((b) => {
+            if (b.id !== selected.id) return b;
+            return {
+              ...b,
+              layers: {
+                ...b.layers,
+                L2: b.layers.L2.map((item) =>
+                  item.id === itemId ? { ...item, body: '', tags: [] } : item,
+                ),
+              },
+            };
+          }),
+        );
+        return;
+      }
+      setLayerItemLoadingId(itemId);
+      try {
+        const res = await chatMemoryApi.layer(selected.id, 'L2', 1, 0, itemId);
+        const loaded = res.items[0] ? mapLayerItem(res.items[0]) : null;
+        if (!loaded) return;
+        setBlocks((prev) =>
+          prev.map((b) => {
+            if (b.id !== selected.id) return b;
+            return {
+              ...b,
+              layers: {
+                ...b.layers,
+                L2: b.layers.L2.map((item) => (item.id === itemId ? { ...item, ...loaded } : item)),
+              },
+            };
+          }),
+        );
+      } catch (e: unknown) {
+        tea.notify.error((e instanceof Error ? e.message : String(e)) || t('memory.notify.l2Failed'));
+      } finally {
+        setLayerItemLoadingId(null);
+      }
+    },
+    [selected?.id, selected?.layers.L2, layer, t],
+  );
+
+  // ── 编辑：保存单层内容（Owner-only；成功后乐观更新对应条目 body） ──
+  const handleSaveLayerItem = useCallback(
+    async (targetLayer: 'L1' | 'L2' | 'L3', itemId: string, content: string) => {
+      if (!selected?.id) return;
+      await chatMemoryApi.updateLayer(selected.id, targetLayer, {
+        id: itemId,
+        content,
+      });
+      setBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== selected.id) return b;
+          return {
+            ...b,
+            layers: {
+              ...b.layers,
+              [targetLayer]: b.layers[targetLayer].map((item) =>
+                item.id === itemId ? { ...item, body: content } : item,
+              ),
+            },
+          };
+        }),
+      );
+      tea.notify.success(t('memory.notify.editSuccess'));
+    },
+    [selected?.id, t],
+  );
+
+  // ── 搜索：L0（对话）/ L1（原子记忆）语义 / 关键字检索 ──
+  const searchLayer = useCallback(
+    async (targetLayer: 'L0' | 'L1', query: string): Promise<ChatMemorySearchHit[]> => {
       if (!selected?.id) return [];
       const res = await chatMemoryApi.searchLayer(selected.id, targetLayer, query, 30);
       return res.items ?? [];
@@ -494,11 +506,6 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
 
   function isSelfChatMemory(b: MemoryBlock): boolean {
     // 只有当"这条 chat_memory 是**当前正在查看的 agent** 的自身记忆"时才算 self —— 不允许解绑。
-    // 之前 bug：任何 `chat_memory-{team}-{agentX}` 命名的 asset 都被判成 self，
-    // 导致别人 agent 的记忆借入到当前 agent 后（e.g. test3 借了 test-bugfix 的），
-    // 也被误判为 self，"解绑"按钮永远不显示。
-    // agent tab 下 agentFilter 就是当前 agent；team/project/user tab 不涉及"解绑"语义，
-    // 保留原前缀判定作为兜底。
     if (!activeTeamId) return false;
     if (scopeTab === 'agent' && agentFilter) {
       return b.id === `chat_memory-${activeTeamId}-${agentFilter}`;
@@ -511,7 +518,6 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     // 文档 §4.5 allocate 权限规则：
     //   1. agent.owner = me（只能分配到自己 owner 的 agent，否则 403 NOT_YOUR_AGENT）
     //   3. 不能把 agent 自己的 chat_memory 分配给自己
-    // 所以数据源用 ownedTeamAgents，排除该记忆块自身的 agent。
     const ownerAgentId = selfChatMemoryAgentId(b);
     return ownedTeamAgents
       .filter((a) => a.agent_id !== ownerAgentId)
@@ -557,29 +563,27 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     } catch (e: any) {
       tea.notify.error(e?.message || t('memory.notify.importFailed'));
     }
-  function allocatableAgents(b: MemoryBlock) {
-    // 文档 §4.5 allocate 权限规则：
-    //   1. agent.owner = me（只能分配到自己 owner 的 agent，否则 403 NOT_YOUR_AGENT）
-    //   3. 不能把 agent 自己的 chat_memory 分配给自己
-    // 所以数据源用 ownedTeamAgents，排除该记忆块自身的 agent。
-    const ownerAgentId = selfChatMemoryAgentId(b);
-    return ownedTeamAgents
-      .filter((a) => a.agent_id !== ownerAgentId)
-      .map((a) => ({ agent_id: a.agent_id, name: a.name }));
   }
 
-  // ── 操作 ──
-  async function handleDeleteBlock(id: string) {
-    const ok = await tea.confirm({
-      message: t('memory.confirm.unbind'),
-/* __GAP__ line 575 */
-/* __GAP__ line 576 */
-/* __GAP__ line 577 */
-/* __GAP__ line 578 */
-/* __GAP__ line 579 */
-/* __GAP__ line 580 */
-/* __GAP__ line 581 */
-/* __GAP__ line 582 */
+  // 共享/私密切换：Agent 资产（agent）tab 的资产项上（仅 owner 可切）。
+  async function handleToggleScope(block: MemoryBlock, newScope: 'team' | 'private') {
+    if (block.scope === newScope) return;
+    if (newScope === 'private') {
+      const ok = await tea.confirm({
+        message: t('memory.confirm.private'),
+        description: t('memory.confirm.private.desc'),
+        okText: t('memory.confirm.private.ok'),
+      });
+      if (!ok) return;
+    }
+    try {
+      await chatMemoryApi.patchScope(block.id, newScope);
+      tea.notify.success(
+        newScope === 'team' ? t('memory.notify.scopeTeam') : t('memory.notify.scopePrivate'),
+      );
+      fetchBlocks();
+    } catch (e: unknown) {
+      tea.notify.error((e instanceof Error ? e.message : String(e)) || t('memory.notify.scopeFailed'));
     }
   }
 
@@ -630,55 +634,15 @@ export function useChatMemory(props: { activeTeamId?: string | null } = {}) {
     pageSize,
     windowTotal,
     filtered,
-/* __GAP__ line 633 */
-/* __GAP__ line 634 */
-/* __GAP__ line 635 */
-/* __GAP__ line 636 */
-/* __GAP__ line 637 */
-    // context
-    activeTeam,
-    activeTeamId,
-    currentUserId,
-    ownedTeamAgents,
-    teamAgents,
-    scopeTabLabels,
-    // state
-    blocks,
-    blocksLoading,
-    selectedId,
-    setSelectedId,
-    layer,
-    setLayer,
-    layerPages,
-    layerLoading,
-    layerItemLoadingId,
-    l0MoreLoading,
-    timeRange,
-    setTimeRange,
-    rangeTooLarge,
-    showImport,
-    setShowImport,
-    showAllocate,
-    setShowAllocate,
-    scopeTab,
-    setScopeTab,
-    agentFilter,
-    setAgentFilter,
-    // computed
-    selected,
-    layerPage,
-    pageSize,
-    windowTotal,
-    isAdmin,
-    projects,
-    selectedProject,
-    setSelectedProject,
-    allUsers,
-    selectedOwner,
-    setSelectedOwner,
-    // computed
-    selected,
-    layerPage,
+    // handlers
+    fetchBlocks,
+    handleLayerPageChange,
+    handleL0LoadMore,
+    handleLayerItemLoad,
+    handleSaveLayerItem,
+    searchLayer,
+    handleDeleteBlock,
+    handleImport,
     handleToggleScope,
     // helpers
     agentLabel,

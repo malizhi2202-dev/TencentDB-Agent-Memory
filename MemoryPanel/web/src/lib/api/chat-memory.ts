@@ -85,18 +85,6 @@ export const chatMemoryApi = {
       owner_user_id: ownerUserId,
     }),
 
-  /** 维度查询：project 维度（该项目下的 chat_memory，跨 team） */
-  listByProject: (projectId: string) =>
-    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-scope', {
-      project_id: projectId,
-    }),
-
-  /** 维度查询：user 维度（该 owner 的 chat_memory，system_admin 可看任意 owner） */
-  listByOwner: (ownerUserId: string) =>
-    chatMemoryCall<{ items: ChatMemoryBlock[]; total: number }>('list-scope', {
-      owner_user_id: ownerUserId,
-    }),
-
   /** 组合维度（团队 × 项目 × Agent × 用户 AND）查询。 */
   listCombined: (opts: {
     team_id?: string;

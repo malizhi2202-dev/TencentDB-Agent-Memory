@@ -7,10 +7,6 @@
 import { type ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentRole, type TeamRole } from '@/services/useCurrentRole';
-import { usePermissionState } from '@/lib/usePermission';
-import { usePermissionState } from '@/lib/usePermission';
-import { usePermissionState } from '@/lib/usePermission';
-import { usePermissionState } from '@/lib/usePermission';
 
 /** 资源管理页面守卫：admin 不可见 */
 export function ResourceGuard({ children }: { children: ReactNode }) {
@@ -44,11 +40,10 @@ export function MemberManageGuard({ children, allowedRoles }: {
   return blocked ? null : <>{children}</>;
 }
 
-/** 管理员专属守卫：仅全局 admin（system_admin）可访问，其余角色重定向到工作台。 */
+/** 管理员路由守卫：仅全局 admin 可见（用户管理 / 模型配置 / 权限 / 审计日志）。 */
 export function AdminOnlyGuard({ children }: { children: ReactNode }) {
   const role = useCurrentRole();
   const navigate = useNavigate();
-  // role === null 表示角色尚未解析，先放行，由页面内部/后端再次把关。
   const blocked = role !== null && role !== 'admin';
 
   useEffect(() => {
@@ -56,31 +51,4 @@ export function AdminOnlyGuard({ children }: { children: ReactNode }) {
   }, [blocked, navigate]);
 
   return blocked ? null : <>{children}</>;
-}
-
-/** 管理员专属守卫：仅全局 admin（system_admin）可访问，其余角色重定向到工作台。 */
-export function AdminOnlyGuard({ children }: { children: ReactNode }) {
-  const role = useCurrentRole();
-  const navigate = useNavigate();
-  // role === null 表示角色尚未解析，先放行，由页面内部/后端再次把关。
-  const blocked = role !== null && role !== 'admin';
-
-  useEffect(() => {
-    if (blocked) navigate('/', { replace: true });
-  }, [blocked, navigate]);
-
-  return blocked ? null : <>{children}</>;
-}
-
-/** 权限项守卫：拥有指定全局能力权限项才可访问（方案B RBAC）。 */
-export function PermissionGuard({ permission, children }: { permission: string; children: ReactNode }) {
-  const { allowed, loading } = usePermissionState(permission);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // 查询完成且无权限才重定向；查询中先放行，由后端最终把关。
-    if (!loading && !allowed) navigate('/', { replace: true });
-  }, [allowed, loading, navigate]);
-
-  return allowed ? <>{children}</> : null;
 }

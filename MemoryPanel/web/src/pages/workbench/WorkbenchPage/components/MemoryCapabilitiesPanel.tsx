@@ -35,7 +35,7 @@ function SpacesPanel() {
     if (!agentId.trim()) { message.warning({ content: t('memoryCap.spaces.query') }); return; }
     setBusy(true);
     try {
-      setSpaces(await memoryApi.spaceList(agentId.trim()));
+      setSpaces(await memoryApi.spaceList({ agentId: agentId.trim() }));
     } catch (e) {
       message.error({ content: (e as Error).message });
     } finally {

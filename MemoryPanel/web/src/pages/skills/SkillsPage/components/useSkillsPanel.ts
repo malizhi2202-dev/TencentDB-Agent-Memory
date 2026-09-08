@@ -11,7 +11,7 @@ import {
   deleteSkillV3,
   exportSkill,
   type SkillSummary,
-} from '@/lib/skill-api';
+} from '@/lib/api/skill-api';
 import { getPanelSession } from '@/lib/panelSession';
 import { useTeams } from '@/services';
 import { usersApi } from '@/lib/api/users';

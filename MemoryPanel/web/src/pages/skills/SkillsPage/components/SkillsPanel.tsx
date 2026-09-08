@@ -31,7 +31,7 @@ import { UserIcon, DeleteIcon } from 'tea-icons-react';
 import { tea } from '@/lib/tea-bridge';
 import { useUserDisplayName } from '@/services/user-profile-store';
 import { AssetPageHeader } from '@/pages/ResourcePage/components/AssetPageHeader';
-import { AssetSplitLayout } from '@/pages/ResourcePage/components/AssetSplitLayout';
+import { AssetSplitLayout } from '@/components/asset/AssetSplitLayout';
 import {
   AssetListPanel,
   AssetItemHeader,

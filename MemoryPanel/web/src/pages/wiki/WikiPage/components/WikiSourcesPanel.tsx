@@ -8,7 +8,7 @@ import { Button, Card, Form, Input, Justify, MetricsBoard, Modal, SearchBox, Seg
 import { BooksIcon, ChevronRightIcon, UsergroupIcon, ViewListIcon, ViewModuleIcon } from 'tea-icons-react';
 import { knowledgeApi } from '@/lib/knowledge-api';
 import { tea } from '@/lib/tea-bridge';
-import AllocateAssetDialog from '@/pages/ResourcePage/components/AllocateAssetDialog';
+import AllocateAssetDialog from '@/components/asset/AllocateAssetDialog';
 import { AssetPageHeader } from '@/pages/ResourcePage/components/AssetPageHeader';
 import { formatShortTime, type StatusFilter, type ViewMode } from './wiki-constants';
 import { WikiOwnerLabel, WikiStatusBadge } from './wiki-ui';
@@ -251,15 +251,13 @@ export default function WikiSourcesPanel() {
                   <div className="_asset-wiki-card-id">{t('wiki.card.id', { id: source.wiki_id })}</div>
                   <WikiActions
                     source={source}
-                    agentScoped={!!agentFilter}
+                    scopeTab={agentFilter ? 'agent' : 'team'}
                     ingestBusy={ingestBusy}
                     isCurrentIngesting={runningWikiIds.has(source.wiki_id)}
                     onIngest={handleIngest}
                     onAllocate={setAllocateTarget}
                     onUnbind={handleUnbindWiki}
                     onDelete={handleDelete}
-                    currentUserId={currentUser}
-                    isAdmin={isAdmin}
                   />
                 </div>
               ))}
@@ -337,15 +335,13 @@ export default function WikiSourcesPanel() {
                   render: (source) => (
                     <WikiActions
                       source={source}
-                      agentScoped={!!agentFilter}
+                      scopeTab={agentFilter ? 'agent' : 'team'}
                       ingestBusy={ingestBusy}
                       isCurrentIngesting={runningWikiIds.has(source.wiki_id)}
                       onIngest={handleIngest}
                       onAllocate={setAllocateTarget}
                       onUnbind={handleUnbindWiki}
                       onDelete={handleDelete}
-                      currentUserId={currentUser}
-                      isAdmin={isAdmin}
                     />
                   ),
                 },

@@ -18,7 +18,7 @@ import { teamsApi } from '@/lib/teamApi';
 import { getErrorMessage } from '@/lib/error-message';
 import { tea } from '@/lib/tea-bridge';
 import { teamColor } from '@/utils/color';
-import CreateTeamDialog from './components/CreateTeamDialog';
+import CreateTeamDialog from '@/components/team/CreateTeamDialog';
 import './team-list.css';
 
 export function TeamListPage() {

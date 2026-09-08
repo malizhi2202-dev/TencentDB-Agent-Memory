@@ -29,10 +29,10 @@ import {
 import { tea } from '@/lib/tea-bridge';
 import { projectsApi } from '@/lib/api/projects';
 import type { Project } from '@/lib/api/types';
-import { TeamHeaderCard } from '@/pages/team/components/TeamHeaderCard';
+import { TeamHeaderCard } from '@/components/team/TeamHeaderCard';
 import TaskCreateDialog, { type TaskDraft } from './TaskCreateDialog';
-import BoardView from './BoardView';
-import { useTeamParticipation } from './useTeamParticipation';
+import BoardView from '@/pages/WorkbenchPage/components/BoardView';
+import { useTeamParticipation } from '@/pages/WorkbenchPage/hooks/useTeamParticipation';
 import { errMsg, type WorkbenchTab } from './workbench-utils';
 import './task-workbench.css';
 

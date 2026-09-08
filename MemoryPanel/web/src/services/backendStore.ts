@@ -235,7 +235,6 @@ export function adaptAgent(ba: BackendAgent, index: number): Agent {
     icon: ui.icon,
     accent: ui.accent,
     project_id: ba.project_id ?? null,
-    project_id: ba.project_id ?? null,
     // 资产绑定不再从 metadata_json.ui 读（.ui 已废弃为资产存储）。
     // 真实绑定读 skill 表 owner_agent_id / agent-fixed-asset 表：
     // list 计数走 agent-overview/bootstrap.counts，详情弹窗走 skillApi.listByAgent

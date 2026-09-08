@@ -37,6 +37,3 @@
 /* 工具栏 SearchBox 最小宽度，避免 placeholder 文字被截断。
    英文 "Search name / branch / ID"（24 字符）约需 220px，加上图标/边距给 240px。
    实际类名是 .tea-form--search / .tea-search（旧版 .tea-searchbox 是错的）。 */
-._asset-code-toolbar .tea-form--search,
-
-(Showing lines 1-40 of 421. Use offset=41 to continue.)
