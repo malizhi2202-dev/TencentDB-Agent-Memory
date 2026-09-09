@@ -232,4 +232,83 @@ patch("modal/ModalShow.js", [(
         React.createElement(ModalShow, __assign({}, options, { ref: instanceRef, onExited: function () { return root.unmount(); } }))));""",
 )])
 
+# ── 4. Space 组件单参 render（forwardRef 警告的真凶）──────────────────────
+# Space 直接用 forwardRef（不走 forwardRefWithStatics 包装器），render 只声明了
+# props 一个参数 → React 18 "accept exactly two parameters" 警告。
+# 修复：补第二参 ref 并真正转发到根 div（原实现 ref 被丢弃，属库 bug）。
+patch("space/Space.js", [
+    (
+        """export var Space = forwardRef(function Space(_a) {
+    var _b;
+    var _c = _a.size""",
+        """export var Space = forwardRef(function Space(_a, ref) { // [TDAI patch] 补第二参 ref
+    var _b;
+    var _c = _a.size""",
+    ),
+    (
+        """    return (React.createElement("div", { className: classList, style: __assign({}, gapStyle) }, nodes));""",
+        """    // [TDAI patch] 转发 ref 到根节点（原实现丢弃 ref）
+    return (React.createElement("div", { ref: ref, className: classList, style: __assign({}, gapStyle) }, nodes));""",
+    ),
+])
+
+# ── 5. BaseTransition：给 react-transition-group 传 nodeRef ────────────────
+# rtg 4.x 的 Transition 在未传 nodeRef 时内部 findDOMNode(this) → React 18
+# 双重弃用警告。BaseTransition 的 children 是 DOM 元素（各 Transition 变体均
+# 直接渲染 div），可安全挂 ref 并以 nodeRef 传入 CSSTransition。
+patch("transition/BaseTransition.js", [
+    (
+        """import React, { useRef } from "react";
+import { CSSTransition } from "react-transition-group";
+import { noop } from "../_util/noop";""",
+        """import React, { useRef } from "react";
+import { CSSTransition } from "react-transition-group";
+import { noop } from "../_util/noop";
+import { mergeRefs } from "../_util/merge-refs";
+// [TDAI patch] 判断能否安全给 children 挂 ref（与 DomRef 补丁同款守卫）
+var ForwardRefSymbol = typeof Symbol === "function" ? Symbol.for("react.forward_ref") : 0xead0;
+var MemoSymbol = typeof Symbol === "function" ? Symbol.for("react.memo") : 0xead3;
+function canTakeRef(type) {
+    if (typeof type === "string")
+        return true;
+    if (!type)
+        return false;
+    if (type.$$typeof === ForwardRefSymbol)
+        return true;
+    if (type.$$typeof === MemoSymbol)
+        return canTakeRef(type.type);
+    if (typeof type === "function" && type.prototype && type.prototype.isReactComponent)
+        return true;
+    return false;
+}""",
+    ),
+    (
+        """    // 离场时保持 children 不变
+    var childrenRef = useRef(null);""",
+        """    // 离场时保持 children 不变
+    var childrenRef = useRef(null);
+    // [TDAI patch] rtg nodeRef：DOM 元素子节点时挂 ref 消除 findDOMNode
+    var nodeRef = useRef(null);
+    var canRef = React.isValidElement(children) && canTakeRef(children.type);
+    var childWithRef = canRef
+        ? React.cloneElement(children, { ref: mergeRefs(children.ref, nodeRef) })
+        : children;""",
+    ),
+    # 离场保持的也必须是挂了 nodeRef 的元素，否则 ref 被卸下 → nodeRef.current 变 null
+    (
+        """            childrenRef.current = children;
+            onExit.apply(void 0, __spread(args));""",
+        """            childrenRef.current = childWithRef; // [TDAI patch] 保持带 ref 版本
+            onExit.apply(void 0, __spread(args));""",
+    ),
+    (
+        """    return (React.createElement(CSSTransition, __assign({}, props, { in: enter, onEnter: function () {""",
+        """    return (React.createElement(CSSTransition, __assign({}, props, { in: enter, nodeRef: canRef ? nodeRef : undefined, onEnter: function () {""",
+    ),
+    (
+        """        } }), childrenRef.current || children));""",
+        """        } }), childrenRef.current || childWithRef));""",
+    ),
+])
+
 print("tea-component React18 补丁完成。")
