@@ -26,11 +26,7 @@ export default function CodeSourcesPanel() {
     // context
     activeTeam,
     activeTeamId,
-    teams,
-    setActiveTeamId,
     currentUser,
-    myUserId,
-    isAdmin,
     teamAgents,
     // list view
     displaySources,
@@ -58,12 +54,6 @@ export default function CodeSourcesPanel() {
     selectedCodeAsset,
     agentFilter,
     setAgentFilter,
-    selectedProject,
-    setSelectedProject,
-    projects,
-    selectedOwner,
-    setSelectedOwner,
-    allUsers,
     // handlers
     fetchSources,
     handleUnbindCode,
@@ -88,26 +78,14 @@ export default function CodeSourcesPanel() {
           <Segment
             value={scopeTab}
             onChange={(value) => setScopeTab(value as ScopeTab)}
-            options={(['team', 'project', 'agent', 'user'] as ScopeTab[]).map((tab) => ({
+            options={(['team', 'fixed'] as ScopeTab[]).map((tab) => ({
               value: tab,
               text: t(`code.scope.${tab}`),
             }))}
           />
         }
         agent={
-          scopeTab === 'team' ? (
-            <Select
-              appearance="button"
-              matchButtonWidth
-              value={activeTeamId || ''}
-              onChange={(v) => setActiveTeamId(v || null)}
-              placeholder={t('code.scope.teamPlaceholder')}
-              options={teams.map((tm) => ({
-                value: tm.team_id,
-                text: `${tm.name}（${tm.team_id}）`,
-              }))}
-            />
-          ) : scopeTab === 'agent' ? (
+          scopeTab === 'fixed' ? (
             <Select
               appearance="button"
               matchButtonWidth
@@ -120,32 +98,6 @@ export default function CodeSourcesPanel() {
                 text: `${agent.name}（${agent.id}）`,
               }))}
             />
-          ) : scopeTab === 'project' ? (
-            <Select
-              appearance="button"
-              matchButtonWidth
-              value={selectedProject}
-              onChange={setSelectedProject}
-              placeholder={t('code.scope.projectPlaceholder')}
-              options={projects.map((p) => ({
-                value: p.project_id,
-                text: `${p.name}（${p.project_id}）`,
-              }))}
-            />
-          ) : scopeTab === 'user' && isAdmin ? (
-            <Select
-              appearance="button"
-              matchButtonWidth
-              value={selectedOwner}
-              onChange={setSelectedOwner}
-              placeholder={t('code.scope.userPlaceholder')}
-              options={[
-                { value: '', text: t('code.scope.self') },
-                ...allUsers
-                  .filter((u) => u.user_id !== myUserId)
-                  .map((u) => ({ value: u.user_id, text: `${u.username}（${u.user_id}）` })),
-              ]}
-            />
           ) : undefined
         }
         subtitle={
@@ -154,7 +106,7 @@ export default function CodeSourcesPanel() {
             : t('code.subtitle.global', { count: stats.total })
         }
         actions={
-          scopeTab !== 'agent' ? (
+          scopeTab !== 'fixed' ? (
             <>
               <Button
                 onClick={() => setAllocateTarget(selectedCodeAsset)}
@@ -283,7 +235,7 @@ export default function CodeSourcesPanel() {
                     </div>
                     <div className="_codelist-card-owner">
                       <UsergroupIcon size={12} />
-                      {scopeTab === 'agent' ? (
+                      {scopeTab === 'fixed' ? (
                         t('code.fixedAsset', { agent: agentFilter || t('code.noAgent') })
                       ) : source.owner_user_id ? (
                         <CodeOwnerLabel userId={source.owner_user_id} currentUserId={currentUser} />
@@ -298,7 +250,7 @@ export default function CodeSourcesPanel() {
                       className="_codelist-card-actions"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      {scopeTab === 'agent' ? (
+                      {scopeTab === 'fixed' ? (
                         <Button type="weak" onClick={() => handleUnbindCode(source.code_graph_id)}>
                           <span className="_codelist-inline-icon">
                             <UsergroupIcon size={14} />
@@ -400,7 +352,7 @@ export default function CodeSourcesPanel() {
                   header: t('code.table.owner'),
                   width: 180,
                   render: (source) =>
-                    scopeTab === 'agent' ? (
+                    scopeTab === 'fixed' ? (
                       <span className="_codelist-inline-icon">
                         <UsergroupIcon size={12} />
                         {agentFilter || t('code.noAgent')}
@@ -434,7 +386,7 @@ export default function CodeSourcesPanel() {
                     const repoLabel = formatRepoName(source.repo_name, source.repo_url);
                     return (
                       <div className="_codelist-table-actions">
-                        {scopeTab === 'agent' ? (
+                        {scopeTab === 'fixed' ? (
                           <Button
                             type="link"
                             onClick={() => handleUnbindCode(source.code_graph_id)}

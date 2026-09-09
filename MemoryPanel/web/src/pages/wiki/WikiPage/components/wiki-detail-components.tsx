@@ -50,7 +50,7 @@ export function WikiActions({
       <Button type="weak" disabled={ingestBusy} onClick={() => onIngest(source.wiki_id)}>
         <StarIcon size={14} /> {isCurrentIngesting ? t('wiki.action.ingestBusy') : ingestBusy ? t('wiki.action.queuing') : t('wiki.action.ingest')}
       </Button>
-      {scopeTab === 'agent' ? (
+      {scopeTab === 'fixed' ? (
         <Button type="weak" onClick={() => onUnbind(source.wiki_id)}>
           {t('wiki.action.unbind')}
         </Button>

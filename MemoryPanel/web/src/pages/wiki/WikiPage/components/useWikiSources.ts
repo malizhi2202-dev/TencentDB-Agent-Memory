@@ -7,13 +7,10 @@ import { useTranslation } from 'react-i18next';
 import { knowledgeApi, wikiProgressPercent, wikiStageLabel, type GraphData, type WikiDetail, type WikiPage } from '@/lib/knowledge-api';
 import { useTeams, useAgents } from '@/services';
 import { readAuth } from '@/components/LoginGate';
-import { projectsApi } from '@/lib/api/projects';
-import { usersApi } from '@/lib/api/users';
 import { getPanelSession } from '@/lib/panelSession';
 import { tea } from '@/lib/tea-bridge';
-import type { Project, PublicUser } from '@/lib/api/types';
 import { findExistingRawFilenames, formatOverwriteFilenames } from './wiki-upload-utils';
-import { type DetailTab, type SearchResult, type StatusFilter, type SubView, type ViewMode } from './wiki-constants';
+import { type DetailTab, type SearchResult, type StatusFilter, type SubView, type ViewMode, type WikiScopeTab } from './wiki-constants';
 
 export function useWikiSources() {
   const { t } = useTranslation();
@@ -42,14 +39,6 @@ export function useWikiSources() {
   const currentUser = auth?.user_id ?? '';
   const myUser = getPanelSession()?.user;
   const isAdmin = myUser?.user_type === 'system_admin';
-  // team 维度（team tab）：下拉选要查看的团队；空 = 默认当前激活团队。
-  const [selectedTeam, setSelectedTeam] = useState<string>('');
-  // 用户维度（user tab）：admin 可选看「任意用户」的 wiki；空 = 自己。
-  const [selectedOwner, setSelectedOwner] = useState<string>('');
-  const [allUsers, setAllUsers] = useState<PublicUser[]>([]);
-  // project 维度（project tab）：协作轴切换。
-  const [selectedProject, setSelectedProject] = useState<string>('');
-  const [projects, setProjects] = useState<Project[]>([]);
   // agent 维度下拉：只列自己 owner 的 agent（与 ChatMemory / Skills 面板一致，
   // 也符合文档 §4.2 权限规则：agent-fixed 只允许查看 caller 自己 owner 的 agent）。
   const { agents: allAgents } = useAgents(activeTeamId);
@@ -62,44 +51,6 @@ export function useWikiSources() {
   );
   // agent 维度：选中的 agent_id（空 = 不过滤）。
   const [agentFilter, setAgentFilter] = useState<string>('');
-
-  // project 维度：拉取当前用户可访问的 project，供 project tab 选择器使用。
-  useEffect(() => {
-    let cancelled = false;
-    projectsApi
-      .list()
-      .then((list) => {
-        if (cancelled) return;
-        setProjects(list);
-      })
-      .catch(() => {
-        if (!cancelled) setProjects([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // admin 用户维度：拉取实例级全量用户，供 user tab 的「按用户切换」选择器使用。
-  useEffect(() => {
-    if (!isAdmin) {
-      setAllUsers([]);
-      return;
-    }
-    let cancelled = false;
-    usersApi
-      .list()
-      .then((users) => {
-        if (!cancelled) setAllUsers(users);
-      })
-      .catch(() => {
-        if (!cancelled) setAllUsers([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isAdmin]);
 
   const fetchFixedBindings = useCallback(async () => {
     if (!agentFilter) {
@@ -119,9 +70,35 @@ export function useWikiSources() {
     if (agentFilter) void fetchFixedBindings();
   }, [agentFilter, fetchFixedBindings]);
 
-  // 各维度数据源已由 fetchSources 直接过滤（team/project/agent/user 分别调用对应接口），
-  // 无需再在前端按 fixedBoundIds / agentFilter 二次过滤。
-  const scopeSources = sources;
+  // 团队/固定资产双 tab（旧版交互）：默认展示 Agent 资产，避免用户误以为自己的资产在「团队资产」里
+  const [scopeTab, setScopeTab] = useState<WikiScopeTab>(() => {
+    const saved = localStorage.getItem('tdai-memory.wiki.scopeTab');
+    return saved === 'team' || saved === 'fixed' ? saved : 'fixed';
+  });
+  const changeScopeTab = useCallback((tab: WikiScopeTab) => {
+    setScopeTab(tab);
+    localStorage.setItem('tdai-memory.wiki.scopeTab', tab);
+  }, []);
+
+  // fixed tab 默认选中第一个自己的 agent，避免进来空白
+  useEffect(() => {
+    if (teamAgents.length === 0) {
+      setAgentFilter('');
+      return;
+    }
+    if (!agentFilter || !teamAgents.some((a) => a.id === agentFilter)) {
+      setAgentFilter(teamAgents[0].id);
+    }
+  }, [teamAgents, agentFilter]);
+
+  // 按归属 tab 过滤：team = 团队池全量；fixed = 选中 agent 的绑定资产
+  const scopeSources = useMemo(() => {
+    if (scopeTab === 'fixed') {
+      if (!agentFilter) return [];
+      return sources.filter((source) => source.wiki_id && fixedBoundIds.has(source.wiki_id));
+    }
+    return sources;
+  }, [sources, scopeTab, agentFilter, fixedBoundIds]);
 
   // 统计只受资产范围影响，避免搜索或状态筛选让概览数据失真。
   const stats = useMemo(
@@ -207,19 +184,13 @@ export function useWikiSources() {
   const fetchSources = useCallback(async () => {
     const seq = ++fetchSeqRef.current;
     setLoading(true);
-    // 立即清空旧数据 —— 否则切筛选时会先看到上一个筛选的列表，
-    // 新数据到了才突然替换，视觉上就是"闪一下"。
     setSources([]);
     try {
-      // 组合维度（团队 × 项目 × Agent × 用户 AND）：四者都可同时生效；
-      // 都不选 = 展示当前用户「有权限查看」的全部 wiki（需求 3）。
-      const items = await knowledgeApi.wiki.listCombined({
-        team_id: selectedTeam || undefined,
-        project_ids: selectedProject ? [selectedProject] : undefined,
-        agent_id: agentFilter || undefined,
-        owner_user_id: selectedOwner || undefined,
-      });
-      if (seq !== fetchSeqRef.current) return; // 已被后续请求取代
+      const items =
+        scopeTab === 'team'
+          ? await knowledgeApi.wiki.teamAssets(activeTeamId ?? '')
+          : await knowledgeApi.wiki.listByAgent(agentFilter);
+      if (seq !== fetchSeqRef.current) return;
       setSources(Array.isArray(items) ? items : []);
     } catch (e: any) {
       if (seq !== fetchSeqRef.current) return;
@@ -228,16 +199,15 @@ export function useWikiSources() {
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [selectedTeam, selectedProject, agentFilter, selectedOwner, currentUser]);
+  }, [scopeTab, activeTeamId, agentFilter]);
 
-  // 触发 fetchSources：依赖四个维度选择器 + fetchSources，并用 key 去重防止重复触发。
   const fetchKeyRef = useRef<string>('');
   useEffect(() => {
-    const key = `${selectedTeam}|${selectedProject}|${agentFilter}|${selectedOwner}`;
+    const key = `${scopeTab}|${activeTeamId}|${agentFilter}`;
     if (fetchKeyRef.current === key) return;
     fetchKeyRef.current = key;
     void fetchSources();
-  }, [selectedTeam, selectedProject, agentFilter, selectedOwner, fetchSources]);
+  }, [scopeTab, activeTeamId, agentFilter, fetchSources]);
 
   // 切 team 时退出详情并清掉旧 wiki 的本地态，避免仍展示上一个 team 的页面/图谱/正文。
   const prevTeamIdRef = useRef(activeTeamId);
@@ -816,15 +786,9 @@ export function useWikiSources() {
     fixedBoundIds,
     agentFilter,
     setAgentFilter,
-    selectedTeam,
-    setSelectedTeam,
+    scopeTab,
+    setScopeTab: changeScopeTab,
     teams,
-    selectedProject,
-    setSelectedProject,
-    projects,
-    selectedOwner,
-    setSelectedOwner,
-    allUsers,
     isAdmin,
     // detail
     activeTab,

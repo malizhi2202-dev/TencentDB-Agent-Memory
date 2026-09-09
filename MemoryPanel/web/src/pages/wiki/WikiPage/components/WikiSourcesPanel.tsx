@@ -10,7 +10,7 @@ import { knowledgeApi } from '@/lib/knowledge-api';
 import { tea } from '@/lib/tea-bridge';
 import AllocateAssetDialog from '@/components/asset/AllocateAssetDialog';
 import { AssetPageHeader } from '@/pages/ResourcePage/components/AssetPageHeader';
-import { formatShortTime, type StatusFilter, type ViewMode } from './wiki-constants';
+import { formatShortTime, SCOPE_LABEL_KEYS, type StatusFilter, type ViewMode, type WikiScopeTab } from './wiki-constants';
 import { WikiOwnerLabel, WikiStatusBadge } from './wiki-ui';
 import { WikiActions } from './wiki-detail-components';
 import { useWikiSources } from './useWikiSources';
@@ -50,17 +50,8 @@ export default function WikiSourcesPanel() {
     setAllocateTarget,
     agentFilter,
     setAgentFilter,
-    // dimension selectors
-    selectedTeam,
-    setSelectedTeam,
-    teams,
-    selectedProject,
-    setSelectedProject,
-    projects,
-    selectedOwner,
-    setSelectedOwner,
-    allUsers,
-    isAdmin,
+    scopeTab,
+    setScopeTab,
     // fetch & handlers
     fetchSources,
     fetchFixedBindings,
@@ -92,66 +83,37 @@ export default function WikiSourcesPanel() {
           </Text>
         }
         scope={
-          <div className="_asset-filter-quad">
+          <Segment
+            value={scopeTab}
+            onChange={(value) => setScopeTab(value as WikiScopeTab)}
+            options={(['team', 'fixed'] as WikiScopeTab[]).map((tab) => ({
+              value: tab,
+              text: t(SCOPE_LABEL_KEYS[tab]),
+            }))}
+          />
+        }
+        agent={
+          scopeTab === 'fixed' ? (
             <Select
               appearance="button"
               matchButtonWidth
-              clearable
-              value={selectedTeam || ''}
-              onChange={(v) => setSelectedTeam(v)}
-              placeholder={t('wiki.scope.teamPlaceholder')}
-              options={teams.map((tm) => ({
-                value: tm.team_id,
-                text: `${tm.name}（${tm.team_id}）`,
-              }))}
-            />
-            <Select
-              appearance="button"
-              matchButtonWidth
-              clearable
-              value={selectedProject || ''}
-              onChange={(v) => setSelectedProject(v)}
-              placeholder={t('wiki.scope.projectPlaceholder')}
-              options={projects.map((project) => ({
-                value: project.project_id,
-                text: `${project.name}（${project.project_id}）`,
-              }))}
-            />
-            <Select
-              appearance="button"
-              matchButtonWidth
-              clearable
-              value={agentFilter || ''}
-              onChange={(v) => setAgentFilter(v)}
-              placeholder={t('wiki.scope.agentPlaceholder')}
+              value={agentFilter}
+              onChange={setAgentFilter}
+              disabled={teamAgents.length === 0}
+              placeholder={t('wiki.noAgentPlaceholder')}
               options={teamAgents.map((agent) => ({
                 value: agent.id,
                 text: `${agent.name}（${agent.id}）`,
               }))}
             />
-            <Select
-              appearance="button"
-              matchButtonWidth
-              clearable
-              value={selectedOwner || ''}
-              onChange={(v) => setSelectedOwner(v)}
-              placeholder={t('wiki.scope.userPlaceholder')}
-              options={[
-                { value: currentUser, text: t('wiki.scope.self') },
-                ...(isAdmin
-                  ? allUsers
-                      .filter((u) => u.user_id !== currentUser)
-                      .map((u) => ({ value: u.user_id, text: `${u.username}（${u.user_id}）` }))
-                  : []),
-              ]}
-            />
-          </div>
+          ) : undefined
         }
         actions={
-          // 组合维度下创建入口始终可用（创建落当前激活组织，见 handleCreate）。
-          <Button type="primary" onClick={() => setShowCreate(true)} data-guide="create-wiki">
-            {t('wiki.create')}
-          </Button>
+          scopeTab !== 'fixed' ? (
+            <Button type="primary" onClick={() => setShowCreate(true)} data-guide="create-wiki">
+              {t('wiki.create')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -251,7 +213,7 @@ export default function WikiSourcesPanel() {
                   <div className="_asset-wiki-card-id">{t('wiki.card.id', { id: source.wiki_id })}</div>
                   <WikiActions
                     source={source}
-                    scopeTab={agentFilter ? 'agent' : 'team'}
+                    scopeTab={scopeTab}
                     ingestBusy={ingestBusy}
                     isCurrentIngesting={runningWikiIds.has(source.wiki_id)}
                     onIngest={handleIngest}
@@ -335,7 +297,7 @@ export default function WikiSourcesPanel() {
                   render: (source) => (
                     <WikiActions
                       source={source}
-                      scopeTab={agentFilter ? 'agent' : 'team'}
+                      scopeTab={scopeTab}
                       ingestBusy={ingestBusy}
                       isCurrentIngesting={runningWikiIds.has(source.wiki_id)}
                       onIngest={handleIngest}

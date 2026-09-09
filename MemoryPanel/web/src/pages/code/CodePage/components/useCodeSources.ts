@@ -6,24 +6,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { knowledgeApi, type CodeGraphDetail, type GraphData, type ProjectAnalysis } from '@/lib/knowledge-api';
 import { useTeams, useAgents } from '@/services';
-import { useBackendStore } from '@/stores/backend';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
-import { projectsApi } from '@/lib/api/projects';
-import { usersApi } from '@/lib/api/users';
-import { getPanelSession } from '@/lib/panelSession';
-import type { Project, PublicUser } from '@/lib/api/types';
 import { isValidGitHttpUrl, formatRepoName, type ScopeTab, type StatusFilter, type SubView, type ViewMode } from './code-constants';
 
 export function useCodeSources() {
   const { t } = useTranslation();
   const [sources, setSources] = useState<CodeGraphDetail[]>([]);
   const [loading, setLoading] = useState(false);
-  // 默认展示 Agent 资产，避免用户误以为自己的资产在「团队资产」里
-  // 默认落「团队 Code 池」：新访客第一眼看到团队仓库全量列表，
-  // 而不是空白的 Agent 绑定视图（此前默认 agent tab + 未选 Agent，
-  // 页面一片空数据，看起来像功能坏了）。
-  const [scopeTab, setScopeTab] = useState<ScopeTab>('team');
+  const [scopeTab, setScopeTab] = useState<ScopeTab>(() => {
+    const saved = localStorage.getItem('tdai-memory.code.scopeTab');
+    return saved === 'team' || saved === 'fixed' ? saved : 'team';
+  });
+  const changeScopeTab = useCallback((tab: ScopeTab) => {
+    setScopeTab(tab);
+    localStorage.setItem('tdai-memory.code.scopeTab', tab);
+  }, []);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('card');
@@ -50,16 +48,9 @@ export function useCodeSources() {
     repo: string;
     branch: string;
   } | null>(null);
-  const { teams, activeTeamId, activeTeam } = useTeams();
-  // 团队维度选择器：直接绑定全局 activeTeamId（与任务看板一致）。
-  // 此前本页没有团队切换入口，默认团队无仓库时用户无处可切，
-  // 看起来就像"没有数据"。
-  const setActiveTeamId = useBackendStore((s) => s.setActiveTeamId);
+  const { activeTeamId, activeTeam } = useTeams();
   const auth = readAuth();
   const currentUser = auth?.user_id ?? '';
-  const myUser = getPanelSession()?.user;
-  const myUserId = myUser?.user_id ?? '';
-  const isAdmin = myUser?.user_type === 'system_admin';
   // Agent 维度 tab 只列自己 owner 的 agent（与 ChatMemory / Skills 面板一致，
   // 也符合文档 §4.2 权限规则：agent-fixed 只允许查看 caller 自己 owner 的 agent）。
   const { agents: allAgents } = useAgents(activeTeamId);
@@ -72,12 +63,6 @@ export function useCodeSources() {
   );
   // Agent 维度（agent tab）下选中的 agent_id
   const [agentFilter, setAgentFilter] = useState<string>('');
-  // project 维度（project tab）：协作轴切换。
-  const [selectedProject, setSelectedProject] = useState<string>('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  // user 维度（user tab）：admin 可选看「任意用户」的资产；空 = 自己。
-  const [selectedOwner, setSelectedOwner] = useState<string>('');
-  const [allUsers, setAllUsers] = useState<PublicUser[]>([]);
 
   useEffect(() => {
     if (teamAgents.length === 0) {
@@ -89,44 +74,9 @@ export function useCodeSources() {
     }
   }, [teamAgents, agentFilter]);
 
-  // project 维度：拉取当前用户可访问的 project，供 project tab 选择器使用。
-  useEffect(() => {
-    let cancelled = false;
-    projectsApi
-      .list()
-      .then((list) => {
-        if (cancelled) return;
-        setProjects(list);
-        if (!selectedProject && list.length > 0) setSelectedProject(list[0].project_id);
-      })
-      .catch(() => {
-        if (!cancelled) setProjects([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // admin 用户维度：拉取实例级全量用户，供 user tab 的「按用户切换」选择器使用。
-  useEffect(() => {
-    if (!isAdmin) {
-      setAllUsers([]);
-      return;
-    }
-    let cancelled = false;
-    usersApi
-      .list()
-      .then((users) => {
-        if (!cancelled) setAllUsers(users);
-      })
-      .catch(() => {
-        if (!cancelled) setAllUsers([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isAdmin]);
-
+  // 请求序号防竞态：快速切换 tab 时，先发的请求可能后返回，
+  // 旧 tab 的数据会覆盖新 tab 的数据。每次 fetch 递增序号，
+  // 响应回来时校验序号是否仍是最新，不是就丢弃。
   const displaySources = useMemo(() => {
     // team tab 下合并 inFlight（刚注册的仓库还在构建中，列表里先占位显示）
     if (scopeTab === 'team') {
@@ -196,6 +146,8 @@ export function useCodeSources() {
   // 请求序号防竞态：快速切换 tab 时，先发的请求可能后返回，
   // 旧 tab 的数据会覆盖新 tab 的数据。每次 fetch 递增序号，
   // 响应回来时校验序号是否仍是最新，不是就丢弃。
+
+
   const fetchSeqRef = useRef(0);
 
   const fetchSources = useCallback(async () => {
@@ -218,13 +170,8 @@ export function useCodeSources() {
       let data: CodeGraphDetail[] = [];
       if (scopeTab === 'team') {
         data = await knowledgeApi.code.teamAssets(activeTeamId);
-      } else if (scopeTab === 'project') {
-        data = selectedProject ? await knowledgeApi.code.listByProject(selectedProject) : [];
-      } else if (scopeTab === 'agent') {
-        data = agentFilter ? await knowledgeApi.code.listByAgent(agentFilter) : [];
       } else {
-        const owner = selectedOwner || currentUser;
-        data = owner ? await knowledgeApi.code.listByOwner(owner) : [];
+        data = agentFilter ? await knowledgeApi.code.listByAgent(agentFilter) : [];
       }
       if (seq !== fetchSeqRef.current) return; // 已被后续请求取代
       setSources(Array.isArray(data) ? data : []);
@@ -235,27 +182,16 @@ export function useCodeSources() {
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [activeTeamId, scopeTab, selectedProject, agentFilter, selectedOwner, currentUser]);
+  }, [activeTeamId, scopeTab, agentFilter]);
 
   // 触发 fetchSources：依赖原始参数 + fetchSources，并用 key 去重防止短时间内重复触发。
   const fetchKeyRef = useRef<string>('');
   useEffect(() => {
-    // key 中只有 agent/project/user tab 才纳入对应的次级选择器 —— team tab 数据源
-    // teamAssets 与次级选择器无关。若把 agentFilter 纳入 team 的 key，teamAgents 异步
-    // 加载完后 agentFilter 会从 '' 变成首个 agent，导致 key 变化、再触发一次重复请求。
-    const scopeKey =
-      scopeTab === 'agent'
-        ? agentFilter
-        : scopeTab === 'project'
-          ? selectedProject
-          : scopeTab === 'user'
-            ? selectedOwner
-            : '';
-    const key = `${activeTeamId}|${scopeTab}|${scopeKey}`;
+    const key = `${activeTeamId}|${scopeTab}|${agentFilter}`;
     if (fetchKeyRef.current === key) return;
     fetchKeyRef.current = key;
     void fetchSources();
-  }, [activeTeamId, scopeTab, agentFilter, selectedProject, selectedOwner, fetchSources]);
+  }, [activeTeamId, scopeTab, agentFilter, fetchSources]);
 
   // inFlight 的 ref 镜像：poll 闭包通过 ref 读取最新值，
   // 避免把 inFlight 放进 effect 依赖——否则每次 setInFlight（即使内容不变、
@@ -477,18 +413,14 @@ export function useCodeSources() {
     // context
     activeTeam,
     activeTeamId,
-    teams,
-    setActiveTeamId,
     currentUser,
-    myUserId,
-    isAdmin,
     teamAgents,
     // list view
     sources,
     displaySources,
     loading,
     scopeTab,
-    setScopeTab,
+    setScopeTab: changeScopeTab,
     keyword,
     setKeyword,
     statusFilter,
@@ -517,12 +449,6 @@ export function useCodeSources() {
     setSelectedCodeAsset,
     agentFilter,
     setAgentFilter,
-    selectedProject,
-    setSelectedProject,
-    projects,
-    selectedOwner,
-    setSelectedOwner,
-    allUsers,
     // detail
     searchQuery,
     setSearchQuery,

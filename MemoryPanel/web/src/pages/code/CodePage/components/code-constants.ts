@@ -5,7 +5,7 @@
 export type SubView = 'list' | 'detail' | 'graph';
 export type ViewMode = 'card' | 'list';
 export type StatusFilter = 'all' | 'ready' | 'processing' | 'error';
-export type ScopeTab = 'team' | 'project' | 'agent' | 'user';
+export type ScopeTab = 'team' | 'fixed';
 
 export function formatShortTime(iso?: string | null): string {
   if (!iso) return '—';

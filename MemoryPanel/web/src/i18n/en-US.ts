@@ -306,6 +306,7 @@ export const enUS = {
   'wiki.title': 'Wiki Knowledge Base',
   'wiki.breadcrumb': 'Wiki',
   'wiki.scope.team': 'Team Wiki Pool',
+  'wiki.scope.fixed': 'Fixed Assets',
   'wiki.scope.project': 'Project',
   'wiki.scope.agent': 'Agent Assets',
   'wiki.scope.user': 'User',
@@ -445,6 +446,7 @@ export const enUS = {
   // ===== Code =====
   'code.title': 'Code_Graph',
   'code.scope.team': 'Team Code Pool',
+  'code.scope.fixed': 'Fixed Assets',
   'code.scope.project': 'Project',
   'code.scope.agent': 'Agent',
   'code.scope.user': 'User',

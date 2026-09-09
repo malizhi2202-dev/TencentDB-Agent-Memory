@@ -291,6 +291,7 @@ export const zhCN = {
   'wiki.title': 'Wiki 知识库',
   'wiki.breadcrumb': 'Wiki 知识库',
   'wiki.scope.team': '团队 Wiki 池',
+  'wiki.scope.fixed': '固定资产',
   'wiki.scope.project': '项目',
   'wiki.scope.agent': 'Agent 资产',
   'wiki.scope.user': '用户',
@@ -428,6 +429,7 @@ export const zhCN = {
   // ===== Code =====
   'code.title': 'Code_Graph',
   'code.scope.team': '团队 Code 池',
+  'code.scope.fixed': '固定资产',
   'code.scope.project': '项目',
   'code.scope.agent': 'Agent',
   'code.scope.user': '用户',

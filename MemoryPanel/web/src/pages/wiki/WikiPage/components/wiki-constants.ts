@@ -63,10 +63,8 @@ export const TYPE_COLORS: Record<string, string> = {
 };
 export const TYPE_COLOR_FALLBACK = 'var(--tea-color-text-tertiary)';
 
-export type WikiScopeTab = 'team' | 'project' | 'agent' | 'user';
+export type WikiScopeTab = 'team' | 'fixed';
 export const SCOPE_LABEL_KEYS: Record<WikiScopeTab, string> = {
   team: 'wiki.scope.team',
-  project: 'wiki.scope.project',
-  agent: 'wiki.scope.agent',
-  user: 'wiki.scope.user',
+  fixed: 'wiki.scope.fixed',
 };
