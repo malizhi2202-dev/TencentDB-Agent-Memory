@@ -25,6 +25,7 @@ import UserManagementPage from '@/pages/admin/UserManagementPage';
 import ModelConfigPage from '@/pages/admin/ModelConfigPage';
 import PermissionManagementPage from '@/pages/admin/PermissionManagementPage';
 import AuditLogPage from '@/pages/admin/AuditLogPage';
+import { GuidePage } from '@/pages/GuidePage';
 import { AdminOnlyGuard } from '@/components/RouteGuards';
 
 export const routes: RouteObject[] = [
@@ -59,6 +60,10 @@ export const routes: RouteObject[] = [
       { path: 'admin/model-config', element: <AdminOnlyGuard><ModelConfigPage /></AdminOnlyGuard> },
       { path: 'admin/permissions', element: <AdminOnlyGuard><PermissionManagementPage /></AdminOnlyGuard> },
       { path: 'admin/audit-log', element: <AdminOnlyGuard><AuditLogPage /></AdminOnlyGuard> },
+      // 使用说明（独立页：全局 Header「使用说明」按钮入口）
+      { path: 'guide', element: <GuidePage /> },
+      // 兜底：未匹配路由重定向到任务看板，避免 React Router 404 错误屏吞掉整个应用
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
 ];

@@ -62,6 +62,10 @@ export const enUS = {
   'home.empty.assets': 'No visible assets',
   'home.orgMembers': '{{n}} members',
   'menu.projects': 'Projects',
+  'menu.memory_spaces': 'Memory Spaces',
+  'menu.group.projects': 'Collaborative Projects',
+  'menu.group.team': 'Organization',
+  'menu.group.memory_spaces': 'Memory Spaces',
   'menu.desc.projects': 'Project collaboration / members / anchor signals',
 
   // ===== Projects page =====

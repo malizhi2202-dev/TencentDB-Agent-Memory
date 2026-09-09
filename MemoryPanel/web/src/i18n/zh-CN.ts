@@ -24,6 +24,10 @@ export const zhCN = {
   'menu.group.organization': '组织与权限',
   'menu.group.assets': '资产管理',
   'menu.group.analysis': '代码分析',
+  'menu.group.projects': '协作项目',
+  'menu.group.team': '组织',
+  'menu.group.memory_spaces': '记忆空间',
+  'menu.memory_spaces': '记忆空间',
   'menu.desc.workbench_board': 'Task 列表 / 创建 / 详情',
   'menu.desc.wiki': '来源 / 图谱 / 页面 / 搜索',
   'menu.desc.code': '仓库 / 索引 / 搜索 / 探索',
@@ -1631,6 +1635,10 @@ export const zhCN = {
   'onboarding.guide.asset.memory.title': 'Chat Memory：先分清「团队资产」与「Agent 资产」',
   'onboarding.guide.asset.memory.desc':
     '归属：本页同样分「团队资产」「Agent 资产」两个 tab。团队资产 = 团队共享的记忆池；Agent 资产 = 绑定给某个 Agent 的记忆，含每个 Agent 自带的私有记忆。导入：点「导入记忆」，把历史对话导入为 L0，系统自动蒸馏出 L1~L3 分层记忆并挂到指定 Agent。使用：绑定后 Agent 跨会话记住你的偏好与结论；在「Agent 资产」里可对你自己导入的记忆切换「共享 / 私密」。',
+
+  // ===== UserManagementPage =====
+  'userManagement.title': '用户管理',
+  'userManagement.desc': '全局用户管理：新建用户、分配 API Key、调整角色',
 
   // ===== GuidePage 使用说明页 =====
   'guide.back': '返回',
