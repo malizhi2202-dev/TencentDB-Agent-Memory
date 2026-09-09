@@ -27,7 +27,6 @@ import type {
   WikiPageWriteResultItem,
   WikiPageRmResult,
   CodeGraphData,
-  CodeGraphData,
   CodeGraphDetail,
   CodeGraphListResult,
   CodeGraphSyncResult,
@@ -203,11 +202,17 @@ export class HttpKnowledgeClient implements KnowledgeClientPort {
     return this.post('/v3/code-graph/graph', { code_graph_id: codeGraphId });
   }
 
-  async codeGraphGraph(codeGraphId: string): Promise<CodeGraphData> {
-    return this.post('/v3/code-graph/graph', { code_graph_id: codeGraphId });
-  }
-
   async codeGraphAnalyze(codeGraphId: string): Promise<CodeGraphAnalysis> {
     return this.post('/v3/code-graph/analyze', { code_graph_id: codeGraphId });
+  }
+
+  /** KS 统一工具通道：与前端 ksToolsCall 同构（knowledge_id + tool_name + params）。 */
+  async executeTool(knowledgeId: string, toolName: string, params: Record<string, unknown>): Promise<unknown> {
+    return this.post('/v3/tools/call', { knowledge_id: knowledgeId, tool_name: toolName, params });
+  }
+
+  /** GitNexus 工具（gitnexus_ 前缀，经统一工具通道）。 */
+  async gitnexusQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<unknown> {
+    return this.executeTool(codeGraphId, `gitnexus_${tool}`, params);
   }
 }

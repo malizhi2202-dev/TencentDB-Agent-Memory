@@ -25,8 +25,6 @@ import {
 } from './common.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import fs from 'node:fs';
-import path from 'node:path';
 import { detectWorkspace } from './workspace-detect.js';
 
 export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): void {
@@ -106,7 +104,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
       const det = detectWorkspace(root);
       return respondEnvelope(c, okEnvelope(c, det));
     } catch (err) {
-      return respondControlError(c, 400, 'DETECT_WORKSPACE_FAILED', err instanceof Error ? err.message : String(err));
+      return respondControlError(c, 400, `DETECT_WORKSPACE_FAILED: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 
@@ -368,7 +366,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     try {
       const ctx = buildCtx(c);
       const kc = deps.knowledgeClientFactory(ctx.instanceId);
-      const result = await kc.executeTool('analysis_ask', { repo, question: q });
+      const result = await kc.executeTool('', 'analysis_ask', { repo, question: q });
       return c.json({ code: 0, message: 'ok', data: result });
     } catch (err: any) {
       return c.json({ code: 500, message: err.message, data: null }, 500);

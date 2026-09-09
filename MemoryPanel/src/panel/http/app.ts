@@ -8,7 +8,6 @@ import { registerHealthRoutes, registerMetaInstanceRoutes } from './routes/meta/
 import { registerMetaProxyRoutes } from './routes/meta/proxy.js';
 import { registerSkillProxyRoutes } from './routes/skill/proxy.js';
 import { registerMemoryProxyRoutes } from './routes/memory/proxy.js';
-import { registerMemoryProxyRoutes } from './routes/memory/proxy.js';
 import { registerAnalyticsProxyRoutes } from './routes/analytics/proxy.js';
 import { registerChatMemoryRoutes } from './routes/chat-memory.js';
 import { registerTaskRoutes } from './routes/task.js';

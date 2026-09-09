@@ -51,8 +51,8 @@ function readGitInfo(repoDir: string): { remote_url: string | null; branch: stri
     // 匹配 [remote "origin"] 段里的 url = ...（允许缩进/空格）。
     const section = cfg.match(/\[remote\s+"origin"\]\s*\n([\s\S]*?)(?=\n\[|$)/);
     if (section) {
-      const url = section[1].match(/^\s*url\s*=\s*(.+)$/m);
-      if (url) remote_url = url[1].trim();
+      const url = section?.[1]?.match(/^\s*url\s*=\s*(.+)$/m);
+      if (url?.[1]) remote_url = url[1].trim();
     }
   } catch {
     /* ignore */
@@ -60,7 +60,7 @@ function readGitInfo(repoDir: string): { remote_url: string | null; branch: stri
   try {
     const head = fs.readFileSync(path.join(repoDir, '.git', 'HEAD'), 'utf8').trim();
     const hm = head.match(/^ref:\s*refs\/heads\/(.+)$/);
-    if (hm) branch = hm[1].trim();
+    if (hm?.[1]) branch = hm[1].trim();
   } catch {
     /* ignore */
   }

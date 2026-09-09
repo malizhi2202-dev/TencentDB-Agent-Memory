@@ -18,6 +18,7 @@ import {
   str,
   okEnvelope,
   resolveCallerUserId,
+  resolveCallerIsAdmin,
   isTeamMember,
   fetchAllMetaListItems,
   ASSET_TYPE_WIKI,

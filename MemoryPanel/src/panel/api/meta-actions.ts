@@ -14,6 +14,7 @@ export const META_LIST_ACTIONS = new Set([
   'task-agent/list',
   'asset/list',
   'asset/list-accessible',
+  'asset/list-by-project',
   'agent-fixed-asset/list',
   'agent-fixed-asset/list-with-detail',
   // summary-by-agents 非分页 list 信封，不进 META_LIST_ACTIONS
@@ -76,6 +77,7 @@ export const META_ACTIONS = [
   'asset/delete',
   'asset/list',
   'asset/list-accessible',
+  'asset/list-by-project',
   'asset/touch-usage',
   'agent-fixed-asset/set',
   'agent-fixed-asset/list',

@@ -235,4 +235,7 @@ export interface KnowledgeClientPort {
   codeGraphQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<CodeGraphToolResult>;
   codeGraphGraph(codeGraphId: string): Promise<CodeGraphData>;
   codeGraphAnalyze(codeGraphId: string): Promise<CodeGraphAnalysis>;
+  /** KS 统一工具通道（analysis_* / gitnexus_* 前缀），供面板 AI 代理路由直调。 */
+  executeTool(knowledgeId: string, toolName: string, params: Record<string, unknown>): Promise<unknown>;
+  gitnexusQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<unknown>;
 }
