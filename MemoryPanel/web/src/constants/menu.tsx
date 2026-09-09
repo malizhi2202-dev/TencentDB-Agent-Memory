@@ -61,27 +61,20 @@ export function usePageMeta(): Record<PageId, PageMeta> {
   const { t } = useTranslation();
   return {
     workbench_board: { id: 'workbench_board', label: t('menu.workbench_board'), desc: t('menu.desc.workbench_board'), group: t('menu.group.workbench'), order: 0, affix: true },
-    // 协作项目
-    projects:        { id: 'projects',        label: t('menu.projects'), desc: t('menu.desc.projects'), group: t('menu.group.projects'), order: 0 },
-    // 团队（一级模块：团队列表 → 下探成员/Agent）
-    team:            { id: 'team',            label: t('menu.team'), desc: t('menu.desc.team'), group: t('menu.group.team'), order: 0 },
-    team_members:    { id: 'team_members',    label: t('menu.team_members'), desc: t('menu.desc.team_members'), group: '__hidden__', order: 0 },
-    team_agents:     { id: 'team_agents',     label: t('menu.team_agents'), desc: t('menu.desc.team_agents'), group: '__hidden__', order: 1 },
-    // 记忆空间
-    memory_spaces:   { id: 'memory_spaces',   label: t('menu.memory_spaces'), desc: t('menu.desc.memory_spaces'), group: t('menu.group.memory_spaces'), order: 0 },
-    chat_memory:     { id: 'chat_memory',     label: t('menu.chat_memory'), desc: t('menu.desc.chat_memory'), group: t('menu.group.memory_spaces'), order: 1 },
-    // 资产
-    wiki:            { id: 'wiki',            label: t('menu.wiki'), desc: t('menu.desc.wiki'), group: t('menu.group.assets'), order: 0 },
-    code:            { id: 'code',            label: t('menu.code'), desc: t('menu.desc.code'), group: t('menu.group.assets'), order: 1 },
-    // 代码分析（单一入口：仓库管理壳，点进仓库含代码分析 + 代码图谱）
-    analysis:        { id: 'analysis',        label: t('menu.analysis'), desc: t('menu.desc.analysis'), group: t('menu.group.assets'), order: 2 },
-    skills:          { id: 'skills',          label: t('menu.skills'), desc: t('menu.desc.skills'), group: t('menu.group.assets'), order: 3 },
-    // 详情页不做侧边栏菜单项（由列表页进入，复用列表页 TabBar 高亮），保留 PageId 供未来独立标签用
+    projects:        { id: 'projects',        label: t('menu.projects'), desc: t('menu.desc.projects'), group: t('menu.group.workbench'), order: 1 },
+    team:            { id: 'team',            label: t('menu.team'), desc: t('menu.desc.team'), group: t('menu.group.organization'), order: 0 },
+    // 成员/Agent 管理已整合进「组织」页下探（路由保留重定向），不再单独占菜单项
+    team_members:    { id: 'team_members',    label: t('menu.team_members'), desc: t('menu.desc.team_members'), group: '__hidden__', order: 1 },
+    team_agents:     { id: 'team_agents',     label: t('menu.team_agents'), desc: t('menu.desc.team_agents'), group: '__hidden__', order: 2 },
+    api_keys:        { id: 'api_keys',        label: t('menu.api_keys'), desc: t('menu.desc.api_keys'), group: t('menu.group.organization'), order: 3 },
+    chat_memory:     { id: 'chat_memory',     label: t('menu.chat_memory'), desc: t('menu.desc.chat_memory'), group: t('menu.group.assets'), order: 0 },
+    memory_spaces:   { id: 'memory_spaces',   label: t('menu.memory_spaces'), desc: t('menu.desc.memory_spaces'), group: t('menu.group.assets'), order: 1 },
+    wiki:            { id: 'wiki',            label: t('menu.wiki'), desc: t('menu.desc.wiki'), group: t('menu.group.assets'), order: 2 },
+    code:            { id: 'code',            label: t('menu.code'), desc: t('menu.desc.code'), group: t('menu.group.assets'), order: 3 },
+    analysis:        { id: 'analysis',        label: t('menu.analysis'), desc: t('menu.desc.analysis'), group: t('menu.group.assets'), order: 4 },
+    skills:          { id: 'skills',          label: t('menu.skills'), desc: t('menu.desc.skills'), group: t('menu.group.assets'), order: 5 },
     project_detail:  { id: 'project_detail',  label: t('menu.project_detail'), desc: t('menu.desc.project_detail'), group: '__hidden__', order: 3 },
     agent_detail:    { id: 'agent_detail',    label: t('menu.agent_detail'), desc: t('menu.desc.agent_detail'), group: '__hidden__', order: 4 },
-    // api_keys / user_management / model_config 不在侧边栏渲染，但保留 PageId 用于
-    // PATH_TO_PAGE 映射和 TabBar 活跃页高亮。入口在 GlobalHeader 用户下拉菜单。
-    api_keys:        { id: 'api_keys',        label: t('menu.api_keys'), desc: t('menu.desc.api_keys'), group: '__hidden__', order: 0 },
     user_management: { id: 'user_management',  label: t('menu.user_management'), desc: t('menu.desc.user_management'), group: '__hidden__', order: 1 },
     model_config:    { id: 'model_config',    label: t('menu.model_config'), desc: t('menu.desc.model_config'), group: '__hidden__', order: 2 },
     permissions:     { id: 'permissions',     label: t('menu.permissions'), desc: t('menu.desc.permissions'), group: '__hidden__', order: 3 },
@@ -90,7 +83,7 @@ export function usePageMeta(): Record<PageId, PageMeta> {
 }
 
 /** 分组排序顺序（侧边栏渲染顺序；__hidden__ 组不参与） */
-export const GROUP_ORDER_KEYS = ['workbench', 'projects', 'team', 'memory_spaces', 'assets'] as const;
+export const GROUP_ORDER_KEYS = ['workbench', 'organization', 'assets'] as const;
 
 /** 每个页面在侧边栏菜单中的图标（Tea 官方图标，size 16） */
 export const ITEM_ICON: Record<PageId, JSX.Element> = {

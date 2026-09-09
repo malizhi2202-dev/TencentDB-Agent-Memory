@@ -19,6 +19,7 @@ import {
   Text,
 } from 'tea-component';
 import { SettingIcon, LockOnIcon, UserIcon } from 'tea-icons-react';
+import { TeamSwitcher } from './TeamSwitcher';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SettingsDialog } from '@/components/SettingsDialog';
@@ -59,6 +60,7 @@ export function GlobalHeader({
           <img src="/logo.png" alt="Memory Hub" className="_memory-global-header-logo" />
           <span className="_memory-global-header-brand-text">{t('header.brand')}</span>
         </div>
+        <TeamSwitcher userRole={userRole} />
       </div>
 
       {/* 右侧：同步状态 + 语言切换 + 用户菜单 */}

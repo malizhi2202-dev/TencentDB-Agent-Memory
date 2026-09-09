@@ -9,7 +9,6 @@ import { Layout, Menu } from 'tea-component';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/auth';
 import { useCurrentRole, type TeamRole } from '@/services/useCurrentRole';
-import { usePanelAnalyticsEnabled, useAnalyticsChConfigured } from '@/services/usePanelCapabilities';
 import { GlobalHeader } from '@/layouts/GlobalHeader';
 import { TabBar } from '@/layouts/TabBar';
 import { OnboardingGuide, shouldShowOnboarding, resetOnboarding } from '@/layouts/OnboardingGuide';
@@ -147,27 +146,11 @@ export function ConsoleLayout() {
   // ===== 基于 team role 的菜单过滤 =====
   // admin 可访问所有页面（含资源管理）
   // 「成员管理」项：reviewer 不可见
-  //
-  // 「可观测」（analytics）入口三层收敛（缺一即隐藏）：
-  //   1. 仅 system_admin 可见（useCurrentRole() === 'admin'）
-  //   2. 面板 env 开关 PANEL_FEATURE_ANALYTICS_ENABLED（默认关闭，经
-  //      /meta/instances 的 capabilities 下发；开关关闭时不发起 CH 探测）
-  //   3. 运行时 CH 探测：内核未配置 analytics ClickHouse 时自动隐藏
-  //      （探测中先保持展示，确认未配置后收敛隐藏，避免闪烁）
-  const analyticsSwitchOn = usePanelAnalyticsEnabled();
-  const analyticsChConfigured = useAnalyticsChConfigured(analyticsSwitchOn === true);
-  const analyticsVisible =
-    analyticsSwitchOn === true && analyticsChConfigured !== false;
-
   const menuGroups = useMemo(() => {
     const byGroup = new Map<string, (typeof PAGE_META)[PageId][]>();
 
     for (const meta of Object.values(PAGE_META)) {
       if (userRole === 'reviewer' && meta.id === 'team_members') continue;
-      // 「可观测」仅 system_admin 可见，且需面板开关开启 + 内核已配置 CH
-      if (meta.id === 'analysis') {
-        if (userRole !== 'admin' || !analyticsVisible) continue;
-      }
       const list = byGroup.get(meta.group) ?? [];
       list.push(meta);
       byGroup.set(meta.group, list);
@@ -179,7 +162,7 @@ export function ConsoleLayout() {
         title: g,
         items: byGroup.get(g)!.sort((a, b) => a.order - b.order),
       }));
-  }, [userRole, PAGE_META, t, analyticsVisible]);
+  }, [userRole, PAGE_META, t]);
 
   const workbenchGroupTitle = t('menu.group.workbench');
   const pinnedGroup = menuGroups.find((g) => g.title === workbenchGroupTitle);
@@ -219,17 +202,11 @@ export function ConsoleLayout() {
             {/* 品牌已在全局 Header 展示，侧栏只承载导航（与 Memory项目公共壳层一致）。 */}
             <Menu collapsable collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed}>
               {pinnedGroup?.items.map((item) => renderMenuItem(item))}
-              {restGroups.map((group) =>
-                // 单菜单项分组不再套一层同名的分组标题（协作项目 / 组织），
-                // 与「wiki知识库」等普通菜单项保持一致的扁平风格。
-                group.items.length === 1 ? (
-                  group.items.map((item) => renderMenuItem(item))
-                ) : (
-                  <Menu.Group key={group.title} title={group.title}>
-                    {group.items.map((item) => renderMenuItem(item))}
-                  </Menu.Group>
-                ),
-              )}
+              {restGroups.map((group) => (
+                <Menu.Group key={group.title} title={group.title}>
+                  {group.items.map((item) => renderMenuItem(item))}
+                </Menu.Group>
+              ))}
             </Menu>
           </Sider>
           <Content>
