@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tag } from 'tea-component';
 import type { Team } from '@/services';
+import './team-management-panel.css';
 
 export function TeamHeaderCard({ team, ops }: { team: Team; ops?: ReactNode }) {
   const { t } = useTranslation();

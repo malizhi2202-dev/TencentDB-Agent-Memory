@@ -31,7 +31,7 @@ LadybugDB 索引 (.gitnexus/ 目录，每仓库一份)
 - `/tmp/node-v24.19.0-linux-x64/` — Node 24（原生模块 ABI 137）
 - `/tmp/node-glibc234` — 包装脚本：`ld-linux(2.34) --library-path <glibc234>:<openssl3> node "$@"`
 
-tree-sitter runtime 固定在 **0.22.4**，14 种语言包（0.23.x）本地用 g++-10 编译；wrapper `index.js` 打过补丁（frozen language 对象 → SyntaxNode 兜底）。
+tree-sitter runtime 固定在 **0.21.1**（pnpm 解析），语言包（npm 0.23.x）带预编译二进制（GLIBC_2.4 依赖，无需本地编译）；runtime 的 `index.js` 打过补丁（`initializeLanguageNodeClasses` 里 `class SyntaxNode extends SyntaxNode` 自引用 TDZ 崩溃 → 跳过 camelCase 生成的同名类）。补丁位于 `.pnpm/tree-sitter@0.21.1/node_modules/tree-sitter/index.js`，重装依赖后需重新应用（见 `shared/lbug/node-bin.ts` 同级的运行时说明）。
 
 **引擎进程必须以 wrapper 启动**（`/tmp/node-glibc234 --import tsx ...`），且：
 - `GITNEXUS_MEMORY=off` — 禁用 analyze 的 8GB 堆重 spawn（execPath 是 ld，无法 respawn）
@@ -41,7 +41,7 @@ tree-sitter runtime 固定在 **0.22.4**，14 种语言包（0.23.x）本地用 
 
 ```bash
 cd MemoryKnowledge
-GITNEXUS_MEMORY=off /tmp/node-glibc234 --import tsx \
+GITNEXUS_MEMORY=off ENGINE_NODE_BIN=/tmp/node-glibc234 /tmp/node-glibc234 --import tsx \
   src/engines/codeanalysis-engine/src/cli/index.ts analyze <repo-path>
 ```
 

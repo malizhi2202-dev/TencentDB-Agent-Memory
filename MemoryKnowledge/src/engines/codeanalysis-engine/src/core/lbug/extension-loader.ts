@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveNodeBin } from '../../../shared/lbug/node-bin.js';
 import { LBUG_MAX_DB_SIZE } from './lbug-config.js';
 import { diagnoseExtensionLoad, type ExtensionLoadDiagnosis } from './extension-load-error.js';
 import { logger } from '../logger.js';
@@ -136,7 +137,7 @@ export const installDuckDbExtensionOutOfProcess = async (
   }
 
   return await new Promise<ExtensionInstallResult>((resolve) => {
-    const child = spawn(process.execPath, getExtensionInstallChildProcessArgs(extensionName), {
+    const child = spawn(resolveNodeBin(), getExtensionInstallChildProcessArgs(extensionName), {
       env: {
         ...process.env,
         GITNEXUS_LBUG_EXTENSION_NAME: extensionName,

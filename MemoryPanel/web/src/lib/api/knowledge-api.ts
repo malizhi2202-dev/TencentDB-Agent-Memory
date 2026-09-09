@@ -107,34 +107,6 @@ export interface CodeGraphDetail {
 
 // ---- 兼容旧类型（平滑过渡） ----
 
-/** @deprecated 用 WikiDetail 替代 */
-export interface WikiSource {
-  wiki_id?: string;
-  name: string;
-  status: string;
-  pageCount?: number;
-  lastSync?: string;
-  error?: string;
-  agent_id?: string;
-}
-
-/** @deprecated 用 CodeGraphDetail 替代 */
-export interface CodeSource {
-  code_graph_id?: string;
-  repo: string;
-  branch: string;
-  repo_url?: string;
-  repo_name?: string;
-  gitUrl?: string;
-  status: string;
-  commit?: string;
-  stats?: { files: number; nodes: number; edges: number };
-  lastSyncAt?: string;
-  error?: string;
-  sync_error?: string;
-  agent_id?: string;
-}
-
 /**
  * 导入知识库后触发异步 ingest。旧代码期望 SSE 进度流 => 新 Panel 无 SSE，
  * 前端转为：触发 ingest → 轮询 get 看 status。回调签名仅为兼容旧 UI 的进度条展示。
@@ -299,12 +271,6 @@ export const knowledgeApi = {
     create: (teamId: string, name: string): Promise<WikiDetail> =>
       panelPost('/wiki/create', { team_id: teamId, name }),
 
-    /** @deprecated 使用 teamAssets */
-    list: async (teamId: string): Promise<WikiDetail[]> => {
-      const d = await panelPost<{ items: WikiDetail[]; total: number }>('/wiki/list', { team_id: teamId });
-      return d.items ?? [];
-    },
-
     /** 团队 Wiki 池（meta list-accessible visibility=team + KS join） */
     teamAssets: async (teamId: string): Promise<WikiDetail[]> => {
       const items = await listTeamAssets('/wiki/team-assets', teamId);
@@ -434,12 +400,6 @@ export const knowledgeApi = {
     /** 创建（注册仓库） */
     create: (opts: { teamId: string; repoUrl: string; branch?: string; repoName?: string }): Promise<CodeGraphDetail> =>
       panelPost('/code-graph/create', { team_id: opts.teamId, repo_url: opts.repoUrl, branch: opts.branch ?? 'main', repo_name: opts.repoName }),
-
-    /** @deprecated 使用 teamAssets */
-    list: async (teamId: string): Promise<CodeGraphDetail[]> => {
-      const d = await panelPost<{ items: CodeGraphDetail[]; total: number }>('/code-graph/list', { team_id: teamId });
-      return d.items ?? [];
-    },
 
     /** 团队 Code 池 */
     teamAssets: async (teamId: string): Promise<CodeGraphDetail[]> => {

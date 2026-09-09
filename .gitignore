@@ -139,3 +139,6 @@ MemoryCore/scripts/bench-l0-mongo/reports/
 # Local-only: parity snapshots & runtime configs (never commit)
 MemoryProxy/.archive-tmp/
 z_config/
+
+# KS code-graph runtime: cloned repos + engine indexes (never commit)
+MemoryKnowledge/data/**/cg-*/

@@ -1,0 +1,17 @@
+--- a/node_modules/tree-sitter/index.js
++++ b/node_modules/tree-sitter/index.js
+@@ -872,6 +872,15 @@
+     }
+
++    // [TDAI local patch] A node type literally named "syntax_node" (e.g. the
++    // vendored tree-sitter-proto grammar) camel-cases to the class name
++    // `SyntaxNode`, and `class SyntaxNode extends SyntaxNode` inside the eval
++    // hits the TDZ (self-shadowing) => "Cannot access 'SyntaxNode' before
++    // initialization". Skip generating the colliding subclass and keep the
++    // base SyntaxNode for this node id instead. Same fallback as a frozen
++    // language object: unmarshalNode already falls back to SyntaxNode.
+     const className = camelCase(typeName, true) + 'Node';
++    if (className === 'SyntaxNode') continue;
+     const nodeSubclass = eval(`class ${className} extends SyntaxNode {${classBody}}; ${className}`);
+     nodeSubclass.prototype.type = typeName;
+     nodeSubclass.prototype.fields = Object.freeze(fieldNames.sort())

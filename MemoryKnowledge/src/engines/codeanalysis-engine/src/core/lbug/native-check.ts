@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { resolveNodeBin } from '../../../shared/lbug/node-bin.js';
 
 /** Cap the out-of-process native load probe so a hung filesystem cannot wedge a
  *  CLI startup gate (same bounding rationale as the extension probe below). */
@@ -240,7 +241,7 @@ export function checkLbugNative(overridePkgDir?: string): NativeCheckResult {
   // a child lets us observe that crash (a non-zero exit or a kill signal) and turn
   // it into the same actionable failure as a clean load error. The child requires
   // the binary by absolute path, exactly as the former in-process load did.
-  const probe = spawnSync(process.execPath, ['-e', 'require(process.argv[1])', binaryPath], {
+  const probe = spawnSync(resolveNodeBin(), ['-e', 'require(process.argv[1])', binaryPath], {
     encoding: 'utf8',
     timeout: NATIVE_LOAD_PROBE_TIMEOUT_MS,
     stdio: ['ignore', 'ignore', 'pipe'],

@@ -13,6 +13,7 @@ import os from 'os';
 import { spawn } from 'child_process';
 import v8 from 'v8';
 import cliProgress from 'cli-progress';
+import { resolveNodeBin } from '../../shared/lbug/node-bin.js';
 import { isLbugReady, LbugWipeError } from '../core/lbug/lbug-adapter.js';
 import { boundedCheckpointBeforeExit } from '../core/lbug/shutdown-helpers.js';
 import { findUndeclaredRelationPairError } from '../core/lbug/rel-pair-routing.js';
@@ -401,7 +402,7 @@ const runRespawnedAnalyze = (
       resolve(exit);
     };
 
-    const child = spawn(process.execPath, [...args], {
+    const child = spawn(resolveNodeBin(), [...args], {
       stdio: ['inherit', 'pipe', 'pipe'],
       windowsHide: true,
       env,
