@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { knowledgeApi, type CodeGraphDetail, type GraphData, type ProjectAnalysis } from '@/lib/knowledge-api';
 import { useTeams, useAgents } from '@/services';
+import { useBackendStore } from '@/stores/backend';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
 import { projectsApi } from '@/lib/api/projects';
@@ -19,7 +20,10 @@ export function useCodeSources() {
   const [sources, setSources] = useState<CodeGraphDetail[]>([]);
   const [loading, setLoading] = useState(false);
   // 默认展示 Agent 资产，避免用户误以为自己的资产在「团队资产」里
-  const [scopeTab, setScopeTab] = useState<ScopeTab>('agent');
+  // 默认落「团队 Code 池」：新访客第一眼看到团队仓库全量列表，
+  // 而不是空白的 Agent 绑定视图（此前默认 agent tab + 未选 Agent，
+  // 页面一片空数据，看起来像功能坏了）。
+  const [scopeTab, setScopeTab] = useState<ScopeTab>('team');
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('card');
@@ -46,7 +50,11 @@ export function useCodeSources() {
     repo: string;
     branch: string;
   } | null>(null);
-  const { activeTeamId, activeTeam } = useTeams();
+  const { teams, activeTeamId, activeTeam } = useTeams();
+  // 团队维度选择器：直接绑定全局 activeTeamId（与任务看板一致）。
+  // 此前本页没有团队切换入口，默认团队无仓库时用户无处可切，
+  // 看起来就像"没有数据"。
+  const setActiveTeamId = useBackendStore((s) => s.setActiveTeamId);
   const auth = readAuth();
   const currentUser = auth?.user_id ?? '';
   const myUser = getPanelSession()?.user;
@@ -469,6 +477,8 @@ export function useCodeSources() {
     // context
     activeTeam,
     activeTeamId,
+    teams,
+    setActiveTeamId,
     currentUser,
     myUserId,
     isAdmin,

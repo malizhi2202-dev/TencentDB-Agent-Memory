@@ -20,6 +20,10 @@ const { Body, Sider, Content } = Layout;
 /** 路由 path → PageId */
 const PATH_TO_PAGE: Record<string, PageId> = {
   '/': 'workbench_board',
+  '/projects': 'projects',
+  // 注意前缀顺序：'/memory-spaces' 必须在 '/memory' 之前、'/team' 必须在
+  // '/team/members' 等具体路径之后（activePage 用 startsWith 首个匹配）。
+  '/memory-spaces': 'memory_spaces',
   '/wiki': 'wiki',
   '/code': 'code',
   '/skills': 'skills',
@@ -28,6 +32,11 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   '/team/members': 'team_members',
   '/team/agents': 'team_agents',
   '/team/api-keys': 'api_keys',
+  '/team': 'team',
+  '/admin/users': 'user_management',
+  '/admin/model-config': 'model_config',
+  '/admin/permissions': 'permissions',
+  '/admin/audit-log': 'audit_log',
 };
 
 /** PageId → 路由 path */

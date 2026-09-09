@@ -26,6 +26,8 @@ export default function CodeSourcesPanel() {
     // context
     activeTeam,
     activeTeamId,
+    teams,
+    setActiveTeamId,
     currentUser,
     myUserId,
     isAdmin,
@@ -93,7 +95,19 @@ export default function CodeSourcesPanel() {
           />
         }
         agent={
-          scopeTab === 'agent' ? (
+          scopeTab === 'team' ? (
+            <Select
+              appearance="button"
+              matchButtonWidth
+              value={activeTeamId || ''}
+              onChange={(v) => setActiveTeamId(v || null)}
+              placeholder={t('code.scope.teamPlaceholder')}
+              options={teams.map((tm) => ({
+                value: tm.team_id,
+                text: `${tm.name}（${tm.team_id}）`,
+              }))}
+            />
+          ) : scopeTab === 'agent' ? (
             <Select
               appearance="button"
               matchButtonWidth
