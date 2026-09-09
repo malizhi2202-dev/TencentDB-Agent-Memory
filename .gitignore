@@ -142,3 +142,7 @@ z_config/
 
 # KS code-graph runtime: cloned repos + engine indexes (never commit)
 MemoryKnowledge/data/**/cg-*/
+# 测试实例的 wiki 运行时数据（index.db / raw sources / LLM 生成页）——
+# 与 cg-*/ 同理：运行时产物不入库，wiki 源文档仅保留 4 份初始 md。
+MemoryKnowledge/data/**/wiki-*/index.db*
+MemoryKnowledge/data/**/wiki-*/raw/
