@@ -14,7 +14,7 @@ TencentDB Agent Memory — 腾讯云数据库团队知识管理系统。核心�
 - **前端框架**: React 18 + Vite + Tea Component（腾讯云内部组件库）
 - **后端框架**: Hono（Panel 路由）、@hono/node-server（Engine）、LadybugDB（图数据库）
 - **数据库**: LadybugDB（Cypher 图查询）、SQLite（Session 存储）
-- **测试**: 未发现测试框架（MemoryPanel/web 无 jest/vitest 配置）
+- **测试**: 后端有测试、前端无 —— 实测 MemoryKnowledge 190 / MemoryCore 30 / MemoryProxy 3 个测试文件；MemoryPanel/web 无 jest/vitest 配置。（2026-09 复核：原文"未发现测试框架"仅对前端成立）
 - **构建/部署**: Vite + Docker（MemoryKnowledge/Dockerfile）
 - **栈卡片编号**: 自定义（非标准技术栈组合）
 
@@ -43,7 +43,7 @@ TencentDB Agent Memory — 腾讯云数据库团队知识管理系统。核心�
 - 状态管理：zustand（`src/stores/`）
 - import 风格：使用 `@/` alias（如 `@/lib/knowledge-api`）
 - 错误处理：try/catch 静默处理（`catch { /* */ }`）
-- 测试策略：无测试框架，无测试文件
+- 测试策略：**前端（MemoryPanel/web）无测试框架无测试文件**；后端已有测试（MemoryKnowledge 190 / MemoryCore 30 / MemoryProxy 3）。原文"无测试框架，无测试文件"仅对前端成立（2026-09 复核更正）
 - 提交格式：未标准化
 
 ## 既有抽象索引（来自 I-intel-scan · 防 AI 重复实现）
@@ -102,7 +102,7 @@ TencentDB Agent Memory — 腾讯云数据库团队知识管理系统。核心�
 - 文件命名：PascalCase 组件（`CodeGraphPage.tsx`）、camelCase 工具（`knowledge-api.ts`）
 - 函数命名：camelCase
 - 组件命名：PascalCase
-- 测试文件：无测试文件
+- 测试文件：**前端**无测试文件；后端实测 MemoryKnowledge 190 / MemoryCore 30 / MemoryProxy 3（2026-09 复核更正）
 
 ### 禁动清单（AI 不许"顺手"碰）
 
@@ -110,6 +110,36 @@ TencentDB Agent Memory — 腾讯云数据库团队知识管理系统。核心�
 - `MemoryPanel/web/src/layouts/ConsoleLayout.tsx`（全局布局）
 - `MemoryPanel/src/panel/http/app.ts`（Panel 后端入口）
 - `MemoryPanel/web/src/lib/api/base.ts`（HTTP 客户端基类）
+
+### 禁动清单例外（2026-09 复核新增）
+
+`ConsoleLayout.tsx` 在禁动清单内，但**恢复 AnalyticsPage 必须**修改它（恢复 `'/analytics': 'analytics'` 路径映射 + 三层可见性判定 + dep 数组）。这属于**明确目的的必要改动**，不受"不许顺手碰"约束 —— 但仍需在 change 的 DESIGN 中显式声明。
+
+### 2026-09 机械对账结论（早期版 `my-tencentDB-Agent-memory` vs 本仓）
+
+> 完整报告：`.specs/refs/page-parity-audit.md`（383 行，含复现命令）
+
+| 事实 | 数据 |
+|---|---|
+| **后端零删除** | MemoryCore 路由 173→254（删 0 / 增 81）；MemoryPanel 路由 67→82（删 0）；meta action 白名单 55→105（删 0）；Core/Knowledge/Proxy 文件级删除 0 |
+| **丢失全在前端** | 82 个删除路径 **100%** 在 `MemoryPanel/web/src/` |
+| **页面是净增** | 早期版 10 个已注册页面 → 当前 20 个真实路由 + 5 重定向（净增 10） |
+
+**确定丢失 3 项**（详见 `.specs/redesign/07-RESTORE.md` 的搬回配方）：
+
+| 项 | 性质 |
+|---|---|
+| 🔴 **`AnalyticsPage`「线上调用情况」整页**（29 文件、2 Tab） | **误删**：目录/路由/菜单全无，但 `lib/api/analytics.ts`(540 行)、`services/usePanelCapabilities.ts`、i18n `analytics.*` **151 行**、后端 `/api/v1/analytics/*`(16) + `/v3/analytics/*`(16) **全部保留**；`.specs/agent-collab-ui-redesign/CHANGE.md` 从未提及删除 |
+| 🟠 默认 Agent 模板管理 UI（2 组件） | 误删：后端 `agent/{get,set}-default-template` 与前端 client 都在，仅 UI 缺失 |
+| 🟡 Chat_Memory L1 列表「刷新」按钮 | `refreshLayer` 连带删除（全仓 0 命中） |
+
+**其它实测缺陷**（2026-09）：① `/admin/users` 是 4 个后台路由里唯一没套 `AdminOnlyGuard` 的；② 重复路由注册 3 处（`app.ts`、`chat-memory.ts`、`code-graph-routes.ts`）；③ 23 个死模块（含被同名 `.tsx` 遮蔽的 `admin/UserManagementPage/index.tsx` 488 行）；④ i18n 真缺键 24 个。
+
+### 文档可信度警告（2026-09 复核）
+
+- `MemoryCore/v3-api-memorycore-doc.md` 与 `MemoryPanel/panel-api-doc.md` 的 md5 与早期版**逐字节相同**，但实现已增到 **254 条路由**（文档自称 108 条）→ **104 条已实现未文档化**。
+- **结论：这两份 API 文档不能作为能力变更的证据**；判断能力有无一律以源码为准。
+- `.specs` 内所有「✅ 已落地」标记**须附证据**（改动前先复核），对照机制见 `.specs/redesign/05-TECH-PLAN.md` 的 `check-claims` 门禁。
 
 ### 技术债（来自 M-health 2026-08-25）
 

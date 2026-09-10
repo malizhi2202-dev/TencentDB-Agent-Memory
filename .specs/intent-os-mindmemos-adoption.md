@@ -7,6 +7,26 @@
 
 ---
 
+## ⚠️ 2026-09 深度复核更正（**读下表前必看**）
+
+2026-09 对两个参考项目做了逐文件深度扫描（报告：`.specs/refs/mindmemos.md` 1003 行、`.specs/refs/intent-os-platform.md` 1946 行），**推翻了本表若干条目的可实现性**：
+
+| 受影响条目 | 原陈述 | 复核结论 |
+|---|---|---|
+| **A3** | `priority=0.5·relevance+0.25·overlap+0.15·recency−0.10·cost`、30 天半衰期、`mixed-v2` MMR λ=0.70 | **MM 全仓零命中**（含 `src/` / `config/` / `docs/` / `plugins/*.ts`）→ **不是 MindMemOS 的做法，不得作为实现依据**。MM 检索侧只有 rerank + top_k 截断。降级为"待设计的候选方案"，且须先建评测基线 |
+| **A12** | BM25 `k1=1.5` / `b=0.75` | MM 的 `encode_document/query` 的 `stats` 参数**全仓 13 个调用点无一传入** ⇒ `k1/b/idf` **全不生效**，永远走 `log_tf` 兜底。参数是装饰品 |
+| **A7/A8** | 两阶段 dreaming + implicit feedback | 机制存在但**有真实丢数据风险**：`fast` 一致性下"新建失败但源归档照做"无失败短路；LLM#1 失败仍标 scope `done` ⇒ 永不重试；异常被吞。且有**跨用户越权**：种子采集是用户级，簇扩展 Cypher **只按 `project_id` 过滤** ⇒ 同 project 下他人记忆会被拉进 cluster 并被 update/merge/archive（在 MM 的"project=唯一强隔离"下不算越权，**在我们的四轴 + RBAC 下是明确越权**） |
+| **A10** | TemporalEntity 时点回溯 | `validate_to` **全仓无写入点**，且 `exclude_none=True` 使其不落 payload ⇒ 只有**左边界**，不能表达"何时失效"，不构成双时间 |
+| **A11** | skill 状态机 observed→…→published | `published_head` **恒 None** ⇒ `/v1/skills/sync` 恒 `has_update=false`；两插件硬编码 `base_version_id:""` ⇒ 纯插件场景演进**停摆** |
+| **A13 / A6** | schema 选择、provider 契约 | schema learning **零生产调用方**（`EntityManager.register/update_property` 仅测试可达）；`RoutingMemoryProvider` 构建失败**静默回退 internal** ⇒ "数据实际落在哪"与配置不符 |
+
+**仍成立且应采纳**：A1（RRF K=60）、A2（生命周期加分，刻意轻量）、A4（recall@k/nDCG/MRR + golden set）、A5（embedding 缓存按 `text_hash`）、A9（图扩展 hop 衰减）、A6（provider 契约，但须 fail-closed）。
+**复核新增采纳**：检索侧 **Jaccard 近重复折叠**（放 rerank **之前**）、`superseded_by` **自引用关系**（取代是关系不是状态）、**召回可见性只允许一条路径**、**门禁即治理**（AO 元结论：有门禁的不变量完好，没门禁的在其自家代码里被违反）。
+**顺序铁律**：**先建 recall@k golden set 评测基线，再动任何召回算法**。
+完整依据见 `.specs/redesign/08-SCAN-FINDINGS.md`。
+
+---
+
 ## 零、一句话结论
 
 backlog 的「不缺实体、缺四块（灵活关系 + 运行控制面 + 记忆闭环 + 质量治理）」仍然成立。本次「读全部」的增量价值在**算法面的可执行参数**和**产品面的 agent/协作模型细节**：把 backlog 里「RRF / recency / quality eval / dreaming / feedback / 演进链」这些条目从「该做」补成了「具体怎么做」。
@@ -19,7 +39,7 @@ backlog 的「不缺实体、缺四块（灵活关系 + 运行控制面 + 记忆
 |---|---|---|---|---|---|
 | A1 | RRF 混合召回 | AO+MM | `score += 1/(60+rank)`，三路源（Vector/FullText/Keyword，MM 加 BM25 稀疏哈希 200 万维） | recall 融合层 | B3 只提 tie-break，缺 K=60 + 三路源 |
 | A2 | 生命周期加分 | AO | recency=`1/(1+age_days)`、frequency=`ln(access_count+1)`，权重刻意取小（0.01/0.005）防淹没语义 | recall 排序后置 | B1 提 recency，缺对数+有界 |
-| A3 | token-budget 保留 | MM | `priority=0.5·relevance+0.25·overlap+0.15·recency−0.10·cost`；recency 指数衰减（半衰期 30 天）；`mixed-v2`=top-m 保底+MMR(λ=0.70)；**只挑不改写** | recall 输出层 | B1 提 token+MMR，缺公式+只挑不改写 |
+| A3 | token-budget 保留 | MM | `priority=0.5·relevance+0.25·overlap+0.15·recency−0.10·cost`；recency 指数衰减（半衰期 30 天）；`mixed-v2`=top-m 保底+MMR(λ=0.70)；**只挑不改写** | recall 输出层 | B1 提 token+MMR，缺公式+只挑不改写 — ⚠️ **本条公式已被 2026-09 复核推翻（MM 全仓零命中），见文首更正** |
 | A4 | 检索质量评估 harness | AO | recall@k / nDCG@k / MRR + golden set + `compare_rankings(baseline vs hybrid)` 离线可跑 | D1 质量度量尺 | D1 缺具体指标+harness |
 | A5 | embedding 去重缓存 | AO | `embedding_cache` 按 `text_hash` 唯一 + hit_count/last_accessed | 降本提速 | 全新 |
 | A6 | MemoryProvider 契约 | AO | `store/recall/forget/list/session_open/close(summary)/commit_archive` + `RecallIsolation`(NONE/ALL) fail-closed | 后端可插拔（TD 已被 AO 接为一等 provider） | C2 缺 provider 契约 |

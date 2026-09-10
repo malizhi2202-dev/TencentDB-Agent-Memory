@@ -51,6 +51,8 @@ Knowledge（wiki·code-graph）/ Quota / Trace / Metrics / GenerationLog / 数�
 
 ### 组 B：记忆算法与召回（来源：MM）
 
+> ⚠️ **2026-09 深度复核**：本组多条来自 MM 的"参数"经逐文件核验后被发现**未生效或不存在**（详见 `.specs/intent-os-mindmemos-adoption.md` 文首更正表 与 `.specs/redesign/08-SCAN-FINDINGS.md`）。**B1 的 MMR/priority 公式在 MM 全仓零命中，不得作为实现依据**；B12 是复核**新增**的采纳项；**先建评测基线再改召回**。
+
 | # | 改进项 | 优先级 | 现状 → 目标 |
 |---|---|---|---|
 | B1 | Recall Retention Selector | P1 | RRF 后 `slice(maxResults)` → token budget + MMR + recency + priority |
@@ -60,9 +62,13 @@ Knowledge（wiki·code-graph）/ Quota / Trace / Metrics / GenerationLog / 数�
 | B5 | Dreaming 离线巩固 | P1 | 仅 online dedup → relation detection → action planning（duplicate/conflict/complementary/low_value） |
 | B6 | 冲突显式处理 | P1 | 静默 drop → 登记待裁决 + before/after diff + confidence |
 | B7 | Feedback 闭环 | P1 | 无回流 → 五类反馈（correct/incorrect/outdated/irrelevant/missing）→ 状态/权重/重抽 |
-| B8 | Entity/Property/Edge | P2 | 固定 7 类 → 先加结构化字段（entity/predicate/value/time/provenance），保留 7 类 |
+| B8 | Entity/Property/Edge | P2 | 固定 7 类 → 先加结构化字段（entity/predicate/value/time/provenance），保留 7 类。**⚠️ 2026-09 复核：MM 的 schema learning 零生产调用方（仅测试可达）；本项目加入字段前必须先定「谁写入」——无生产者等于空表** |
 | B9 | 主动记忆接口 | P1 | 仅自动抽取 → remember/forget/correct_memory + 来源标注 |
 | B10 ▲ | 意图理解/澄清 | P1 | 直接按 query 召回 → 低置信不硬注入，触发澄清或标注不确定 |
+| B11 ▲ | 近重复折叠（Jaccard） | P1 | 近重复条目直接注入 → 在 **rerank 之前**做 Jaccard 折叠 + 数字指纹否决 + 短文本豁免（MM 复核中最高性价比项） |
+| B12 ▲ | 取代是关系不是状态 | P1 | 用状态字段标记失效 → `superseded_by` **自引用** + `ON DELETE SET NULL`（替代者被删时旧项自动复活）；**必须有生产者**，否则同为空能力 |
+| B13 ▲ | 召回可见性**单入口** | P0 | 多路径各自实现过滤 → **单函数 + 枚举式门禁**；写入/召回各只允许一条路径（AO 实测其"三个读写世界"致同一条记忆可见性不一致，且每条路径单独测都通过） |
+| B14 ▲ | 时间边**只承诺左边界** | P2 | 假装双时间 → `valid_from` 必须有真实写入点；`valid_to` 无生产者就不建字段（MM 的 `validate_to` 全仓无写入点且不落 payload） |
 
 ### 组 C：治理 / 安全 / 合规（来源：AO+MM）
 
@@ -78,6 +84,11 @@ Knowledge（wiki·code-graph）/ Quota / Trace / Metrics / GenerationLog / 数�
 | C8 ▲ | 留存期配置 + 级联删除 | P2 | 无完整生命周期 → 归档/过期/留存 + 删 user/team 级联 |
 | C9 | 删除/撤回/过期/恢复语义 | P1 | 只有 TTL 清理 → 软删 + 审计 + lineage + 恢复 |
 | C10 | 统一后台 Job 模型 | P2 | 调度分散 → 幂等/重试/断点/取消/并发 + 任务互斥 |
+| C11 ▲ | **配置项必须有生效路径** | P1 | 「配置开了但代码不读」→ 加 `check-config-live` 门禁（MM 头号病：BM25 的 `stats` 13 个调用点无一传入、`recall.*`(8)、`safety_gate.*`、`use_property_filter`、`enable_entities`、`compaction_soft_token_budget` 等一批配置全无生效路径） |
+| C12 ▲ | **禁止静默回退** | P0 | provider/路由解析失败静默换目标（AO 的 `RoutingMemoryProvider` 构建失败→静默回退 internal，致「数据实际落在哪」与配置不符，记忆平台属**合规级**问题）→ 解析失败必须显式失败或显式告警 |
+| C13 ▲ | **遗忘/衰减必须有生产调用方** | P1 | 声称有遗忘闭环但零调用方（AO 的 `MemoryWriteScope::review_durable`、`archive_stale`、`restore_archived` 全零生产调用方）→ 无生产者即视为**不具备该能力** |
+| C14 ▲ | **巩固/聚类必须带全部 scope 条件** | P0 | 种子采集是用户级、簇扩展只按 `project_id` 过滤 → 同 project 下他人记忆被拉进 cluster 并被 update/merge/archive（MM 实测缺陷；在其「project=唯一强隔离」下不算越权，**在我国四轴 + RBAC 下是明确越权**）→ 聚类查询携带与种子相同的全部 scope 条件 + 目标侧独立写权限校验 + 断言 `cluster.scope ⊆ seed.scope` |
+| C15 ▲ | 审计覆盖面与鉴权同源 | P1 | AO 的 audit 只覆盖 Agent CRUD、admin-only 声明未挂中间件 → 审计账本（C1）必须覆盖**四类事件**且与鉴权中间件同源 |
 
 ### 组 D：质量与功能（用户面）
 
@@ -172,6 +183,11 @@ E1 文档导入 + E2 迁移 + E3 SDK/CLI
 1. **不缺基础实体**：Team / Project / Agent / Scene(记忆) / Skill / Asset / L0-L3 / Quota / Trace / 数据 TTL / AutoCapture 均已存在。
 2. **真正缺的是四块**：灵活关系 + 运行控制面 + 记忆闭环 + 质量治理。
 3. **最核心的一句话**：下一步不应继续增加实体或 `asset_type`，而应把已有实体用「多对多绑定 + 统一运行编译器 + Brain 域路由 + 生命周期状态机 + 审计账本 + 质量评测」串成闭环。
-4. **关键工程判断（来自 MindMemOS）**：时间/冗余/优先级不进 RRF，放独立 Retention 层；Dreaming 与 online dedup 并存；Feedback 用版本化更新（新版本 + 归档旧版 + lineage）。
+4. **关键工程判断（注意：非 MindMemOS 事实，是本项目的设计判断）**：时间/冗余/优先级不进 RRF，放独立 Retention 层；Dreaming 与 online dedup 并存；Feedback 用版本化更新（新版本 + 归档旧版 + lineage）。—— ⚠️ 2026-09 复核：MM 检索侧实际**只有 rerank + top_k 截断**，没有独立的 Retention 层，此条属"我们的设计取向"，**不是从 MM 抄来的既成做法**。
+5. **⭐ 治理的唯一有效形式是可执行门禁**（2026-09 新增，来源：intent-os-platform 元结论）：有门禁的不变量（其 4 套 Chat API 白名单，实跑 `exit=0`）**完好**；无门禁的不变量（其 `AGENTS.md:90` 明令禁止的"全局流后本地过滤"）**在其自家代码里被违反**（`handler.rs:1777,1801`）。
+   → 本项目一切不变量（架构约束、能力声明、配置生效、可见性单入口）**必须落成可执行门禁**，否则不被遵守；文档与规范本身不产生约束力。落地清单见 `.specs/redesign/05-TECH-PLAN.md §3`（7 个脚本，ratchet 模式只减不增）。
+6. **先建评测基线，再改召回**（2026-09 新增，来源：intent-os-platform）：`recall@k` / `nDCG@k` / `MRR` golden set + `compare_rankings(baseline vs 新方案)` 离线可跑，**是 D1/D2 的 P0 属性**而非"以后再说"。
 
+> **2026-09 复核状态**：本文 47 条基线已按逐文件深度扫描复核，新增 B11–B14、C11–C15；B1/B8 已加更正标注。深度扫描报告：`.specs/refs/intent-os-platform.md`（1946 行）、`.specs/refs/mindmemos.md`（1003 行）、`.specs/refs/page-parity-audit.md`（383 行）；结论汇总：`.specs/redesign/08-SCAN-FINDINGS.md`。
+>
 > 这是前面几十轮对比的合并版。后续迭代以此文件为唯一对照基线，避免重复讨论同一批对比。

@@ -116,5 +116,5 @@ scope = 'project'  ⇔ project_id IS NOT NULL   （可见域 = project.members�
 
 - [x] `project/create → grant-member → get` 往返正确，cross-team 成员（T2 的 D 加入 T1 的 project）可查。（M1a 已实现：create 自动把 owner 加为 manager member）
 - [ ] 资产挂 `project_id` 后，`project/list` 能按 member/owner/team 正确过滤。（M1a 已实现 list 过滤）
-- [ ] scope 推导函数单测：6 类资产 × 3 桶 × 有无 project_id 的组合全部正确。（`resolveMemoryScope` 已落地，仓库暂无 vitest 用例目录，单测待补）
+- [ ] scope 推导函数单测：6 类资产 × 3 桶 × 有无 project_id 的组合全部正确。（`resolveMemoryScope` 已落地；**2026-09 更正**：原文"仓库暂无 vitest 用例目录"不成立 —— 后端已有测试，实测 MemoryKnowledge 190 / MemoryCore 30 / MemoryProxy 3 个测试文件，只是**本函数尚无对应用例**，单测待补）
 - [ ] 现有未挂 project 的资产读写行为与改动前一致（回归）。
