@@ -1,0 +1,161 @@
+  <!-- ============================ §2 ============================ -->
+  <section class="doc-sec" id="s2">
+    <h2>2 · 核心概念</h2>
+    <p class="lead">本章回答：这个产品由哪些对象构成、它们之间是什么关系、以及哪些推论是<b>被明确禁止</b>的。读完之后，你应该能解释为什么「我看到了它」不等于「我能改它」。</p>
+
+    <h3 id="s2-1">2.1 五个不能混淆的维度</h3>
+    <p>产品中最常见的误用，是把下面五个维度当成一件事。它们各自有独立的权威来源，任何一个都不能推导出另一个。</p>
+    <table class="tbl">
+      <thead><tr><th style="width:14%">维度</th><th style="width:30%">回答的问题</th><th style="width:28%">权威来源</th><th>不可推导的结论</th></tr></thead>
+      <tbody>
+        <tr><td><b>Identity</b><br><span class="tiny muted">身份</span></td><td>谁在发起这次请求？</td><td>认证出的 Principal；无法识别真人时为 <span class="mono">actor_unknown</span></td><td>Key 的登记人不等于实际操作者。</td></tr>
+        <tr><td><b>Relation</b><br><span class="tiny muted">关系</span></td><td>两个对象之间是否有关联？</td><td>成员关系、归属边、Agent 关联、资源挂载</td><td>有关联不等于可以修改这个关系本身。</td></tr>
+        <tr><td><b>Ownership</b><br><span class="tiny muted">归属</span></td><td>内容由哪个边界负责？</td><td>Project 的 owning Team；资源 owner 与 ACL</td><td>创建者不等于 owner。</td></tr>
+        <tr><td><b>Context</b><br><span class="tiny muted">工作上下文</span></td><td>本次工作在哪里发生、读哪里、写哪里？</td><td>ContextBinding</td><td>最近访问的项目或仓库路径只是提示，不是绑定。</td></tr>
+        <tr><td><b>Authorization</b><br><span class="tiny muted">权限</span></td><td>当前主体能执行什么动作？</td><td>凭据 scope ∩ 成员/绑定授权 ∩ 资源 ACL ∩ 继承策略 ∩ 动作策略 ∩ 委托与 RunGate</td><td>可查看不等于可写；可使用不等于可管理。</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <h5>被明确禁止的权限推导</h5>
+      <ul class="small" style="margin:0">
+        <li>Team 成员 <b>不等于</b> 该 Team 关联 Project 的成员。</li>
+        <li>Team↔Project 的关联 <b>不等于</b> 项目读写授权。</li>
+        <li>Agent 被列入 Team / Project <b>不等于</b> Agent 可写、可调用工具或可审批。</li>
+        <li>当前 Team / Project 的筛选范围 <b>不等于</b> 授权或执行绑定。</li>
+        <li>Agent 的 <span class="mono">mounted</span> 资源 <b>不等于</b> 某次 Run 的 <span class="mono">effective</span> 资源。</li>
+        <li>服务凭据的创建者 <b>不等于</b> 服务主体的权限来源。</li>
+        <li>历史 Snapshot <b>不等于</b> 可以绕过当前撤权。</li>
+        <li>Agent 提出候选 <b>不等于</b> Agent 可以审批或发布。</li>
+      </ul>
+    </div>
+
+    <h3 id="s2-2">2.2 组织与工作对象</h3>
+    <h4>组织层</h4>
+    <table class="tbl">
+      <thead><tr><th style="width:14%">对象</th><th style="width:44%">定义</th><th>明确不是什么</th></tr></thead>
+      <tbody>
+        <tr><td><b>User</b></td><td>可独立创建的身份主体；可选在创建时或之后加入 Team。</td><td>不是必须隶属于某个 Team 的对象。</td></tr>
+        <tr><td><b>Team</b></td><td>组织与共享协作层：管理成员、Team scope 资源与默认规则。</td><td>不是 Platform 公共资源的 owner。</td></tr>
+        <tr><td><b>Project</b></td><td>具体协作现场：组织 Task、关联 Agent 与 Project scope 资源。</td><td>不是可同时属于多个 Team 的标签。</td></tr>
+        <tr><td><b>Agent</b></td><td>可版本化的执行配置：职责、模型、工具与资源装配；可关联多个 Team / Project。</td><td>不是 User、不是权限角色、不是关系管理员。</td></tr>
+        <tr><td><b>Harness</b></td><td>外部执行环境（Codex / Claude Code / DSH 等）；能力、身份与租约独立记录。</td><td>不是平台内部组件，平台不接管其执行循环。</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <p class="small" style="margin:0"><span class="chip warn">待确认</span> <b>Team 与 Project 的基数口径存在两份来源，尚未收敛：</b>本 change 与 <span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> 采用「每个 Project 必须且仅有一个 owning Team（1:N 归属）」；<span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> 采用「Team↔Project 多对多协作关联」。本文档第 3、5、7 章按 <b>1:N owning Team</b> 描述，实现前必须由架构 change 裁决。</p>
+    </div>
+
+    <h4>工作层</h4>
+    <table class="tbl">
+      <thead><tr><th style="width:16%">对象</th><th style="width:46%">定义</th><th>边界</th></tr></thead>
+      <tbody>
+        <tr><td><b>Work Thread</b></td><td>一次跨 Harness 可交接的工作现场，采用单一规范归属（Owner 为 Project 或 Team），包含目标、当前状态、参与者与执行者。</td><td>不是 Session，也不是一次 Run；默认连续，边界变化才拆分。</td></tr>
+        <tr><td><b>Continuation Package</b></td><td>交接产物：规范状态 + 接手者投影，供另一个 Harness 接手时读取。</td><td>必须经接手者明确确认后才生效。</td></tr>
+        <tr><td><b>Task</b></td><td>Project 内有验收标准的工作目标。</td><td>不是一次执行记录；Run 成功不自动等于 Task 已验收。</td></tr>
+        <tr><td><b>Run</b></td><td>为完成一个 Task 的一次执行尝试与不可改写证据。</td><td>不是 Task；失败重试创建新的 Run。</td></tr>
+        <tr><td><b>CodeScenario</b></td><td>由代码版本、症状、失败、根因、修复与验证组成的可恢复场景。</td><td>不是 RCA 结论本身，也不是 Patch。</td></tr>
+        <tr><td><b>Evidence</b></td><td>对话、Trace、日志、指标、工具结果、代码 diff、测试、人工判断或 Provider 回执。</td><td>不是结论；证据与结论分别版本化。</td></tr>
+        <tr><td><b>ContextBinding</b></td><td>本次工作的主 Project、参考 Project、唯一写入目标空间。</td><td>不是页面筛选或最近访问。</td></tr>
+      </tbody>
+    </table>
+    <div class="kv" style="margin-top:var(--space-sm)">
+      <dt class="mono">primaryProjectId</dt><dd>主要工作现场。<span class="muted">不授予对其他项目的读取或写入。</span></dd>
+      <dt class="mono">referenceProjectIds[]</dt><dd>只读来源，每一个单独授权。<span class="muted">不授予写入或复制来源内容。</span></dd>
+      <dt class="mono">writeTargetSpaceId</dt><dd>本次唯一写入目标。<span class="muted">不授予对同 owner 其他空间的写入。</span></dd>
+    </div>
+    <p class="small muted">显式无权目标直接拒绝；绑定冲突返回 <span class="mono">context_conflict</span>；弱证据或多候选进入分诊。<b>不得回退到最近项目、个人空间或相似项目。</b></p>
+
+    <h3 id="s2-3">2.3 记忆与知识</h3>
+    <h4>记忆分层</h4>
+    <table class="tbl compact">
+      <thead><tr><th style="width:10%">层级</th><th style="width:22%">形态</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">L0</td><td>对话原始记录</td><td>按来源与 revision 保留的原始对话与工具调用证据，是全部派生物的追溯终点。</td></tr>
+        <tr><td class="mono">L1</td><td>原子记忆</td><td>从对话中抽出的单条可复用事实（例：<span class="mono">m-9031</span>「DB-Proxy 连接池上限 200」），带来源、置信度、敏感性与 Owner。</td></tr>
+        <tr><td class="mono">L2</td><td>场景记忆</td><td>围绕一次具体工作现场聚合的上下文（例：<span class="mono">m-9044</span>），可被同类场景复用。</td></tr>
+        <tr><td class="mono">L3</td><td>事实</td><td>经确认、可跨场景引用的稳定事实（例：<span class="mono">m-9102</span>），仍绑定来源与复核期限。</td></tr>
+      </tbody>
+    </table>
+
+    <h4>记忆与知识对象</h4>
+    <table class="tbl">
+      <thead><tr><th style="width:18%">对象</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td><b>MemorySpace</b></td><td>记忆的归属、可见性与写策略边界。owner 只有 <span class="mono">user | team | project | agent</span> 四类；<b>不提供 public Memory</b>。</td></tr>
+        <tr><td><b>MemoryItem</b></td><td>记忆候选或已确认记忆：层级、来源、置信度、敏感性、Owner、Purpose 与生命周期。</td></tr>
+        <tr><td><b>KnowledgeAsset</b></td><td>Wiki、Skill、RCA、Template、Code Context 等可复用资产；各有独立来源、版本与编辑语义。</td></tr>
+        <tr><td><b>ChangeSet</b></td><td>对 Memory / Knowledge / Policy 的变更候选；经 Review 后 Publish。<b>内容变更的唯一审核对象。</b></td></tr>
+        <tr><td><b>ProcedureTemplate</b></td><td>可复用步骤 / 流程；引用必须锁定版本，升级、复制或派生都是显式 ChangeSet，绝不自动持续同步。</td></tr>
+        <tr><td><b>Snapshot</b></td><td>Task 的 planning snapshot 或 Run 的 actual snapshot；不可被当前最新配置回填或篡改。</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s2-4">2.4 安全与副本</h3>
+    <table class="tbl">
+      <thead><tr><th style="width:18%">对象</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td><b>Purpose</b></td><td>本次读取、复用、导出或执行的用途。它参与权限判定，不是可选的备注字段。</td></tr>
+        <tr><td><b>VisibilityContext</b></td><td>一次判定的完整可见上下文：主体、委托、源 / 目标空间、Purpose、ACL、敏感性、revision、环境与策略版本。</td></tr>
+        <tr><td><b>ContextManifest</b></td><td>本次 Run <b>实际使用</b>的记忆、知识与证据清单；是「effective」的不可变记录。</td></tr>
+        <tr><td><b>CopyInventory</b></td><td>源资产的版本化副本清单：在线索引、缓存、Embedding、Manifest、导出、备份、Provider、终端。</td></tr>
+        <tr><td><b>ExportAsset</b></td><td>绑定源 revision、范围、接收者、用途、有效期与证据的导出对象。</td></tr>
+        <tr><td><b>ToolPolicy</b></td><td>工具能力的硬边界；<b>RunGate 不能放宽它</b>。</td></tr>
+        <tr><td><b>RunGate</b></td><td>针对当前主体、目标、Purpose、资产版本、风险、审批与能力的动态执行准入；执行中持续重检。</td></tr>
+        <tr><td><b>ActionProposal</b></td><td>默认不可执行的动作建议；只有通过当前 RunGate 才能进入受约束 Run。</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <h5>权限过滤发生的顺序（不可颠倒）</h5>
+      <p class="small" style="margin:0">先做授权、Purpose、敏感性与撤回过滤，<b>再</b>做召回、图分析、投影与模板渲染。任何在渲染之后才裁剪字段的做法都视为缺陷——它会让无权内容先进入进程、缓存或日志。</p>
+    </div>
+
+    <h3 id="s2-5">2.5 执行与人工闸门</h3>
+    <p>产品里有两个不同的「批准」，它们解决不同的问题，不能互相替代，也不能共用一个状态字段。</p>
+    <div class="split">
+      <div class="panel">
+        <p class="panel-title">ChangeSet Review —— 内容批准</p>
+        <ul class="small" style="margin:0">
+          <li>对象：记忆、Wiki、Skill、RCA、Template、策略变更候选。</li>
+          <li>问题：这份内容能不能发布、给谁用。</li>
+          <li>结果：<span class="mono">candidate → triage → staged → changeset → review → published / withdrawn / superseded</span>。</li>
+          <li>注意：<b>approved ≠ published</b>，审核通过与真正发布是两步。</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <p class="panel-title">RunGate —— 运行副作用批准</p>
+        <ul class="small" style="margin:0">
+          <li>对象：会改变外部状态的高风险工具调用。</li>
+          <li>问题：此刻、以这个身份、为了这个 Purpose，能不能真的执行。</li>
+          <li>结果：<span class="mono">approved / executing / verified</span>，或 <span class="mono">blocked / expired / revoked / unknown</span>。</li>
+          <li>注意：默认 <b>blocked</b>；执行中权限被撤回会逐工具处置。</li>
+        </ul>
+      </div>
+    </div>
+    <h4>动作风险分层与人工介入</h4>
+    <table class="tbl compact">
+      <thead><tr><th style="width:12%">级别</th><th style="width:30%">典型动作</th><th>人工介入</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">R0</td><td>只读浏览、检索、查看证据</td><td>无需审批，但受授权与 Purpose 过滤。</td></tr>
+        <tr><td class="mono">R1</td><td>写入候选记忆、创建草稿、提交 ChangeSet</td><td>进入分诊 / 审核队列；不直接改变已发布内容。</td></tr>
+        <tr><td class="mono">R2</td><td>发布知识资产、修改成员与关联、导出受控内容</td><td>需要对应治理角色审批；审批绑定不可变的计划版本。</td></tr>
+        <tr><td class="mono">R3</td><td>跨空间 / 跨租户复用、清理与删除、外部通知、不可逆副作用</td><td>默认阻断；需要独立复核、职责分离与 Break-Glass 边界约束。</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">审批的粒度为「某一份不可变计划版本」。计划一旦变更，原审批失效，必须重新走门禁——这是防止「批了 A 执行了 B」的唯一可靠方式。</p>
+
+    <h3 id="s2-6">2.6 核心不变量</h3>
+    <p>下面八条是整个产品的硬约束。任何页面、接口或自动化流程与它们冲突时，以不变量为准。</p>
+    <table class="tbl">
+      <thead><tr><th style="width:6%">#</th><th style="width:34%">不变量</th><th>含义与后果</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">1</td><td><span class="mono">owner ≠ visibility ≠ ACL ≠ execution authority</span></td><td>归属、可见、访问控制与执行权是四件事，任何一件都不能推导出另外一件。</td></tr>
+        <tr><td class="mono">2</td><td>发布或检索不授予执行权</td><td>能读到某个知识资产，不等于能用它去改生产；读取目标空间不等于能修改其中的资源。</td></tr>
+        <tr><td class="mono">3</td><td>权限过滤先于召回、图分析、投影与模板渲染</td><td>防止候选集、侧信道与模板泄露；渲染后裁剪不合格。</td></tr>
+        <tr><td class="mono">4</td><td><span class="mono">requested ≠ executed ≠ verified</span>；<span class="mono">retained ≠ service-visible</span>；<span class="mono">unknown ≠ zero</span></td><td>请求、执行、验证是三种不同事实；保留不等于服务可见；未知不等于没有。</td></tr>
+        <tr><td class="mono">5</td><td>恢复、重建、迁移、重试会产生新副本 / 新 revision</td><td>旧的清理证明不自动继承到恢复后的新资产；必须重新盘点与门禁。</td></tr>
+        <tr><td class="mono">6</td><td>外部副本无法证明时，停止高敏复用、导出与全量清理声明</td><td>fail-closed：收窄、隔离、阻断、升级，而不是乐观放行。</td></tr>
+        <tr><td class="mono">7</td><td>技术阻断先于法务判断，报告事实与法律决定分离</td><td>平台报告「已处置 / 未处置 / 未知」，不代替法务作出法律结论。</td></tr>
+        <tr><td class="mono">8</td><td>补偿、回滚、重试与替代 Provider 都是新的受授权动作</td><td>它们不是「撤销」，同样要过 RunGate 与审批，同样产生新证据。</td></tr>
+      </tbody>
+    </table>
+  </section>

@@ -1,0 +1,70 @@
+<header class="doc-top">
+  <div class="doc-brand"><span class="mark"><svg class="icon" style="width:13px;height:13px"><use href="#i-cpu"/></svg></span> Agent Memory</div>
+  <span class="sep">/</span>
+  <h1>Enterprise Agent Memory Platform · 产品设计文档 &amp; 界面原型</h1>
+  <div class="tools">
+    <span class="chip mono">v0.2 · 2026-09-21</span>
+    <span class="chip warn">原型内所有数据均为演示假数据</span>
+    <button class="btn sm theme-btn" id="theme-toggle" type="button" aria-live="polite"><svg class="icon" style="width:13px;height:13px"><use href="#i-refresh"/></svg><span id="theme-label">暗色</span></button>
+    <button class="btn sm" onclick="window.print()">打印 / 存 PDF</button>
+  </div>
+</header>
+
+<div class="doc-shell">
+  <nav class="doc-nav" aria-label="文档目录">
+    <p class="grp">导言</p>
+    <a href="#s0">0 · 这份文档怎么读</a>
+    <p class="grp">产品</p>
+    <a href="#s1">1 · 产品全景</a>
+    <p class="grp">核心概念</p>
+    <a href="#s2-1">2.1 五个不能混淆的维度</a>
+    <a href="#s2-2">2.2 组织与工作对象</a>
+    <a href="#s2-3">2.3 记忆与知识</a>
+    <a href="#s2-4">2.4 安全与副本</a>
+    <a href="#s2-5">2.5 执行与人工闸门</a>
+    <a href="#s2-6">2.6 核心不变量</a>
+    <p class="grp">架构与时序</p>
+    <a href="#s3">3 · 系统架构</a>
+    <a href="#s4">4 · 核心时序（6 条链路）</a>
+    <p class="grp">使用指南</p>
+    <a href="#s5-1">5.0 指南总览 &amp; 角色可见性</a>
+    <a href="#s5-2">5.1 登录与全局导航</a>
+    <a href="#s5-3">5.2 工作台</a>
+    <a href="#s5-4">5.3 项目与项目导航</a>
+    <a href="#s5-5">5.4 任务</a>
+    <a href="#s5-6">5.5 运行</a>
+    <a href="#s5-7">5.6 Agent</a>
+    <a href="#s5-8">5.7 记忆与空间策略</a>
+    <a href="#s5-9">5.8 资源库</a>
+    <a href="#s5-10">5.9 知识资产</a>
+    <a href="#s5-11">5.10 代码场景</a>
+    <a href="#s5-12">5.11 导入</a>
+    <a href="#s5-13">5.12 分诊 Triage</a>
+    <a href="#s5-14">5.13 变更与发布</a>
+    <a href="#s5-15">5.14 血缘</a>
+    <a href="#s5-16">5.15 清理证据</a>
+    <a href="#s5-17">5.16 报告中心</a>
+    <a href="#s5-18">5.17 团队与成员</a>
+    <a href="#s5-19">5.18 设置 · 权限矩阵 · 审计</a>
+    <p class="grp">界面原型</p>
+    <a href="#p1">6.1 登录</a>
+    <a href="#p2">6.2 工作台</a>
+    <a href="#p3">6.3 项目</a>
+    <a href="#p4">6.4 任务</a>
+    <a href="#p5">6.5 运行详情</a>
+    <a href="#p6">6.6 分诊 Triage</a>
+    <a href="#p7">6.7 记忆与空间策略</a>
+    <a href="#p8">6.8 知识资产</a>
+    <a href="#p9">6.9 Agent 配置与资源装配</a>
+    <a href="#p10">6.10 清理证据</a>
+    <a href="#p11">6.11 报告中心与投递</a>
+    <a href="#p12">6.12 团队 · 权限矩阵 · 审计</a>
+    <a href="#p13">6.13 状态与边界态画廊</a>
+    <p class="grp">附录</p>
+    <a href="#s7">7 · 角色权限矩阵</a>
+    <a href="#s8">8 · 术语表</a>
+    <a href="#s9">9 · 常见问题</a>
+    <a href="#s10">10 · 附录（状态 / 冲突 / 验证）</a>
+  </nav>
+
+  <main class="doc-main">

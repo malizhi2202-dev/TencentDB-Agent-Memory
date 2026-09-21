@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TencentDB Agent Memory · 运营原型</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --brand-50: #e8f0fe;
+      --brand-100: #d2e3fc;
+      --brand-600: #1a73e8;
+      --brand-700: #0b57d0;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-900: #111827;
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --border: var(--gray-200);
+      --control-border: var(--gray-300);
+      --fg: var(--gray-900);
+      --muted: var(--gray-600);
+      --faint: var(--gray-500);
+      --accent-bg: #111827;
+      --accent-fg: #ffffff;
+      --radius: 6px;
+      --panel-radius: 10px;
+    }
+    .dark {
+      color-scheme: dark;
+      --bg: #000000;
+      --surface: #0d0d0d;
+      --border: #1f1f1f;
+      --control-border: #303030;
+      --fg: #f3f4f6;
+      --muted: #a1a1aa;
+      --faint: #737373;
+      --accent-bg: #f3f4f6;
+      --accent-fg: #111827;
+      --brand-600: #8ab4f8;
+      --brand-700: #8ab4f8;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, a { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+    :focus-visible { outline: 3px solid rgb(107 114 128 / .42); outline-offset: 2px; }
+    .topbar {
+      position: sticky; top: 0; z-index: 10; height: 56px;
+      display: flex; align-items: center; gap: 12px; padding: 0 20px;
+      border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--bg) 92%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .brand { display: flex; align-items: center; gap: 9px; min-width: 0; font-weight: 600; }
+    .brand-mark { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 6px; background: var(--accent-bg); color: var(--accent-fg); font: 700 13px/1 ui-monospace, monospace; }
+    .brand small { display: block; color: var(--faint); font-size: 11px; font-weight: 500; }
+    .top-spacer { flex: 1; }
+    .mode-button, .icon-button {
+      min-width: 40px; height: 36px; border: 1px solid var(--control-border); border-radius: var(--radius);
+      background: var(--surface); color: var(--fg); padding: 0 10px;
+    }
+    .prototype-tag { border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+    .sidebar { padding: 12px 10px 24px; border-right: 1px solid var(--border); background: var(--gray-50); }
+    .dark .sidebar { background: #080808; }
+    .nav-group { margin: 14px 8px 5px; color: var(--faint); font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    .nav-link { display: flex; min-height: 38px; align-items: center; border-radius: var(--radius); padding: 8px 10px; color: var(--muted); }
+    .nav-link:hover { background: var(--gray-100); color: var(--fg); }
+    .dark .nav-link:hover { background: #191919; }
+    .nav-link.active { background: var(--brand-50); color: var(--brand-700); font-weight: 600; }
+    .nav-link .nav-code { margin-left: auto; color: var(--faint); font: 11px ui-monospace, monospace; }
+    main { min-width: 0; max-width: 1480px; width: 100%; margin: 0 auto; padding: 26px 28px 50px; }
+    .breadcrumb { display: flex; gap: 7px; flex-wrap: wrap; color: var(--faint); font-size: 12px; margin-bottom: 10px; }
+    .breadcrumb a { color: var(--brand-700); }
+    .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 5px; font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.025em; }
+    h2 { margin-bottom: 10px; font-size: 16px; line-height: 1.35; font-weight: 600; letter-spacing: -.015em; }
+    h3 { margin-bottom: 4px; font-size: 14px; font-weight: 600; }
+    .subhead, .muted { color: var(--muted); }
+    .subhead { max-width: 850px; margin: 0; }
+    .eyebrow { margin-bottom: 5px; color: var(--brand-700); font: 700 11px/1.3 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .panel { min-width: 0; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); }
+    .panel-pad { padding: 16px; }
+    .notice { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--border); border-left: 3px solid var(--brand-600); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
+    .notice strong { color: var(--fg); }
+    .grid { display: grid; gap: 14px; }
+    .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
+    .metric { padding: 15px; }
+    .metric-label { color: var(--muted); font-size: 12px; }
+    .metric-value { margin: 6px 0 2px; font-size: 26px; font-weight: 600; letter-spacing: -.03em; }
+    .metric-note { color: var(--faint); font-size: 12px; }
+    .two-col { grid-template-columns: minmax(0, 1.75fr) minmax(300px, .9fr); }
+    .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .section-head { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 14px 16px 0; }
+    .section-head .muted { font-size: 12px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; min-width: 650px; border-collapse: collapse; }
+    th, td { padding: 10px 14px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: var(--gray-50); font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .dark th { background: #121212; }
+    tbody tr:hover { background: var(--gray-50); }
+    .dark tbody tr:hover { background: #121212; }
+    .row-link { color: var(--brand-700); font-weight: 600; }
+    .cell-meta { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .badge.blue { border-color: var(--brand-100); background: var(--brand-50); color: var(--brand-700); }
+    .badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brand-600); }
+    .tabs { display: flex; gap: 3px; overflow-x: auto; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+    .tab { flex: 0 0 auto; padding: 9px 11px 8px; color: var(--muted); border-bottom: 2px solid transparent; }
+    .tab:hover { color: var(--fg); background: var(--gray-50); }
+    .dark .tab:hover { background: #121212; }
+    .tab.active { border-bottom-color: var(--brand-600); color: var(--brand-700); font-weight: 600; }
+    .detail-list { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 14px; margin: 0; }
+    .detail-list dt { color: var(--faint); }
+    .detail-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .relationship { margin-bottom: 16px; }
+    .rel-grid { display: grid; grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1fr) 46px minmax(0, 1fr); align-items: stretch; overflow-x: auto; }
+    .rel-node { min-width: 190px; padding: 14px; border: 1px solid var(--border); border-radius: var(--panel-radius); background: var(--surface); }
+    .rel-node-title { display: flex; gap: 7px; align-items: center; font-weight: 600; }
+    .node-type { color: var(--brand-700); font: 700 10px ui-monospace, monospace; letter-spacing: .08em; }
+    .rel-node p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .rel-arrow { display: grid; place-items: center; color: var(--brand-600); font: 700 18px/1 ui-monospace, monospace; }
+    .relation-key { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    .relation-key strong { color: var(--fg); }
+    .map-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--border); border-radius: var(--panel-radius); overflow: hidden; }
+    .map-col { min-width: 0; padding: 15px; border-right: 1px solid var(--border); }
+    .map-col:last-child { border-right: 0; }
+    .map-col h3 { color: var(--brand-700); font-size: 12px; }
+    .map-col ul { margin: 9px 0 0; padding: 0; list-style: none; }
+    .map-col li { padding: 7px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+    .map-col li:first-child { border-top: 0; }
+    .rule { font-size: 12px; color: var(--muted); }
+    .rule b { color: var(--fg); }
+    .scope { display: inline-block; margin: 3px 3px 0 0; padding: 2px 5px; border: 1px solid var(--border); border-radius: 4px; font: 11px ui-monospace, monospace; color: var(--muted); }
+    .empty { padding: 34px 16px; text-align: center; color: var(--muted); }
+    .route-code { color: var(--faint); font: 12px ui-monospace, monospace; white-space: nowrap; }
+    .placeholder { max-width: 720px; }
+    .footer-note { margin-top: 16px; color: var(--faint); font-size: 12px; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .prototype-button { min-height: 34px; padding: 7px 11px; border: 1px solid var(--control-border); border-radius: var(--radius); background: var(--surface); color: var(--fg); }
+    .prototype-button.primary { border-color: var(--brand-600); background: var(--brand-600); color: #fff; }
+    .prototype-button[disabled] { cursor: not-allowed; opacity: .58; }
+    .permission-cell { min-width: 220px; }
+    .permission-cell .scope { margin-bottom: 3px; }
+    .callout { padding: 10px 12px; border: 1px dashed var(--control-border); border-radius: var(--radius); color: var(--muted); background: var(--gray-50); }
+    .dark .callout { background: #121212; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--muted); font-size: 12px; }
+    .field input, .field select { width: 100%; min-height: 36px; padding: 7px 9px; border: 1px solid var(--control-border); border-radius: var(--radius); background: var(--surface); color: var(--fg); }
+    .field.full { grid-column: 1 / -1; }
+    .secret-mask { letter-spacing: .12em; color: var(--faint); }
+    @media (max-width: 960px) {
+      .shell { grid-template-columns: 180px minmax(0, 1fr); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .two-col, .three-col { grid-template-columns: 1fr; }
+      .map-columns { grid-template-columns: 1fr; }
+      .map-col { border-right: 0; border-bottom: 1px solid var(--border); }
+      .map-col:last-child { border-bottom: 0; }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 0 12px; }
+      .brand small, .prototype-tag { display: none; }
+      .shell { display: block; }
+      .sidebar { display: flex; gap: 2px; overflow-x: auto; padding: 7px 10px; border-right: 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
+      .nav-group { display: none; }
+      .nav-link { flex: 0 0 auto; min-height: 36px; padding: 7px 9px; }
+      .nav-link .nav-code { display: none; }
+      main { padding: 20px 14px 36px; }
+      .page-head { display: block; }
+      h1 { font-size: 24px; }
+      .metrics { grid-template-columns: 1fr 1fr; gap: 9px; }
+      .metric { padding: 12px; }
+      .metric-value { font-size: 22px; }
+      .rel-grid { grid-template-columns: minmax(180px, 1fr); gap: 8px; }
+      .rel-arrow { height: 23px; transform: rotate(90deg); }
+      .relation-key { grid-template-columns: 1fr; }
+      .detail-list { grid-template-columns: 96px minmax(0, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/home" data-route="#/home" aria-label="返回主页">
+      <span class="brand-mark">TD</span>
+      <span>TencentDB Agent Memory<small>日常运营工作台</small></span>
+    </a>
+    <span class="top-spacer"></span>
+    <span class="prototype-tag">样例数据 · 离线原型</span>
+    <button class="mode-button" id="theme-toggle" type="button" aria-label="切换深色模式">深色</button>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="nav-group">日常运营</div>
+      <a class="nav-link" href="#/home" data-route="#/home">主页 <span class="nav-code">H</span></a>
+      <a class="nav-link" href="#/projects" data-route="#/projects">项目 <span class="nav-code">P</span></a>
+      <a class="nav-link" href="#/tasks" data-route="#/tasks">任务 <span class="nav-code">T</span></a>
+      <a class="nav-link" href="#/agents" data-route="#/agents">智能体 <span class="nav-code">A</span></a>
+      <div class="nav-group">知识与交付</div>
+      <a class="nav-link" href="#/memory/browse/spaces" data-route="#/memory/browse/spaces">记忆</a>
+      <a class="nav-link" href="#/wiki" data-route="#/wiki">Wiki</a>
+      <a class="nav-link" href="#/code" data-route="#/code">代码</a>
+      <a class="nav-link" href="#/skills" data-route="#/skills">技能</a>
+      <a class="nav-link" href="#/templates" data-route="#/templates">模板与流程库</a>
+      <a class="nav-link" href="#/ingestion/triage" data-route="#/ingestion/triage">内容接入与分流</a>
+      <a class="nav-link" href="#/changes" data-route="#/changes">内容变更与发布</a>
+      <div class="nav-group">组织与配置</div>
+      <a class="nav-link" href="#/teams" data-route="#/teams">团队</a>
+      <a class="nav-link" href="#/users" data-route="#/users">用户</a>
+      <a class="nav-link" href="#/model-config" data-route="#/model-config">模型配置</a>
+    </aside>
+    <main id="app" tabindex="-1" aria-live="polite"></main>
+  </div>
+
+  <script>
+    (() => {
+      'use strict';
+      const app = document.getElementById('app');
+      const themeToggle = document.getElementById('theme-toggle');
+      const defaultRoute = '#/home';
+      const navRoutes = {
+        '#/home': '主页', '#/projects': '项目', '#/tasks': '任务', '#/agents': '智能体',
+        '#/memory/browse/spaces': '记忆', '#/wiki': 'Wiki', '#/code': '代码', '#/skills': '技能',
+        '#/templates': '模板与流程库', '#/ingestion/triage': '内容接入与分流', '#/changes': '内容变更与发布', '#/teams': '团队', '#/users': '用户', '#/users/create': '创建用户', '#/model-config': '模型配置'
+      };
+      const projectTabs = [
+        ['overview', '概览'], ['tasks', '任务'], ['agents', '智能体'], ['members', '成员'], ['access', '访问与边界']
+      ];
+      const teamTabs = [
+        ['overview', '概览'], ['agents', '智能体'], ['tasks', '任务'], ['members', '成员'], ['projects', '关联项目'], ['permissions', '资源权限']
+      ];
+      const agentTabs = [
+        ['overview', '概览'], ['system-prompt', '系统提示词'], ['runtime-parameters', '运行参数'], ['tools', '工具'], ['skills', '技能'], ['hooks', 'Hooks'], ['memory', '记忆'], ['resources', '资源授权'], ['vault', 'Vault'], ['scheduled-tasks', '定时任务']
+      ];
+      const taskTabs = [['overview', '概览'], ['runs', '运行记录']];
+
+      function link(route, label, className = '') {
+        return `<a class="${className}" href="${route}" data-route="${route}">${label}</a>`;
+      }
+      function badge(text, variant = '') { return `<span class="badge ${variant}">${text}</span>`; }
+      function button(label, disabled = true, variant = '') { return `<button class="prototype-button ${variant}" type="button"${disabled ? ' disabled aria-disabled="true"' : ''}>${label}</button>`; }
+      function breadcrumb(items) {
+        return `<nav class="breadcrumb" aria-label="面包屑">${items.map((item, i) => i === items.length - 1 ? `<span>${item.label}</span>` : `${link(item.route, item.label)}<span>/</span>`).join('')}</nav>`;
+      }
+      function tabs(items, active, base) {
+        return `<nav class="tabs" aria-label="页面标签">${items.map(([id, label]) => link(`${base}/${id}`, label, `tab ${id === active ? 'active' : ''}`)).join('')}</nav>`;
+      }
+      function pageHead(eyebrow, title, subtitle, route) {
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { label: title }])}<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subhead">${subtitle}</p></div><span class="route-code">${route}</span></div>`;
+      }
+      function relationshipMap() {
+        return `<section class="panel relationship" aria-labelledby="relationship-title">
+          <div class="section-head"><div><h2 id="relationship-title">关系与权限地图</h2><div class="muted">关系确定归属与范围；对 Memory、Wiki、代码、技能的操作仍逐项由成员资源权限裁定。</div></div>${badge('样例关系', 'blue')}</div>
+          <div class="panel-pad"><div class="rel-grid">
+            <article class="rel-node"><div class="rel-node-title"><span class="node-type">TEAM</span> 数据库平台组</div><p>创建者可创建团队。团队拥有项目（1:N），每个项目只能关联一个团队。</p></article>
+            <div class="rel-arrow" aria-hidden="true">1:N →</div>
+            <article class="rel-node"><div class="rel-node-title"><span class="node-type">PROJECT</span> 数据库内核演进</div><p>唯一归属数据库平台组；项目成员仅在被授予的资源类型上执行 CRUD。</p></article>
+            <div class="rel-arrow" aria-hidden="true">关联 →</div>
+            <article class="rel-node"><div class="rel-node-title"><span class="node-type">AGENT</span> Retriever</div><p>可公开，也可关联多个团队和项目；关联授予查看/使用，不授予关系、策略或配置变更。</p></article>
+          </div></div>
+          <div class="relation-key"><span><strong>Team → Project：</strong>Team owns Project 1:N；一个 Project 恰好属于一个 Team。</span><span><strong>资源所有权：</strong>User、Team、Project 各自拥有唯一作用域的 Memory / Wiki / 代码 / 技能 / 模板；公开 Wiki / 技能 / 模板仅为平台目录，Memory 永不公开。</span></div>
+        </section>`;
+      }
+      function home() {
+        return `${pageHead('日常运营', '主页', '数据库平台组的样例工作面：项目、任务、智能体与知识流转均为可点击的离线原型。', '#/home')}
+          <div class="notice"><strong>运营规则已加载。</strong> 团队拥有项目（1:N），且每个项目只关联一个团队。<strong>open</strong> 仅开放项目上下文；User、Team、Project 分别拥有唯一作用域的 Memory、Wiki、代码、技能和模板。公开 Wiki / 技能 / 模板仅来自平台目录，Memory 永不公开；成员操作仍取决于被分配的资源权限。智能体关联允许在关联内使用和查看能力，关联本身不允许改动关联、策略或配置。</div>
+          <section class="grid metrics" aria-label="运营摘要">
+            <article class="panel metric"><div class="metric-label">进行中项目</div><div class="metric-value">12</div><div class="metric-note">数据库平台组拥有 4 个</div></article>
+            <article class="panel metric"><div class="metric-label">待处理任务</div><div class="metric-value">38</div><div class="metric-note">7 项需要人工确认</div></article>
+            <article class="panel metric"><div class="metric-label">已关联智能体</div><div class="metric-value">9</div><div class="metric-note">能力使用与查看受边界控制</div></article>
+            <article class="panel metric"><div class="metric-label">接入待分流</div><div class="metric-value">6</div><div class="metric-note">最近一次样例同步：09:30</div></article>
+          </section>
+          <div class="grid two-col">
+            <section class="panel"><div class="section-head"><h2>重点项目</h2>${link('#/projects', '查看项目', 'row-link')}</div><div class="table-wrap"><table><thead><tr><th>项目</th><th>可见性</th><th>归属团队</th><th>今日</th></tr></thead><tbody>
+              <tr><td>${link('#/project/p-db/overview', '数据库内核演进', 'row-link')}<span class="cell-meta">p-db</span></td><td>${badge('open', 'blue')}</td><td>${link('#/team/team-db/overview', '数据库平台组')}</td><td>${link('#/project/p-db/tasks', '4 个进行中')}</td></tr>
+              <tr><td>${link('#/project/p-observability/overview', '观测性基线', 'row-link')}<span class="cell-meta">p-observability</span></td><td>${badge('team')}</td><td>数据库平台组</td><td>2 个进行中</td></tr>
+            </tbody></table></div></section>
+            <section class="panel"><div class="section-head"><h2>需关注的任务</h2>${link('#/tasks', '任务列表', 'row-link')}</div><div class="panel-pad"><h3>${link('#/task/t-104/overview', 'T-104 · 索引回收策略校验', 'row-link')}</h3><p class="muted">数据库内核演进 · 运行 r-83 等待人工复核。</p>${badge('待复核', 'live')} ${link('#/task/t-104/runs', '查看运行记录', 'row-link')}</div></section>
+          </div>
+          ${relationshipMap()}<p class="footer-note">样例数据 / 原型只读展示：页面内链接用于演示导航与权限上下文，不会提交任何后端写入。</p>`;
+      }
+      function projects() {
+        return `${pageHead('项目', '项目', '每个项目只能添加到一个团队（Team owns Projects 1:N）。项目成员的资源操作由逐项分配的权限决定。', '#/projects')}
+          <section class="panel"><div class="section-head"><h2>项目目录</h2><span class="muted">12 个项目 · 样例数据</span></div><div class="table-wrap"><table><thead><tr><th>项目</th><th>唯一归属团队</th><th>上下文与资源边界</th><th>任务</th><th>关联智能体</th></tr></thead><tbody>
+            <tr><td>${link('#/project/p-db/overview', '数据库内核演进', 'row-link')}<span class="cell-meta">p-db</span></td><td>${link('#/team/team-db/overview', '数据库平台组')}</td><td>${badge('open', 'blue')}<span class="cell-meta">可进入项目；资源 CRUD 仍按成员权限</span></td><td>${link('#/project/p-db/tasks', '18 个')}</td><td>${link('#/project/p-db/agents', '3 个')}</td></tr>
+            <tr><td>${link('#/project/p-observability/overview', '观测性基线', 'row-link')}<span class="cell-meta">p-observability</span></td><td>数据库平台组</td><td>${badge('team')}<span class="cell-meta">团队上下文；资源权限单独裁定</span></td><td>11 个</td><td>2 个</td></tr>
+            <tr><td>${link('#/project/p-gateway/overview', '数据访问网关', 'row-link')}<span class="cell-meta">p-gateway</span></td><td>数据服务组</td><td>${badge('open', 'blue')}<span class="cell-meta">可进入项目；不自动授予资源 CRUD</span></td><td>9 个</td><td>1 个</td></tr>
+          </tbody></table></div></section>${relationshipMap()}`;
+      }
+      function teams() {
+        return `${pageHead('团队', '团队', '团队目录用于进入各团队的详情工作区；团队拥有项目（1:N），成员与资源操作仍由逐项权限控制。', '#/teams')}
+          <section class="panel"><div class="section-head"><h2>团队目录</h2><span class="muted">1 个团队 · 样例数据</span></div><div class="table-wrap"><table><thead><tr><th>团队</th><th>所有者</th><th>拥有项目</th><th>成员</th><th>资源与权限边界</th></tr></thead><tbody>
+            <tr><td>${link('#/team/team-db/overview', '数据库平台组', 'row-link')}<span class="cell-meta">team-db</span></td><td>Lin</td><td>${link('#/team/team-db/projects', '4 个')}</td><td>18 名</td><td>团队自有 Memory / Wiki / 代码 / 技能 / 模板；操作按资源权限控制</td></tr>
+          </tbody></table></div></section>`;
+      }
+      function project(routeMatch) {
+        const tab = routeMatch[1] || 'overview';
+        const validTab = projectTabs.some(([id]) => id === tab) ? tab : 'overview';
+        const base = '#/project/p-db';
+        const body = {
+          overview: `<div class="grid two-col"><section class="panel panel-pad"><h2>项目上下文</h2><dl class="detail-list"><dt>项目 ID</dt><dd><code>p-db</code></dd><dt>唯一归属</dt><dd>${link('#/team/team-db/overview', '数据库平台组', 'row-link')}（Team owns Projects 1:N）</dd><dt>可见性</dt><dd>${badge('open', 'blue')} 可进入项目上下文，不自动授予资源 CRUD</dd><dt>项目成员</dt><dd>12 名；由团队所有者管理</dd><dt>资源作用域</dt><dd>p-db 独有的 Memory / Wiki / 代码 / 技能 / 模板；不与 Team 或 User 资源混用</dd><dt>运行边界</dt><dd>Policy、Resource ACL 与 RunGate</dd></dl></section><section class="panel panel-pad"><h2>今日状态</h2><p><b>4</b> 个任务进行中，<b>1</b> 条运行等待复核。</p><p class="muted">项目成员能否创建、更新或删除项目作用域的 Memory / Wiki / 代码 / 技能 / 模板，按资源权限矩阵逐项判断；项目 Memory 不公开。</p>${link('#/project/p-db/members', '查看项目成员', 'row-link')}</section></div>${relationshipMap()}`,
+          tasks: `<section class="panel"><div class="section-head"><h2>项目任务</h2><span class="muted">数据库内核演进 / p-db</span></div><div class="table-wrap"><table><thead><tr><th>任务</th><th>状态</th><th>执行上下文</th><th>最近运行</th></tr></thead><tbody><tr><td>${link('#/task/t-104/overview', 'T-104 · 索引回收策略校验', 'row-link')}</td><td>${badge('待复核', 'live')}</td><td>Retriever · 仅使用与查看关联能力</td><td>${link('#/task/t-104/run/r-83', 'r-83')}</td></tr><tr><td>${link('#/task/t-107/overview', 'T-107 · 热点表采样', 'row-link')}</td><td>${badge('进行中')}</td><td>Diagnoser · 关联内 use / view</td><td>r-81</td></tr></tbody></table></div></section>`,
+          agents: `<section class="panel"><div class="section-head"><h2>项目关联智能体</h2><span class="muted">Agent 可同时关联多个团队和项目</span></div><div class="table-wrap"><table><thead><tr><th>智能体</th><th>关联范围</th><th>被允许的能力</th><th>不可变更</th><th>实际限制</th></tr></thead><tbody><tr><td>${link('#/agent/a-retriever/overview', 'Retriever', 'row-link')}<span class="cell-meta">a-retriever · public</span></td><td>Agent-Project · p-db；另关联 2 个 Team / Project</td><td><span class="scope">use</span><span class="scope">view</span></td><td>关联 / 策略 / 配置</td><td>Policy · Resource ACL · RunGate</td></tr><tr><td>Diagnoser<span class="cell-meta">a-diagnoser · 项目范围</span></td><td>Agent-Project · p-db</td><td><span class="scope">use</span><span class="scope">view</span></td><td>关联 / 策略 / 配置</td><td>Policy · Resource ACL · RunGate</td></tr></tbody></table></div></section>`,
+          members: `<section class="panel"><div class="section-head"><h2>项目成员与资源权限</h2><span class="muted">团队所有者可管理成员；资源为 p-db 项目自有唯一作用域</span></div><div class="button-row">${button('添加项目成员（原型 / 只读）', true, 'primary')} ${button('移除成员（原型 / 只读）', true)}</div><div class="callout">资源所有者：Project <code>p-db</code>。本矩阵只适用于 p-db 自有 Memory / Wiki / 代码 / 技能 / 模板；Team、User 资源不在此作用域。Memory 永不公开；Wiki / 技能 / 模板的公开目录仅指平台-owned catalog。</div><div class="table-wrap"><table><thead><tr><th>成员</th><th>项目角色</th><th>Project Memory（私有）</th><th>Project Wiki</th><th>Project 代码</th><th>Project 技能 / 模板</th></tr></thead><tbody><tr><td>Lin（当前用户）</td><td>成员</td><td class="permission-cell"><span class="scope">view</span><span class="scope">update</span></td><td class="permission-cell"><span class="scope">view</span><span class="scope">create</span><span class="scope">update</span></td><td class="permission-cell"><span class="scope">view</span></td><td class="permission-cell"><span class="scope">view</span><span class="scope">use</span></td></tr><tr><td>Chen</td><td>成员</td><td><span class="scope">view</span></td><td><span class="scope">view</span></td><td><span class="scope">view</span><span class="scope">update</span></td><td><span class="scope">view</span></td></tr></tbody></table></div></section><div class="notice"><strong>权限语义：</strong>项目成员不会因加入项目而自动获得全部资源操作权；未列出的动作均视为无权。公开目录不改变项目资源所有权。</div>`,
+          access: `<section class="panel panel-pad"><h2>访问、所有权与边界</h2><div class="map-columns"><div class="map-col"><h3>归属关系</h3><ul><li><b>数据库平台组</b> owns <b>p-db</b></li><li>一个项目只能关联一个团队</li><li>p-db 唯一拥有本项目资源作用域</li></ul></div><div class="map-col"><h3>项目资源</h3><ul><li>Memory / Wiki / 代码 / 技能 / 模板均属于 p-db</li><li>Memory 永不公开</li><li>公开 Wiki / 技能 / 模板仅为平台目录，不属于 p-db</li></ul></div><div class="map-col"><h3>成员与智能体</h3><ul><li>成员 CRUD 由项目资源 ACL 逐项决定</li><li>Agent 可关联多个 Team / Project</li><li>关联允许 use / view，不改关系、策略、配置</li></ul></div></div></section>`,
+        }[validTab];
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/projects', label: '项目' }, { label: '数据库内核演进' }])}<div class="page-head"><div><div class="eyebrow">PROJECT · P-DB</div><h1>数据库内核演进 ${badge('open', 'blue')}</h1><p class="subhead">唯一归属数据库平台组。open 只开放项目上下文；成员的资源 CRUD 由项目权限矩阵逐项控制。</p></div><span class="route-code">${base}/${validTab}</span></div>${tabs(projectTabs, validTab, base)}${body}<p class="footer-note">样例数据 / 只读原型。按钮明确标示原型状态，不代表可修改关联、成员、策略或配置。</p>`;
+      }
+      function tasks() {
+        return `${pageHead('任务', '任务', '从任务进入任务概览，再进入对应运行记录。运行不作为全局日常导航项。', '#/tasks')}
+          <section class="panel"><div class="section-head"><h2>任务队列</h2><span class="muted">38 条样例任务</span></div><div class="table-wrap"><table><thead><tr><th>任务</th><th>项目</th><th>状态</th><th>最近运行</th></tr></thead><tbody><tr><td>${link('#/task/t-104/overview', 'T-104 · 索引回收策略校验', 'row-link')}</td><td>${link('#/project/p-db/overview', '数据库内核演进')}</td><td>${badge('待复核', 'live')}</td><td>${link('#/task/t-104/runs', '1 条运行记录')}</td></tr><tr><td>${link('#/task/t-107/overview', 'T-107 · 热点表采样', 'row-link')}</td><td>${link('#/project/p-db/overview', '数据库内核演进')}</td><td>${badge('进行中')}</td><td>r-81</td></tr></tbody></table></div></section>`;
+      }
+      function task(routeMatch) {
+        const tail = routeMatch[1] || 'overview';
+        const base = '#/task/t-104';
+        if (tail.startsWith('run/')) return run(tail.split('/')[1]);
+        const active = taskTabs.some(([id]) => id === tail) ? tail : 'overview';
+        const content = active === 'overview'
+          ? `<div class="grid two-col"><section class="panel panel-pad"><h2>任务上下文</h2><dl class="detail-list"><dt>任务 ID</dt><dd><code>t-104</code></dd><dt>项目</dt><dd>${link('#/project/p-db/overview', '数据库内核演进', 'row-link')}</dd><dt>执行智能体</dt><dd>${link('#/agent/a-retriever', 'Retriever', 'row-link')} · 可使用与查看关联能力</dd><dt>资源边界</dt><dd>Policy / Resource ACL / RunGate</dd></dl></section><section class="panel panel-pad"><h2>当前处理</h2><p>运行 <code>r-83</code> 已生成候选结论，等待值班工程师复核。</p>${link('#/task/t-104/runs', '进入运行记录', 'row-link')}</section></div>`
+          : `<section class="panel"><div class="section-head"><h2>运行记录</h2><span class="muted">任务 t-104</span></div><div class="table-wrap"><table><thead><tr><th>运行</th><th>状态</th><th>准入核验</th><th>资源范围</th><th>时间</th></tr></thead><tbody><tr><td>${link('#/task/t-104/run/r-83', 'r-83', 'row-link')}</td><td>${badge('待复核', 'live')}</td><td>RunGate 已通过</td><td>policy: index-readonly</td><td>2026-09-15 09:28</td></tr><tr><td>r-79</td><td>${badge('已完成')}</td><td>RunGate 已通过</td><td>policy: index-readonly</td><td>2026-09-14 16:42</td></tr></tbody></table></div></section>`;
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/tasks', label: '任务' }, { label: 'T-104' }])}<div class="page-head"><div><div class="eyebrow">TASK · T-104</div><h1>索引回收策略校验</h1><p class="subhead">项目内任务；先查看任务上下文，再查看该任务的运行记录与准入结果。</p></div><span class="route-code">${base}/${active}</span></div>${tabs(taskTabs, active, base)}${content}`;
+      }
+      function run(id) {
+        const runId = id === 'r-83' ? 'r-83' : id;
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/tasks', label: '任务' }, { route: '#/task/t-104/overview', label: 'T-104' }, { label: runId }])}<div class="page-head"><div><div class="eyebrow">TASK RUN · ${runId.toUpperCase()}</div><h1>运行 ${runId} ${badge('待复核', 'live')}</h1><p class="subhead">运行归属于任务 T-104，展示此次样例运行的授权链与资源边界。</p></div><span class="route-code">#/task/t-104/run/${runId}</span></div><div class="grid two-col"><section class="panel panel-pad"><h2>运行摘要</h2><dl class="detail-list"><dt>任务</dt><dd>${link('#/task/t-104/overview', 'T-104 · 索引回收策略校验', 'row-link')}</dd><dt>执行者</dt><dd>${link('#/agent/a-retriever', 'Retriever', 'row-link')}</dd><dt>结果</dt><dd>生成 3 项索引回收候选，待人工复核</dd><dt>时间</dt><dd>2026-09-15 09:28:14</dd></dl></section><section class="panel panel-pad"><h2>准入与范围</h2><p>${badge('RunGate 已通过', 'blue')}</p><p class="rule"><b>Policy：</b><code>index-readonly</code><br><b>Resource ACL：</b><code>p-db/indexes/*</code><br><b>Agent 关联：</b>允许使用和查看已许可能力；未提供关联、策略或配置变更能力。</p></section></div><section class="panel panel-pad"><h2>授权链</h2><div class="map-columns"><div class="map-col"><h3>项目关系</h3><ul><li>数据库平台组 owns p-db</li><li>p-db 为 <code>open</code>（仅项目上下文）</li><li>具体资源操作按 p-db 资源 ACL 裁定</li></ul></div><div class="map-col"><h3>智能体关联</h3><ul><li>Retriever ↔ p-db</li><li>能力 <code>use</code> / <code>view</code></li><li>不可变更关联 / 策略 / 配置</li></ul></div><div class="map-col"><h3>运行裁决</h3><ul><li>Policy 已匹配</li><li>Resource ACL 已收窄</li><li>RunGate 已准入</li></ul></div></div></section>`;
+      }
+      function agents() {
+        return `${pageHead('智能体', '智能体', '智能体可公开，也可同时关联多个团队与项目。关联仅决定关联内的查看与使用范围，不能变更关系、策略或配置。', '#/agents')}
+          <section class="panel"><div class="section-head"><h2>智能体目录</h2><span class="muted">9 个样例智能体</span></div><div class="table-wrap"><table><thead><tr><th>智能体</th><th>可见范围</th><th>Team / Project 关联</th><th>可用能力</th><th>最终边界</th></tr></thead><tbody><tr><td>${link('#/agent/a-retriever/overview', 'Retriever', 'row-link')}<span class="cell-meta">a-retriever</span></td><td>${badge('public', 'blue')}</td><td>数据库平台组、数据服务组 · p-db、p-gateway</td><td><span class="scope">use</span><span class="scope">view</span></td><td>Policy / Resource ACL / RunGate</td></tr><tr><td>Diagnoser<span class="cell-meta">a-diagnoser</span></td><td>项目范围</td><td>p-db</td><td><span class="scope">use</span><span class="scope">view</span></td><td>Policy / Resource ACL / RunGate</td></tr></tbody></table></div></section>${relationshipMap()}`;
+      }
+      function agent(routeMatch) {
+        const tab = routeMatch[1] || 'overview';
+        const validTab = agentTabs.some(([id]) => id === tab) ? tab : 'overview';
+        const base = '#/agent/a-retriever';
+        const readOnly = '<div class="notice"><strong>管理边界：</strong>仅 Agent 管理员可修改智能体关系、策略或配置；此离线原型中的内容均不可写入。</div>';
+        const body = {
+          overview: `<div class="grid two-col"><section class="panel panel-pad"><h2>基本信息</h2><dl class="detail-list"><dt>名称</dt><dd>Retriever</dd><dt>描述</dt><dd>检索、归纳证据并为任务生成可追溯的候选结论。</dd><dt>类型</dt><dd><code>retriever</code> · 知识检索型智能体</dd><dt>可见性</dt><dd>${badge('public', 'blue')} 可发现、可查看公开元数据；使用仍需关联与策略允许</dd><dt>Owner</dt><dd>Platform Agent Catalog · 管理人：Lin</dd><dt>状态 / 版本</dt><dd>${badge('已启用', 'blue')} <code>v1.8.2</code></dd><dt>标签</dt><dd><span class="scope">retrieval</span><span class="scope">evidence</span><span class="scope">readonly-default</span></dd></dl></section><section class="panel panel-pad"><h2>关联范围</h2><dl class="detail-list"><dt>Agent-Team</dt><dd>${link('#/team/team-db/overview', '数据库平台组', 'row-link')}、数据服务组 · <span class="scope">use</span><span class="scope">view</span></dd><dt>Agent-Project</dt><dd>${link('#/project/p-db/overview', '数据库内核演进', 'row-link')}、p-gateway · <span class="scope">use</span><span class="scope">view</span></dd><dt>资源范围</dt><dd>仅使用已关联 Owner（User / Team / Project）的已授权资源；不跨作用域继承</dd><dt>不可变更</dt><dd>关联、策略、配置（仅 Agent 管理员）</dd></dl></section></div><section class="panel panel-pad"><h2>可见、可使用与可写入</h2><div class="map-columns"><div class="map-col"><h3>可查看</h3><p>关联范围内、资源 ACL 允许的 Memory 摘要、Wiki、Code、Skill 元数据与运行上下文。</p></div><div class="map-col"><h3>可使用</h3><p>被允许的模型、工具、Skill、锁定 Template 与 Memory 检索能力。</p></div><div class="map-col"><h3>可写入</h3><p>不默认拥有。对 Memory / Wiki / Code / Skill 的写入必须由逐资源 grant 授予。</p>${link('#/agent/a-retriever/resources', '查看资源授权矩阵', 'row-link')}</div></div></section>${readOnly}`,
+          'system-prompt': `<section class="panel panel-pad"><h2>系统提示词</h2><div class="callout">只读摘要：检索、归纳证据并标注来源；不得绕过资源 ACL 或输出 Vault 内容。</div><div class="button-row">${button('编辑系统提示词（仅 Agent 管理员 / 原型）', true)}</div></section>${readOnly}`,
+          'runtime-parameters': `<section class="panel panel-pad"><h2>运行参数</h2><dl class="detail-list"><dt>模型配置引用</dt><dd>${link('#/model-config', 'default-reasoning / 公开配置', 'row-link')}</dd><dt>温度</dt><dd><code>0.2</code>（只读样例）</dd><dt>最大步骤</dt><dd><code>12</code>（只读样例）</dd><dt>变更权限</dt><dd>仅 Agent 管理员</dd></dl><div class="button-row">${button('修改运行参数（仅 Agent 管理员 / 原型）', true)}</div></section>`,
+          tools: `<section class="panel"><div class="section-head"><h2>工具</h2><span class="muted">只读授权清单</span></div><div class="table-wrap"><table><thead><tr><th>工具</th><th>允许动作</th><th>资源边界</th><th>管理边界</th></tr></thead><tbody><tr><td>知识检索</td><td><span class="scope">use</span><span class="scope">view</span></td><td>关联项目的已授权索引</td><td>仅 Agent 管理员可改</td></tr><tr><td>运行摘要读取</td><td><span class="scope">view</span></td><td>通过 Policy / ACL / RunGate</td><td>仅 Agent 管理员可改</td></tr></tbody></table></div></section>${readOnly}`,
+          skills: `<section class="panel panel-pad"><h2>技能</h2><p>已关联技能：证据整理、结构化检索。可用技能来自已关联 Owner（Team / Project）的私有作用域，或平台-owned 公共技能目录；私有技能不会因 Agent 为 public 而公开。</p><div class="callout">资源归属：Team / Project 自有 Skill 与 Template 各自隔离；平台目录只是可选引用，不转移所有权。</div><div class="button-row">${button('调整技能关联（仅 Agent 管理员 / 原型）', true)}</div></section>${readOnly}`,
+          hooks: `<section class="panel panel-pad"><h2>Hooks</h2><dl class="detail-list"><dt>前置 Hook</dt><dd>Policy / Resource ACL 核验</dd><dt>后置 Hook</dt><dd>运行摘要审计</dd><dt>状态</dt><dd>只读样例；仅 Agent 管理员可管理</dd></dl></section>${readOnly}`,
+          memory: `<section class="panel panel-pad"><h2>记忆</h2><p>Memory 永不公开。此智能体只可在 Owner 作用域与资源 ACL 同时允许时，查看关联 User / Team / Project 的私有记忆引用与摘要；不跨作用域继承。</p><div class="callout">已授权引用：Project <code>p-db</code> / <code>retrieval-notes</code> · 私有 Memory；可查看摘要，具体条目仍按 p-db 的 Memory 权限判断。</div></section>${readOnly}`,
+          resources: `<section class="panel"><div class="section-head"><h2>资源授权矩阵</h2><span class="muted">逐资源 grant · 只读样例</span></div><div class="callout">public 仅允许发现 Agent。下列读取、使用和写入能力由资源 Owner 的 ACL、write policy、Project / Team 规则与本 Agent 关联共同决定；未列出即拒绝。</div><div class="table-wrap"><table><thead><tr><th>资源</th><th>Owner / scope</th><th>查看</th><th>使用</th><th>写入</th><th>写入路径</th></tr></thead><tbody><tr><td>Memory · retrieval-notes</td><td>Project · p-db</td><td><span class="scope">view 摘要</span></td><td><span class="scope">use 检索</span></td><td>—</td><td>无 grant；Memory 永不公开</td></tr><tr><td>Wiki · index-guide</td><td>Team · team-db</td><td><span class="scope">view</span></td><td><span class="scope">use 引用</span></td><td><span class="scope">write 候选</span></td><td>ChangeSet → Team Review</td></tr><tr><td>Code · index-policy</td><td>Project · p-db</td><td><span class="scope">view</span></td><td><span class="scope">use 分析</span></td><td>—</td><td>无 write grant</td></tr><tr><td>Skill · evidence-normalizer</td><td>Platform catalog</td><td><span class="scope">view</span></td><td><span class="scope">use</span></td><td>—</td><td>公共原版不可改；可派生为 Team / Project 版本</td></tr></tbody></table></div></section><div class="notice"><strong>写入边界：</strong>Memory 写入必须进入明确的 MemorySpace write policy；Wiki / Code / Skill 写入只产生候选，仍要经过目标 Owner scope 的 ChangeSet 与 Review。Agent 不能修改 owner、ACL、发布状态或关联关系。</div>${readOnly}`,
+          vault: `<section class="panel panel-pad"><h2>Vault</h2><dl class="detail-list"><dt>状态</dt><dd>${badge('受保护')}</dd><dt>可见内容</dt><dd>仅引用与元数据：<code>vault://agents/a-retriever</code> · 3 项受管密钥</dd><dt>密钥内容</dt><dd><span class="secret-mask">••••••••••••••••</span> 永不展示</dd><dt>访问结果</dt><dd>拒绝：当前视图没有读取 Secret 内容的权限</dd></dl><div class="notice"><strong>安全规则：</strong>Vault 内容不在任何原型或详情页展示；仅 Agent 管理员可管理引用，且 Secret 仍不可回显。</div></section>`,
+          'scheduled-tasks': `<section class="panel"><div class="section-head"><h2>定时任务</h2><span class="muted">只读样例</span></div><div class="table-wrap"><table><thead><tr><th>任务</th><th>周期</th><th>范围</th><th>状态</th></tr></thead><tbody><tr><td>索引证据增量整理</td><td>每 6 小时</td><td>p-db 已授权资源</td><td>${badge('已启用', 'blue')}</td></tr></tbody></table></div></section>${readOnly}`,
+        }[validTab];
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/agents', label: '智能体' }, { label: 'Retriever' }])}<div class="page-head"><div><div class="eyebrow">AGENT · A-RETRIEVER</div><h1>Retriever ${badge('public', 'blue')}</h1><p class="subhead">公开智能体，可关联多个团队和项目。查看/使用受关联和资源边界控制；关系、策略与配置只能由 Agent 管理员修改。</p></div><span class="route-code">${base}/${validTab}</span></div>${tabs(agentTabs, validTab, base)}${body}<p class="footer-note">样例数据 / 只读原型。Vault 仅显示引用和元数据，绝不展示 Secret 内容。</p>`;
+      }
+      function team(routeMatch) {
+        const tab = routeMatch[1] || 'overview';
+        const validTab = teamTabs.some(([id]) => id === tab) ? tab : 'overview';
+        const base = '#/team/team-db';
+        const ownerNotice = '<div class="notice"><strong>权限上下文：</strong>当前示例以团队所有者视角展示。成员管理、关联/移除项目仅团队所有者可发起；按钮已禁用，表示离线原型不执行写入。</div>';
+        const body = {
+          overview: `<div class="grid two-col"><section class="panel panel-pad"><h2>团队概览</h2><dl class="detail-list"><dt>团队 ID</dt><dd><code>team-db</code></dd><dt>创建者 / 所有者</dt><dd>Lin（可创建团队、管理成员和项目关联）</dd><dt>成员</dt><dd>18 名（样例）</dd><dt>拥有项目</dt><dd>${link('#/project/p-db/overview', '数据库内核演进', 'row-link')}、观测性基线等 4 个</dd><dt>团队资源作用域</dt><dd>team-db 独有的 Memory / Wiki / 代码 / 技能 / 模板；Memory 永不公开</dd><dt>规则</dt><dd>项目恰好关联一个团队；成员资源权限逐项判断</dd></dl></section><section class="panel panel-pad"><h2>团队创建与管理</h2><p class="muted">创建者可以创建团队。创建、成员管理和项目关联为权限受控的后端操作；本原型仅展示其可用性上下文。</p><div class="button-row">${button('创建团队（原型 / 只读）', true, 'primary')} ${button('管理成员（仅所有者 / 原型）', true)}</div></section></div>${ownerNotice}`,
+          agents: `<section class="panel"><div class="section-head"><h2>团队关联智能体</h2><span class="muted">Agent 可关联多个 Team / Project</span></div><div class="table-wrap"><table><thead><tr><th>智能体</th><th>关联</th><th>范围</th><th>不可变更</th></tr></thead><tbody><tr><td>${link('#/agent/a-retriever/overview', 'Retriever', 'row-link')}</td><td>Agent-Team · team-db</td><td><span class="scope">use</span><span class="scope">view</span></td><td>关系 / 策略 / 配置</td></tr></tbody></table></div></section>${ownerNotice}`,
+          tasks: `<section class="panel"><div class="section-head"><h2>团队任务</h2><span class="muted">仅汇总本团队拥有项目的任务</span></div><div class="table-wrap"><table><thead><tr><th>任务</th><th>项目</th><th>状态</th><th>资源执行边界</th></tr></thead><tbody><tr><td>${link('#/task/t-104/overview', 'T-104 · 索引回收策略校验', 'row-link')}</td><td>${link('#/project/p-db/overview', 'p-db')}</td><td>${badge('待复核', 'live')}</td><td>Policy / Resource ACL / RunGate</td></tr></tbody></table></div></section>`,
+          members: `<section class="panel"><div class="section-head"><h2>团队成员与资源权限</h2><span class="muted">团队所有者可添加 / 移除成员；资源为 team-db 自有唯一作用域</span></div><div class="button-row">${button('添加团队成员（仅所有者 / 原型）', true, 'primary')} ${button('移除团队成员（仅所有者 / 原型）', true)}</div><div class="callout">资源所有者：Team <code>team-db</code>。本矩阵只适用于 team-db 自有 Memory / Wiki / 代码 / 技能 / 模板；User、Project 资源不在此作用域。Memory 永不公开；Wiki / 技能 / 模板的公开目录仅指平台-owned catalog。</div><div class="table-wrap"><table><thead><tr><th>成员</th><th>团队角色</th><th>Team Memory（私有）</th><th>Team Wiki</th><th>Team 代码</th><th>Team 技能 / 模板</th></tr></thead><tbody><tr><td>Lin</td><td>所有者</td><td><span class="scope">CRUD</span></td><td><span class="scope">CRUD</span></td><td><span class="scope">CRUD</span></td><td><span class="scope">CRUD</span></td></tr><tr><td>Chen</td><td>成员</td><td><span class="scope">view</span><span class="scope">update</span></td><td><span class="scope">view</span></td><td><span class="scope">view</span><span class="scope">create</span></td><td><span class="scope">view</span></td></tr><tr><td>Wang</td><td>成员</td><td><span class="scope">view</span></td><td><span class="scope">view</span><span class="scope">update</span></td><td>—</td><td><span class="scope">view</span><span class="scope">use</span></td></tr></tbody></table></div></section>${ownerNotice}`,
+          projects: `<section class="panel"><div class="section-head"><h2>关联项目</h2><span class="muted">每个项目只能关联一个 Team</span></div><div class="button-row">${button('关联项目（仅所有者 / 原型）', true, 'primary')} ${button('移除关联项目（仅所有者 / 原型）', true)}</div><div class="table-wrap"><table><thead><tr><th>项目</th><th>当前归属</th><th>关联规则</th><th>管理权限</th></tr></thead><tbody><tr><td>${link('#/project/p-db/overview', '数据库内核演进', 'row-link')}</td><td>数据库平台组</td><td>唯一团队归属；不可再关联其他 Team</td><td>团队所有者</td></tr><tr><td>${link('#/project/p-observability/overview', '观测性基线', 'row-link')}</td><td>数据库平台组</td><td>唯一团队归属</td><td>团队所有者</td></tr></tbody></table></div></section>${ownerNotice}`,
+          permissions: `<section class="panel panel-pad"><h2>团队资源所有权与权限</h2><div class="map-columns"><div class="map-col"><h3>成员身份</h3><ul><li>成员可查看团队上下文</li><li>不是所有项目动作的通用授权</li><li>无相应资源权限时不能 CRUD</li></ul></div><div class="map-col"><h3>Team 自有资源</h3><ul><li>team-db 唯一拥有 Memory / Wiki / 代码 / 技能 / 模板</li><li>Team 模板仅在 team-db 作用域内由获授权成员使用或维护</li><li>Memory 永不公开；平台公开模板目录不属于 team-db</li></ul></div><div class="map-col"><h3>所有者权限</h3><ul><li>添加 / 移除团队成员</li><li>关联 / 移除关联项目</li><li>管理项目成员</li></ul></div></div></section>${ownerNotice}`,
+        }[validTab];
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/teams', label: '团队' }, { label: '数据库平台组' }])}<div class="page-head"><div><div class="eyebrow">TEAM · TEAM-DB</div><h1>数据库平台组</h1><p class="subhead">团队拥有项目（1:N）；每个项目只关联一个团队。team-db 自有唯一作用域的 Memory、Wiki、代码、技能和模板；Memory 永不公开，成员操作由逐项资源权限决定。</p></div><span class="route-code">${base}/${validTab}</span></div>${tabs(teamTabs, validTab, base)}${body}<p class="footer-note">样例数据 / 只读原型。不会提交团队、成员或项目关联修改。</p>`;
+      }
+      function users() {
+        return `${pageHead('用户', '用户管理', '用户管理为只读原型：列表和按钮用于表达权限与流程，不会写入用户、团队关联或 API Key。', '#/users')}
+          <section class="panel"><div class="section-head"><h2>用户目录</h2>${link('#/users/create', '创建用户流程', 'row-link')}</div><div class="button-row">${link('#/users/create', '创建用户（原型流程）', 'prototype-button primary')} ${button('编辑用户（原型 / 只读）', true)} ${button('停用用户（原型 / 只读）', true)} ${button('删除用户（原型 / 只读）', true)}</div><div class="table-wrap"><table><thead><tr><th>用户</th><th>状态</th><th>团队关联</th><th>用户自有资源</th><th>API Key</th><th>操作状态</th></tr></thead><tbody><tr><td>Lin<span class="cell-meta">u-lin</span></td><td>${badge('已启用', 'blue')}</td><td>${link('#/team/team-db/members', '数据库平台组')}</td><td>唯一 User 作用域：Memory / Wiki / 代码 / 技能 / 模板；Memory 私有</td><td>仅显示已生成状态，不显示内容</td><td>原型 / 只读</td></tr><tr><td>Chen<span class="cell-meta">u-chen</span></td><td>${badge('已启用')}</td><td>可后续关联团队</td><td>唯一 User 作用域；与 Team / Project 资源隔离</td><td>仅显示已生成状态，不显示内容</td><td>原型 / 只读</td></tr></tbody></table></div></section><div class="notice"><strong>资源与 API Key 安全规则：</strong>User、Team、Project 各自拥有唯一资源作用域；Memory 永不公开。生成后 API Key 仅显示一次，用户必须立即安全复制与保存；本原型绝不展示任何真实或样例 Key，也不支持回显。</div>`;
+      }
+      function userCreate() {
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/users', label: '用户' }, { label: '创建用户' }])}<div class="page-head"><div><div class="eyebrow">USER · CREATE</div><h1>创建用户</h1><p class="subhead">团队关联为可选项：可在创建时指定，也可稍后由团队所有者添加。此表单为不可提交的流程样例。</p></div><span class="route-code">#/users/create</span></div><section class="panel panel-pad"><h2>创建信息（原型 / 只读）</h2><div class="form-grid"><div class="field"><label for="user-name">显示名称</label><input id="user-name" value="" placeholder="例如：张三" disabled></div><div class="field"><label for="user-id">用户标识</label><input id="user-id" value="" placeholder="例如：u-zhangsan" disabled></div><div class="field full"><label for="initial-team">初始团队关联（可选）</label><select id="initial-team" disabled><option>不关联团队（可后续添加）</option><option>数据库平台组</option></select></div></div><div class="button-row">${button('创建并仅显示一次 API Key（原型 / 只读）', true, 'primary')}</div></section><section class="notice"><strong>一次性密钥提示：</strong>真实流程在创建成功后只显示 API Key 一次，必须立即复制到受保护位置。离开该步骤后无法再次查看；本原型不生成、不展示任何密钥。新用户的 User 作用域资源（Memory / Wiki / 代码 / 技能 / 模板）与后续 Team / Project 资源始终隔离。</section>`;
+      }
+      function modelConfig() {
+        return `${pageHead('模型配置', '模型配置', '公共模型配置管理视图仅展示 Provider 与模型元数据；认证信息、令牌和 Secret 从不在此页出现。', '#/model-config')}
+          <section class="panel"><div class="section-head"><h2>公共模型配置</h2><span class="muted">只读样例</span></div><div class="button-row">${button('新增模型配置（原型 / 只读）', true, 'primary')} ${button('编辑配置（原型 / 只读）', true)}</div><div class="table-wrap"><table><thead><tr><th>配置</th><th>Provider</th><th>模型</th><th>适用范围</th><th>认证信息</th><th>状态</th></tr></thead><tbody><tr><td><code>default-reasoning</code></td><td>OpenAI 兼容接口</td><td><code>reasoning-large</code></td><td>公共默认</td><td>仅 Vault 引用 / 不显示 Secret</td><td>${badge('已启用', 'blue')}</td></tr><tr><td><code>retrieval-fast</code></td><td>内部推理服务</td><td><code>retrieval-small</code></td><td>Retriever</td><td>仅 Vault 引用 / 不显示 Secret</td><td>${badge('已启用')}</td></tr></tbody></table></div></section><div class="notice"><strong>安全边界：</strong>Provider、模型名称和非敏感参数可以管理；任何 API Key、Token、Endpoint 凭据等 Secret 仅作为 Vault 引用处理，永不展示或回显。</div>`;
+      }
+      function ingestion() {
+        return `${pageHead('内容接入与分流', '内容接入与分流', '覆盖内容导入、分流与目标确认：先确认唯一 Owner 作用域（User、Team 或 Project），再由该作用域的获授权成员分类。Memory 从不作为公共接入目标；本原型不提交写入。', '#/ingestion/triage')}<section class="panel"><div class="section-head"><h2>待分流队列</h2><span class="muted">6 条样例 · 只读</span></div><div class="callout">当前上下文：Team <code>team-db</code>。仅可分流到 team-db 自有资源或其拥有项目的明确作用域；不可跨 Owner 写入。公开 Wiki / 技能 / 模板目录仅作可选引用，不能成为私有资源的落点。</div><div class="table-wrap"><table><thead><tr><th>内容</th><th>目标 Owner / 作用域</th><th>资源类型</th><th>状态</th><th>建议</th></tr></thead><tbody><tr><td>index-gc-notes.md</td><td>Project ${link('#/project/p-db/overview', 'p-db')}</td><td>项目 Wiki（私有）</td><td>${badge('待确认')}</td><td>需 p-db Wiki <code>create</code> 权限；不写入公共目录</td></tr><tr><td>trace-r83.json</td><td>Project ${link('#/project/p-db/overview', 'p-db')}</td><td>项目 Memory 引用（私有）</td><td>${badge('已标注')}</td><td>关联 t-104 运行证据；Memory 永不公开</td></tr><tr><td>team-runbook-template.md</td><td>Team ${link('#/team/team-db/overview', 'team-db')}</td><td>Team 模板（私有）</td><td>${badge('待确认')}</td><td>仅 team-db 获授权成员可纳入；平台模板目录仅可引用</td></tr></tbody></table></div></section>`;
+      }
+      function changes() {
+        return `${pageHead('内容变更与发布', '内容变更与发布', '覆盖 ChangeSet 的创建、审阅与发布：变更必须注明唯一资源 Owner 与作用域，只允许获授权成员在自己的 User、Team 或 Project 资源中提出和审阅。离线原型不提交写入。', '#/changes')}<section class="panel"><div class="section-head"><h2>ChangeSet 审阅与发布</h2><span class="muted">只读样例</span></div><div class="callout">当前 Team 上下文：team-db。ChangeSet 不会因团队成员身份跨 Owner 生效；私有 Memory 永不公开，也不得作为公共变更附件。</div><div class="table-wrap"><table><thead><tr><th>ChangeSet</th><th>资源 Owner / 作用域</th><th>资源类型</th><th>状态</th><th>审阅边界</th></tr></thead><tbody><tr><td>${link('#/changes/review/cs-28', 'CS-28 · 调整索引检索策略', 'row-link')}</td><td>Project ${link('#/project/p-db/overview', 'p-db')}</td><td>项目代码 / Policy</td><td>${badge('待审阅', 'live')}</td><td>仅 p-db 获授权审阅者；不改变 Team / User 资源</td></tr><tr><td>CS-31 · 更新团队值班模板</td><td>Team ${link('#/team/team-db/overview', 'team-db')}</td><td>Team 模板</td><td>${badge('草稿')}</td><td>仅 team-db 模板权限；平台公开模板不受影响</td></tr></tbody></table></div></section>`;
+      }
+      function changeReview() {
+        return `${breadcrumb([{ route: '#/home', label: '主页' }, { route: '#/changes', label: '内容变更与发布' }, { label: 'CS-28' }])}<div class="page-head"><div><div class="eyebrow">CHANGE SET · CS-28</div><h1>调整索引检索策略</h1><p class="subhead">Project p-db 作用域的 ChangeSet 审阅与发布样例；本页不提供提交或写入操作。</p></div><span class="route-code">#/changes/review/cs-28</span></div><section class="panel panel-pad"><h2>影响边界</h2><div class="callout">资源 Owner：Project <code>p-db</code>。本变更仅适用于 p-db 自有代码 / Policy；不修改 User、Team 或其他 Project 资源，且不携带 Memory 内容。</div><div class="map-columns"><div class="map-col"><h3>关联不变</h3><ul><li>Agent-Team / Agent-Project 不改动</li><li>use / view 语义不变</li><li>Memory 永不公开</li></ul></div><div class="map-col"><h3>策略变更</h3><ul><li>index-readonly 候选修订</li><li>需 p-db 获授权审阅者</li><li>不跨资源 Owner 生效</li></ul></div><div class="map-col"><h3>运行影响</h3><ul><li>RunGate 继续逐次核验</li><li>Resource ACL 保持收窄</li><li>仅 p-db 作用域</li></ul></div></div></section>`;
+      }
+      function placeholder(label, route) {
+        const descriptions = {
+          '记忆空间': 'Memory 仅属于 User、Team 或 Project 的唯一私有作用域，永不公开。此入口应按当前获授权 Owner 过滤，不会作为公共目录展示。',
+          'Wiki': 'Wiki 可属于 User、Team 或 Project 的唯一作用域；另有平台-owned 的可选公共 Wiki 目录。公共目录不改变私有 Wiki 的所有权与权限。',
+          '代码': '代码仅属于 User、Team 或 Project 的唯一作用域；此入口应按 Owner 和资源 ACL 过滤，不提供公共代码空间。',
+          '技能': '技能可属于 User、Team 或 Project 的唯一作用域；平台-owned 公共技能目录仅供可选引用，不转移私有技能所有权。',
+          '模板与流程库': '模板与流程库包含智能体模板与流程模板；它们可属于 User、Team 或 Project 的唯一作用域，平台-owned 公共目录仅供可选引用，不转移私有模板与流程的所有权。'
+        };
+        const description = descriptions[label] || '此日常运营入口在离线原型中保留为可导航的样例上下文。';
+        return `${pageHead('工作台', label, description, route)}<section class="panel panel-pad placeholder"><h2>${label}样例视图</h2><p class="muted">${description}</p><p>${link('#/home', '返回主页', 'row-link')}</p></section>`;
+      }
+      function render() {
+        const route = location.hash || defaultRoute;
+        let html;
+        if (route === '#/home') html = home();
+        else if (route === '#/projects') html = projects();
+        else if (route === '#/teams') html = teams();
+        else if (/^#\/project\/p-db(?:\/(overview|tasks|agents|members|access))?$/.test(route)) html = project(route.match(/^#\/project\/p-db(?:\/(overview|tasks|agents|members|access))?$/));
+        else if (/^#\/project\/(p-observability|p-gateway)\/overview$/.test(route)) html = placeholder('项目概览', route);
+        else if (route === '#/tasks') html = tasks();
+        else if (/^#\/task\/t-104(?:\/(overview|runs|run\/[^/]+))?$/.test(route)) html = task(route.match(/^#\/task\/t-104(?:\/(overview|runs|run\/[^/]+))?$/));
+        else if (/^#\/task\/t-107\/overview$/.test(route)) html = placeholder('任务概览', route);
+        else if (route === '#/agents') html = agents();
+        else if (/^#\/agent\/a-retriever(?:\/(overview|system-prompt|runtime-parameters|tools|skills|hooks|memory|resources|vault|scheduled-tasks))?$/.test(route)) html = agent(route.match(/^#\/agent\/a-retriever(?:\/(overview|system-prompt|runtime-parameters|tools|skills|hooks|memory|resources|vault|scheduled-tasks))?$/));
+        else if (route === '#/users') html = users();
+        else if (route === '#/users/create') html = userCreate();
+        else if (route === '#/model-config') html = modelConfig();
+        else if (route === '#/memory/browse/spaces') html = placeholder('记忆空间', route);
+        else if (route === '#/ingestion/triage') html = ingestion();
+        else if (route === '#/changes') html = changes();
+        else if (route === '#/changes/review/cs-28') html = changeReview();
+        else if (/^#\/team\/team-db(?:\/(overview|agents|tasks|members|projects|permissions))?$/.test(route)) html = team(route.match(/^#\/team\/team-db(?:\/(overview|agents|tasks|members|projects|permissions))?$/));
+        else if (['#/wiki', '#/code', '#/skills', '#/templates'].includes(route)) html = placeholder(navRoutes[route], route);
+        else html = `${pageHead('未找到', '未找到该页面', '此离线原型未定义该路由。请从日常导航返回已定义的页面。', route)}<section class="panel empty">${link('#/home', '返回主页', 'row-link')}</section>`;
+        app.innerHTML = html;
+        document.querySelectorAll('.nav-link').forEach((node) => {
+          const navRoute = node.dataset.route;
+          const active = route === navRoute || (navRoute === '#/projects' && route.startsWith('#/project/')) || (navRoute === '#/teams' && route.startsWith('#/team/')) || (navRoute === '#/tasks' && route.startsWith('#/task/')) || (navRoute === '#/agents' && route.startsWith('#/agent/')) || (navRoute === '#/changes' && route.startsWith('#/changes/')) || (navRoute === '#/users' && route.startsWith('#/users'));
+          node.classList.toggle('active', active);
+        });
+        app.focus({ preventScroll: true });
+      }
+      function updateTheme() {
+        const dark = document.documentElement.classList.contains('dark');
+        themeToggle.textContent = dark ? '浅色' : '深色';
+        themeToggle.setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
+      }
+      const savedTheme = localStorage.getItem('tdam-theme');
+      if (savedTheme === 'dark' || (!savedTheme && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+      updateTheme();
+      themeToggle.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem('tdam-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        updateTheme();
+      });
+      window.addEventListener('hashchange', render);
+      if (!location.hash) location.hash = defaultRoute;
+      else render();
+    })();
+  </script>
+</body>
+</html>

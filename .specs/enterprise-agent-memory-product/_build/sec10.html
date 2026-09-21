@@ -1,0 +1,110 @@
+  <!-- ============================ §10 ============================ -->
+  <section class="doc-sec" id="s10">
+    <h2>10 · 附录</h2>
+    <p class="lead">本章收录不适合放在正文的支撑材料：状态枚举、口径冲突清单、验证基线与维护约定。</p>
+
+    <h3 id="s10-1">10.1 状态与枚举（候选口径，非最终 Schema）</h3>
+    <p class="small muted">以下取值来自议题讨论的阶段性结论。<b>它们是产品语义，不是已冻结的后端枚举</b>；实现前需要由架构 change 重新确认并补充约束。</p>
+    <div class="tbl-wrap">
+      <table class="tbl compact">
+        <thead><tr><th style="width:14%">领域</th><th style="width:40%">正向状态</th><th style="width:26%">不确定 / 阻断状态</th><th>页面必须同时显示</th></tr></thead>
+        <tbody>
+          <tr><td>Triage<br><span class="tiny muted">分诊</span></td><td class="mono">staged / assigned</td><td class="mono">low-confidence / conflict / denied</td><td>理由、候选目标、写权限</td></tr>
+          <tr><td>Knowledge<br><span class="tiny muted">知识</span></td><td class="mono">candidate / reviewed / published</td><td class="mono">stale / withdrawn / superseded</td><td>来源、revision、Owner</td></tr>
+          <tr><td>ChangeSet</td><td class="mono">candidate → staged → changeset → review → published</td><td class="mono">rejected / superseded</td><td>差异、目标 scope、审核人</td></tr>
+          <tr><td>RunGate</td><td class="mono">approved / executing / verified</td><td class="mono">blocked / expired / revoked / unknown</td><td>当前策略、门槛、责任人</td></tr>
+          <tr><td>Copy<br><span class="tiny muted">副本处置</span></td><td class="mono">requested / executed / verified</td><td class="mono">partial / retained / unknown / stale</td><td>副本范围、证据时间、下一门槛</td></tr>
+          <tr><td>Delivery<br><span class="tiny muted">投递</span></td><td class="mono">accepted / delivered / acknowledged</td><td class="mono">failed / delivery_unknown / revoked</td><td>渠道、接收者、版本</td></tr>
+          <tr><td>Report<br><span class="tiny muted">报告</span></td><td class="mono">draft / approved / superseded</td><td class="mono">restricted / stale / revoked</td><td>事实 / 判断分离、投影范围、依据</td></tr>
+          <tr><td>Work Thread</td><td class="mono">active / handed-over / closed</td><td class="mono">contested / unknown-owner</td><td>Owner、Active Executor、参与者</td></tr>
+          <tr><td>Run</td><td class="mono">running / completed / verified</td><td class="mono">failed / cancelled / unknown-effect</td><td>Harness、Agent、ContextManifest、External Effect</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <p class="small" style="margin:0"><span class="chip warn">暂缓</span> 各类状态的自动判定阈值、置信度公式、超时与重试参数、SLA 与抽样率均未冻结；在缺少真实拓扑与责任人的情况下不自动固化。</p>
+    </div>
+
+    <h3 id="s10-2">10.2 口径冲突与待确认清单</h3>
+    <p>本文档在编写过程中发现以下尚未收敛的口径。它们被如实保留，不做单方面裁决。</p>
+    <div class="tbl-wrap">
+      <table class="tbl compact">
+        <thead><tr><th style="width:20%">条目</th><th style="width:32%">口径 A</th><th style="width:32%">口径 B</th><th>处理</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Team ↔ Project 基数</td>
+            <td><span class="mono">final-v1/DOMAIN-MODEL.md</span> 与 <span class="mono">CONCEPTS.md</span>：每个 Project 必须且仅有一个 owning Team（1:N 归属）</td>
+            <td><span class="mono">redesign-v3/DOMAIN-MODEL-AND-IA.md</span>：Team 与 Project 独立多对多协作关联，关联不授予项目权限</td>
+            <td><span class="chip warn">待确认</span> 本文档按 1:N 描述；实现前由架构 change 裁决</td>
+          </tr>
+          <tr>
+            <td>Run / Attempt 的嵌套层级</td>
+            <td>议题 6 深化稿出现 WorkThread / Run / Attempt 三层</td>
+            <td>本 change 的 <span class="mono">CONCEPTS.md</span> 只定义 Task / Run 两层</td>
+            <td><span class="chip warn">待确认</span> 第 5、6 章按 Task → Run 两层描述</td>
+          </tr>
+          <tr>
+            <td>ChangeSet 的适用范围</td>
+            <td>议题 5 把它当作知识发布对象</td>
+            <td>议题 6 的文本中未把它作为知识对象出现</td>
+            <td><span class="chip warn">待确认</span> 本文档按「内容变更的唯一审核对象」使用</td>
+          </tr>
+          <tr>
+            <td>接口契约</td>
+            <td>第 3.5 节列出的端点用于说明产品边界</td>
+            <td>本 change 明确不实现真实 API</td>
+            <td><span class="chip warn">待确认</span> 全部端点标注为候选契约</td>
+          </tr>
+          <tr>
+            <td>最终 Schema / 阈值 / SLA</td>
+            <td>议题讨论给出了语义方向</td>
+            <td>缺少真实拓扑、责任人与法务决定</td>
+            <td><span class="chip">暂缓</span> 不冻结，见 §10.1 说明</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="s10-3">10.3 验证基线与自检</h3>
+    <table class="tbl compact">
+      <thead><tr><th style="width:30%">检查项</th><th style="width:16%">方式</th><th>期望结果</th></tr></thead>
+      <tbody>
+        <tr><td>零外部依赖</td><td class="mono">grep -c 'http'</td><td>0 —— 无 CDN、无外链字体 / 图片 / 脚本 / 样式</td></tr>
+        <tr><td>九段齐全，无 TODO 占位</td><td>人工 + <span class="mono">grep</span></td><td>§0–§10 全部有实质内容，无「待补充 / TODO / lorem」</td></tr>
+        <tr><td>目录锚点可用</td><td>浏览器点击</td><td>左侧目录每一项都能定位到对应小节，滚动时高亮跟随</td></tr>
+        <tr><td>权限矩阵一致性</td><td>人工对照</td><td>§7.1 与 §5.0 的角色可见性逐行一致</td></tr>
+        <tr><td>术语表覆盖</td><td>人工对照</td><td>§8 覆盖正文中全部加粗术语</td></tr>
+        <tr><td>原型页面覆盖使用指南</td><td>人工对照</td><td>§5 的每个模块在 §6 都有对应屏或明确说明归属</td></tr>
+        <tr><td>原型为只读</td><td>点击检查</td><td>高风险按钮不执行任何删除 / 通知 / 迁移 / Run</td></tr>
+        <tr><td>暗色主题与响应式</td><td>顶栏切换 + 缩窄窗口</td><td>纯黑暗色可切换；窄屏侧栏变横向导航、内容单列、表格局部横滚</td></tr>
+        <tr><td>键盘可达</td><td>Tab / 方向键 / Esc</td><td>焦点可见；页签支持左右方向键切换</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s10-4">10.4 相关文档</h3>
+    <table class="tbl compact">
+      <thead><tr><th style="width:46%">路径</th><th>作用</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/CHANGE.md</td><td>本次变更的目标、产物与非目标</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/REQUIREMENT.md</td><td>用户故事与 AC-1 ~ AC-8（本文档的下游抽取来源）</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/DESIGN.md</td><td>技术栈选定、决策清单、状态机与风险</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/CONCEPTS.md</td><td>规范概念模型、角色、不变量、端到端流程、状态矩阵</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/ARCHITECTURE.md</td><td>分层架构、权限 / 执行判定、清理闭包、事件边界</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/UI-DESIGN.md</td><td>Design tokens、组件规约、文案调性与反 AI-slop 自检</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-product/VALIDATION.md</td><td>原型验证记录与已知边界</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-platform/README.md</td><td>权威议题 01–10 与跨议题能力骨架</td></tr>
+        <tr><td class="mono">.specs/enterprise-agent-memory-platform/01–10-*.md</td><td>十项权威议题的完整讨论与阶段性结论</td></tr>
+        <tr><td class="mono">.specs/final-v1/DOMAIN-MODEL.md</td><td>对象、关系、归属与权限推导（只读参考）</td></tr>
+        <tr><td class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</td><td>信息架构收敛稿（只读参考）</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s10-5">10.5 维护约定</h3>
+    <ul>
+      <li><b>这是活文档。</b>后续任何 CHANGE 只要触及产品行为或界面，必须同步更新本文档对应章节；对齐检查会核对本文档与代码 / 需求的一致性。</li>
+      <li><b>tokens 单一来源。</b>本文档 <span class="mono">:root</span> 的 CSS 变量与 <span class="mono">UI-DESIGN.md</span> 同源；任何一侧变更都要同步另一侧。</li>
+      <li><b>§5 与 §6 联动。</b>新增或调整模块时，使用指南与界面原型必须一起改；§5.0 与 §7 的角色可见性必须同时更新。</li>
+      <li><b>不冻结未决实现。</b>涉及 Schema、阈值、算法、SLA、责任矩阵、合同与法域模板的内容，一律保留「待确认 / 暂缓」标记，直到有真实输入。</li>
+      <li><b>禁止宣称为最终结论。</b>本文档是产品设计文档，不是法律、合规或工程实现结论。</li>
+    </ul>
+  </section>

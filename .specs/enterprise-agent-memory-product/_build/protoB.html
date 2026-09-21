@@ -1,0 +1,622 @@
+<h3 id="p5">6.5 运行详情</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>本屏回答「这一次 Run 到底做了什么、拿到了哪些上下文、有没有未对账的外部副作用」；RunGate 就近显示，高风险动作默认 blocked，页面只给阻断原因、下一门槛与责任角色，不提供一键执行。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/task/t-104/run/r-83</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a class="active" href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">项目 / <b>DB-Proxy 可靠性</b> / 任务与运行 / <b>t-104</b> / Run r-83</span><span class="right"><span class="chip">member · 林工（lin.gong）</span><span class="chip mono">trace 7f3c…a91d</span></span></div>
+      <div class="app-body">
+        <div class="tabs" data-tabs role="tablist">
+          <button data-tab="r83" role="tab" aria-selected="true">Run r-83（verified）</button>
+          <button data-tab="r81" role="tab" aria-selected="false">Run r-81（失败 · 结果 unknown）</button>
+        </div>
+        <div class="tabpanel" data-panel="r83" role="tabpanel">
+          <div class="grid">
+            <div class="panel">
+              <p class="panel-title">Run r-83 · 执行概要</p>
+              <div class="split">
+                <dl class="kv">
+                  <dt>Task</dt><dd><span class="chip mono">t-104</span> <span class="chip">进行中</span></dd>
+                  <dt>Run</dt><dd class="mono">r-83 · 不可改写执行尝试</dd>
+                  <dt>Harness</dt><dd class="mono">Claude Code</dd>
+                  <dt>Agent</dt><dd class="mono">a-coder</dd>
+                  <dt>责任链</dt><dd class="mono">initiated_by=林工（lin.gong）→ delegated_to=a-coder → executed_by=Claude Code</dd>
+                  <dt>审批 / 验证</dt><dd><span class="chip warn">审批未覆盖当前 revision</span> <span class="chip ok">verified</span></dd>
+                </dl>
+                <dl class="kv">
+                  <dt>ContextBinding</dt><dd class="mono">primaryProjectId=p-db · referenceProjectIds=[p-gw]（只读）· writeTargetSpaceId=ms-proj-db</dd>
+                  <dt>代码锚点</dt><dd class="mono">repo:p-db-proxy · branch=main · revision 9f3c7a9</dd>
+                  <dt>验证范围</dt><dd class="mono">env:staging · 2026-09-21 14:32</dd>
+                  <dt>证据</dt><dd class="mono">ev-7781 · ev-7782</dd>
+                  <dt>审计</dt><dd class="mono">au-8301 … au-8305</dd>
+                </dl>
+              </div>
+              <p class="tiny muted">Run succeeded ≠ Task accepted：本 Run 的 verified 只覆盖声明环境与交付物范围；Task t-104 仍需按验收标准由责任角色确认，交付物 acceptance_status=pending，代码场景 cs-2201 不因 Run 成功自动关闭。</p>
+            </div>
+            <div class="callout warn">
+              <h5>RunGate：blocked（1 项）· 就近显示，不提供一键执行</h5>
+              <p class="small">阻断对象：<span class="mono">tc-83-07 apply:prod-config</span>（风险 R3，不可逆，目标 <span class="mono">env:prod</span>）。</p>
+              <p class="small">阻断原因：原审批绑定 <span class="mono">target_revision=9f3c7a2</span>，当前目标已推进到 <span class="mono">9f3c7a9</span>，且审批范围仅覆盖 <span class="mono">env=staging</span>；关键变化使原审批失效 → <span class="mono">RunGate=blocked</span>。</p>
+              <p class="small">下一门槛：资源 Owner 确认变更范围 → 基于新 revision 重新生成 Run Plan → 独立变更审批（R3 要求 proposer / approver / executor 分离）→ RunGate 重检。</p>
+              <p class="small">责任角色：<span class="mono">project-admin</span>（p-db 资源 Owner）· <span class="mono">governance</span>（独立审批）· <span class="mono">agent-admin</span>（不得绕过 RunGate）。</p>
+            </div>
+            <table class="tbl compact">
+              <thead><tr><th>时间</th><th>Tool Call</th><th>目标 / 资源</th><th>风险</th><th>状态</th><th>证据</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">14:02</td><td class="mono">read:config</td><td class="mono tiny">repo:p-db-proxy@9f3c7a9 · internal/pool/pool.go</td><td class="mono">R0</td><td><span class="chip ok">completed</span></td><td class="mono">ev-7781</td></tr>
+                <tr><td class="mono">14:05</td><td class="mono">query:metrics</td><td class="mono tiny">pool_wait_ms · env:staging</td><td class="mono">R0</td><td><span class="chip ok">completed</span></td><td class="mono">ev-7781</td></tr>
+                <tr><td class="mono">14:11</td><td class="mono">run:tests</td><td class="mono tiny">./internal/pool/... · env:staging</td><td class="mono">R0</td><td><span class="chip ok">completed</span></td><td class="mono">ev-7782</td></tr>
+                <tr><td class="mono">14:18</td><td class="mono">patch:candidate</td><td class="mono tiny">pool_max_conn 200 → 400 · 声明性 diff，未提交</td><td class="mono">R1</td><td><span class="chip warn">side_effect_committed</span></td><td class="mono">ev-7782</td></tr>
+                <tr><td class="mono">14:24</td><td class="mono">apply:staging-config</td><td class="mono tiny">env:staging</td><td class="mono">R1</td><td><span class="chip ok">completed</span></td><td class="mono">ev-7782</td></tr>
+                <tr><td class="mono">14:29</td><td class="mono">apply:prod-config</td><td class="mono tiny">env:prod</td><td class="mono">R3</td><td><span class="chip danger">blocked（RunGate）</span></td><td class="mono">ev-7782</td></tr>
+                <tr><td class="mono">14:32</td><td class="mono">verify:p99</td><td class="mono tiny">pool_wait_ms · env:staging</td><td class="mono">R0</td><td><span class="chip ok">completed</span></td><td class="mono">ev-7782</td></tr>
+              </tbody>
+            </table>
+            <p class="tiny muted">工具调用时间线按 Attempt 记录：<span class="mono">completed</span> 只表示该次调用在声明范围内收口，<span class="mono">side_effect_committed</span> 只表示工作区变更已落盘，<span class="mono">blocked</span> 是被门禁拦下的调用，与失败的 Run 不是同一回事。</p>
+            <table class="tbl compact">
+              <thead><tr><th>证据</th><th>类型</th><th>范围</th><th>证据时间</th><th>责任边界</th><th>下一门槛</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">ev-7781</td><td>指标 / 日志</td><td class="mono tiny">p-db 全量 · p-gw 仅只读引用</td><td class="mono">2026-09-21 14:02–14:05</td><td>Provider 只对声明范围内副本负责，不覆盖未探测副本</td><td>纳入上下文需按当前 Purpose 重新解析</td></tr>
+                <tr><td class="mono">ev-7782</td><td>工具结果 / 测试 / diff</td><td class="mono tiny">p-db · env:staging · revision 9f3c7a9</td><td class="mono">2026-09-21 14:11–14:32</td><td>只证明声明环境内的结果，不外推到生产</td><td>生产变更需独立审批与 RunGate 重检</td></tr>
+              </tbody>
+            </table>
+            <div>
+              <p class="h2p">实际生效上下文（effective）</p>
+              <div class="grid g3">
+                <div class="panel"><div class="metric-label">accessible 可用候选</div><div class="metric">9</div><span class="tiny muted">当前主体有权发现的候选</span></div>
+                <div class="panel"><div class="metric-label">mounted 默认装配</div><div class="metric">6</div><span class="tiny muted">Agent 配置的默认装配集合</span></div>
+                <div class="panel"><div class="metric-label">effective 本次生效</div><div class="metric">5</div><span class="tiny muted">本 Run 实际解析出的不可变集合</span></div>
+              </div>
+              <p class="tiny muted">accessible（有资格使用）≠ mounted（默认装配）≠ effective（本次 Run 实际生效），三者不可互换；Agent 的 mounted 资源不等于 Run 的 effective 资源。计数只覆盖当前主体有权发现的候选：无权读取的资源不返回名称、路径与数量，也不参与计数。</p>
+            </div>
+            <table class="tbl compact">
+              <thead><tr><th>资源</th><th>类型 / 层级</th><th>归属空间</th><th>纳入原因</th><th>授权上下文</th><th>敏感性 / 脱敏</th><th>策略版本</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">m-9031</td><td>L1 原子记忆</td><td class="mono">ms-proj-db</td><td>当前 Task 局部约束（连接池上限 200）</td><td class="mono tiny">purpose=diagnose · principal=lin.gong</td><td>内部信息 · 无字段裁剪</td><td class="mono">pol-2026.09.3</td></tr>
+                <tr><td class="mono">m-9044</td><td>L2 场景记忆</td><td class="mono">ms-proj-db</td><td>与代码场景 cs-2201 的代码锚点匹配</td><td class="mono tiny">purpose=diagnose · action=use</td><td>内部信息</td><td class="mono">pol-2026.09.3</td></tr>
+                <tr><td class="mono">k-ctx-dbproxy</td><td>Code Context v11</td><td class="mono">p-db</td><td>绑定 revision 9f3c7a9</td><td class="mono tiny">purpose=diagnose · 只读</td><td>内部信息</td><td class="mono">pol-2026.09.3</td></tr>
+                <tr><td class="mono">k-rca-2201</td><td>RCA v2</td><td class="mono">ms-team-pay</td><td>复发信号匹配（跨空间受控引用）</td><td class="mono tiny">purpose=diagnose · action=reference</td><td>内部信息 · 部分字段裁剪</td><td class="mono">pol-2026.09.3</td></tr>
+                <tr><td class="mono">vault-ref:db-proxy/staging-rw</td><td>凭据引用（非秘密）</td><td class="mono">ms-proj-db</td><td>staging 连接所需</td><td class="mono tiny">scope=staging-rw · 指纹 sha256:4a91c2e · 轮换状态 active</td><td>只显示引用、指纹、scope、轮换状态；不回显秘密</td><td class="mono">pol-2026.09.3</td></tr>
+              </tbody>
+            </table>
+            <div class="panel">
+              <p class="panel-title">输出、验证与 External Effect</p>
+              <div class="split">
+                <dl class="kv">
+                  <dt>交付物</dt><dd class="mono">patch sha256:2c77f10（候选 diff，未合并）· runbook 草案</dd>
+                  <dt>验证</dt><dd><span class="chip ok">staging verified</span> <span class="chip warn">生产 not_attempted</span></dd>
+                  <dt>残余风险</dt><dd>接入层重试预算未随上限调整压测；已记录，未接受</dd>
+                </dl>
+                <dl class="kv">
+                  <dt>审批</dt><dd><span class="chip danger">已失效</span>（revision 推进 + 环境超出审批范围）</dd>
+                  <dt>Execution 状态</dt><dd><span class="chip warn">partially_executed</span>（1 项被阻断，其余收口）</dd>
+                </dl>
+              </div>
+              <table class="tbl compact">
+                <thead><tr><th>目标</th><th>动作</th><th>requested</th><th>executed</th><th>verified</th><th>备注</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">env:staging</td><td>连接池上限 200 → 400</td><td class="mono">2026-09-21 14:24</td><td class="mono">2026-09-21 14:25</td><td class="mono">2026-09-21 14:32</td><td>仅覆盖声明范围，证据 ev-7782</td></tr>
+                  <tr><td class="mono">env:prod</td><td>连接池上限 200 → 400</td><td class="mono">2026-09-21 14:29</td><td><span class="chip danger">未执行</span></td><td><span class="chip">未验证</span></td><td>RunGate=blocked，未产生任何副作用</td></tr>
+                  <tr><td class="mono">repo:p-db-proxy</td><td>工作区变更（候选 diff）</td><td class="mono">2026-09-21 14:18</td><td><span class="chip warn">已写入本地工作区</span></td><td><span class="chip">未验证（未提交、未合并）</span></td><td>可逆；不等于代码变更已完成</td></tr>
+                  <tr><td class="mono">provider:备份副本</td><td>无请求</td><td><span class="chip">无</span></td><td><span class="chip">—</span></td><td><span class="chip">—</span></td><td>unknown ≠ zero：本 Run 不涉及外部副本，但「未操作」不表示副本不存在</td></tr>
+                </tbody>
+              </table>
+              <p class="tiny muted">requested ≠ executed ≠ verified：同一动作的三列必须分别读取，「已经请求」不能报成「已经执行」，「已经执行」不能报成「已经验证」。</p>
+            </div>
+            <table class="tbl compact">
+              <thead><tr><th>审计类别</th><th>记录</th><th>关键字段</th><th>状态</th><th>时间</th></tr></thead>
+              <tbody>
+                <tr><td>Decision Audit</td><td class="mono">au-8301</td><td class="mono tiny">purpose=diagnose · policy_version=pol-2026.09.3 · decision=allow（读）/ deny（prod 写入）</td><td><span class="chip ok">captured</span></td><td class="mono">2026-09-21 14:00</td></tr>
+                <tr><td>Execution Audit</td><td class="mono">au-8302</td><td class="mono tiny">计划 vs 实际：7 次调用，1 次被 RunGate 阻断</td><td><span class="chip ok">captured</span></td><td class="mono">2026-09-21 14:33</td></tr>
+                <tr><td>Impact Audit</td><td class="mono">au-8303</td><td class="mono tiny">受影响资产 ms-proj-db · cs-2201 · 传播状态 pending</td><td><span class="chip warn">传播未完成</span></td><td class="mono">2026-09-21 14:35</td></tr>
+                <tr><td>Identity / Policy</td><td class="mono">au-8304</td><td class="mono tiny">principal=lin.gong · 委托链 a-coder → Claude Code · credential_ref 指纹 sha256:4a91c2e</td><td><span class="chip ok">captured</span></td><td class="mono">2026-09-21 14:35</td></tr>
+                <tr><td>Lineage / Retention</td><td class="mono">au-8305</td><td class="mono tiny">来源 revision 9f3c7a9 · retention_class=internal · legal_hold=none</td><td><span class="chip ok">captured</span></td><td class="mono">2026-09-21 14:36</td></tr>
+              </tbody>
+            </table>
+            <p class="tiny muted">边界：本页只展示当前主体有权读取的字段；历史 Snapshot 保留事实但不恢复当前权限，发布或检索不授予执行权，页面不提供绕过 RunGate 的入口。</p>
+          </div>
+        </div>
+        <div class="tabpanel" data-panel="r81" role="tabpanel" hidden>
+          <div class="grid">
+            <div class="callout danger">
+              <h5>结果 unknown：既不能当作 0，也不能当作失败已确认</h5>
+              <p class="small">Tool Call <span class="mono">tc-81-04 apply:test-db</span> 在 <span class="mono">side_effect_committed</span> 之后超时，未收到结果回执 → <span class="mono">unknown_outcome</span>。外部状态对账完成前：不重复提交、不声称回滚成功、不把未知数量写成 0。</p>
+              <p class="small">处置：冻结扩大副作用并对账（结果未知 → 冻结重复动作 + 外部对账）；不盲目杀进程、不回滚数据库、不伪造成功。</p>
+              <p class="small">责任角色：<span class="mono">project-admin</span>（资源 Owner）· <span class="mono">governance</span>（外部对账与独立复核）· <span class="mono">auditor</span>（只读事实，不修改）。</p>
+            </div>
+            <div class="panel">
+              <p class="panel-title">Run r-81 · 失败概要</p>
+              <div class="split">
+                <dl class="kv">
+                  <dt>Task</dt><dd class="mono">t-104（同一 Task 的另一次尝试；重试会创建新 Run）</dd>
+                  <dt>Harness / Agent</dt><dd class="mono">Claude Code / a-coder</dd>
+                  <dt>RunGate</dt><dd><span class="chip danger">hold</span>（等待外部状态对账）</dd>
+                </dl>
+                <dl class="kv">
+                  <dt>执行状态</dt><dd><span class="chip warn">partially_executed</span></dd>
+                  <dt>结果</dt><dd><span class="chip danger">unknown</span></dd>
+                  <dt>外部副本状态</dt><dd><span class="chip danger">unknown</span>（不等于已清理、不等于为 0）</dd>
+                </dl>
+              </div>
+            </div>
+            <table class="tbl compact">
+              <thead><tr><th>对象</th><th>冻结动作</th><th>当前状态</th><th>责任角色</th><th>下一门槛</th><th>证据时间</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">tc-81-04</td><td>冻结重复提交与补偿动作</td><td><span class="chip danger">unknown_outcome</span></td><td class="mono">project-admin</td><td>外部状态对账完成前不得重试</td><td class="mono">2026-09-21 13:41</td></tr>
+                <tr><td class="mono">tc-81-05</td><td>阻断后续工具调用</td><td><span class="chip danger">blocked</span></td><td class="mono">governance</td><td>基于新 revision 重新生成 Run Plan</td><td class="mono">2026-09-21 13:42</td></tr>
+                <tr><td class="mono">run r-81</td><td>暂停扩大副作用</td><td><span class="chip warn">partially_executed</span></td><td class="mono">project-admin</td><td>对账结论 + 独立复核</td><td class="mono">2026-09-21 13:45</td></tr>
+                <tr><td class="mono">ms-proj-db 写入候选</td><td>冻结新写入与再派生</td><td><span class="chip warn">suspended</span></td><td class="mono">knowledge-owner</td><td>对账结论后再分流，不自动落位</td><td class="mono">2026-09-21 13:47</td></tr>
+                <tr><td>索引 / 缓存 / Manifest</td><td>停止传播</td><td><span class="chip warn">pending</span></td><td class="mono">governance</td><td>影响闭包重算并逐一失效</td><td class="mono">2026-09-21 13:50</td></tr>
+                <tr><td>provider 外部副本</td><td>不声称已清除</td><td><span class="chip danger">unknown</span></td><td class="mono">governance</td><td>需要 Provider 回执或外部对账证据</td><td class="mono">2026-09-21 13:50</td></tr>
+              </tbody>
+            </table>
+            <p class="tiny muted">取消请求 ≠ 副作用已停止；回滚请求 ≠ 回滚成功；unknown 结果 ≠ 可安全重试。对账期间该 Run 的证据只作事实记录，不用于扩大权限，也不用于关闭 Task 或代码场景。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<h3 id="p6">6.6 分诊 Triage</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>导入候选只有一条处理链：<span class="mono">Import → Triage → ChangeSet → Review → Publish</span>。本屏演示身份为 Memory/Knowledge Owner；以 member 身份打开时操作区为 denied（只读）。未确认前任何候选都不写入 MemorySpace，也不回退到 Team、最近 Project 或个人空间。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/ingestion/triage</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a class="active" href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">输入与治理 / 导入 / <b>分诊</b></span><span class="right"><span class="chip">knowledge-owner · 林工（lin.gong）</span><span class="chip mono">imp-77</span></span></div>
+      <div class="app-body">
+        <div class="grid">
+          <div class="callout warn">
+            <h5>未确认不得自动写入 Team Memory</h5>
+            <p class="small">硬门禁：候选归属不唯一（<span class="mono">multiple_owner</span>）、置信度低于门槛、含个人标识或跨 Project 边界时，不得自动正式落位，也不得回退到 Team、最近 Project 或个人空间；只能进入人工确认 / 治理队列或隔离。隔离内容不进入普通检索、摘要、Manifest 与自动执行链路。</p>
+          </div>
+          <table class="tbl compact">
+            <thead><tr><th>分诊项</th><th>候选归属</th><th>理由</th><th>置信度</th><th>Purpose</th><th>敏感性</th><th>来源血缘</th><th>可选目标空间</th><th>脱敏预览</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="mono">tri-512</td>
+                <td class="mono tiny">p-db 47% · p-gw 41%</td>
+                <td class="tiny">resource_path_and_revision 指向 p-db；connector_metadata 绑定指向 p-gw（未验证）；无显式授权声明</td>
+                <td class="mono tiny">0.47 / 0.41（low）</td>
+                <td class="mono">diagnose</td>
+                <td>内部信息</td>
+                <td class="mono tiny">imp-77 › msg 118–142 › ev-7781</td>
+                <td class="mono tiny">ms-proj-db（注册写目标）· ms-team-pay（需提升确认）</td>
+                <td class="tiny">host → host-a；连接串参数保留</td>
+              </tr>
+              <tr>
+                <td class="mono">tri-513</td>
+                <td class="mono tiny">ms-user-lin（低置信候选，建议收窄）</td>
+                <td class="tiny">content_semantics 含个人调试偏好；无 Project 绑定；Purpose 未声明</td>
+                <td class="mono tiny">0.58（low）</td>
+                <td class="mono">未声明（待补）</td>
+                <td>个人隐私（含设备标识）</td>
+                <td class="mono tiny">imp-77 › 人工粘贴片段（无工具回执）</td>
+                <td class="mono tiny">ms-user-lin（窄边界）· 不得回退到 Team</td>
+                <td class="tiny">设备标识 → dev-***；人名 → 已移除</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">队列只显示当前主体有权发现的候选；无权项不返回名称、路径与数量。两项均为 <span class="mono">ownership_pending</span>，等待人工确认，不进入任何空间的正式写入。</p>
+          <div class="split">
+            <div class="panel">
+              <p class="panel-title">tri-512 · 归属信号与裁决依据</p>
+              <table class="tbl compact">
+                <thead><tr><th>信号</th><th>取值</th><th>指向</th><th>作用</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono tiny">explicit_user_selection</td><td>无显式授权声明</td><td class="mono">—</td><td>硬边界缺失：不得自动正式落位</td></tr>
+                  <tr><td class="mono tiny">work_thread_owner</td><td class="mono">t-104 / p-db</td><td class="mono">p-db</td><td>事实优先</td></tr>
+                  <tr><td class="mono tiny">resource_path_and_revision</td><td class="mono">repo:p-db-proxy@9f3c7a9</td><td class="mono">p-db</td><td>事实优先</td></tr>
+                  <tr><td class="mono tiny">connector_metadata</td><td>绑定指向 p-gw（unverified）</td><td class="mono">p-gw</td><td>未验证，只作候选</td></tr>
+                  <tr><td class="mono tiny">content_semantics</td><td>连接池与网关指标混合</td><td>双向</td><td>模型信号，仅辅助</td></tr>
+                  <tr><td class="mono tiny">historical_assignment</td><td>无稳定历史关联</td><td class="mono">—</td><td>不足以裁决</td></tr>
+                  <tr><td class="mono tiny">connector_temporal</td><td>late（迟到事件）</td><td class="mono">—</td><td>迟到事件不凭到达顺序覆盖较新有效版本</td></tr>
+                </tbody>
+              </table>
+              <p class="tiny muted">硬边界优先于分数排序；多候选竞争不静默选择，只生成候选并进入审核（自动解决 ≠ 自动发布 ≠ 自动执行）。</p>
+            </div>
+            <div class="panel">
+              <p class="panel-title">tri-512 · 详情与操作</p>
+              <dl class="kv">
+                <dt>归属状态</dt><dd class="mono">ownership_pending（保留窄边界，L0 原始证据不丢失）</dd>
+                <dt>冲突类型</dt><dd class="mono">multiple_owner · connector_binding_unverified</dd>
+                <dt>影响范围</dt><dd>单 Project；若误归 Team 则扩大为跨 Project</dd>
+                <dt>可逆性</dt><dd>高（尚未写入任何空间，可直接驳回）</dd>
+                <dt>执行影响</dt><dd>无（本项不含 Action Proposal）</dd>
+                <dt>目标权限约束</dt><dd class="mono tiny">target_scope ⊆ source_allowed_scope · target_purpose ⊆ source_allowed_purpose</dd>
+                <dt>复核人 / 截止</dt><dd class="mono">knowledge-owner · 2026-09-23 18:00</dd>
+                <dt>下一门槛</dt><dd>人工确认归属 → ChangeSet <span class="mono">cs-4410</span> Review → Publish（approved ≠ published）</dd>
+              </dl>
+              <p class="h2p">操作</p>
+              <div class="flow">
+                <button class="btn primary">确认归属</button>
+                <button class="btn">转人工</button>
+                <button class="btn">隔离</button>
+              </div>
+              <p class="tiny muted">「确认归属」只生成 ChangeSet 候选并进入 Review，不直接写入任何 MemorySpace；「转人工」进入治理队列并保留责任人、时限与升级路径；「隔离」后内容不进入检索、摘要、Manifest 与执行链路。member 身份进入本页时该区域为 denied，不显示可操作按钮。</p>
+            </div>
+          </div>
+          <div class="split">
+            <div class="panel">
+              <p class="panel-title">tri-512 · 脱敏预览</p>
+              <table class="tbl compact">
+                <thead><tr><th>字段</th><th>脱敏前</th><th>输出值</th><th>规则</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono tiny">host</td><td class="mono tiny">db-proxy-01</td><td class="mono tiny">host-a</td><td>主机名泛化，保留环境与角色语义</td></tr>
+                  <tr><td class="mono tiny">conn_ip</td><td class="mono tiny">10.16.28.37</td><td class="mono tiny">10.16.28.0/24</td><td>网段化，保留排障所需网段</td></tr>
+                  <tr><td class="mono tiny">credential</td><td class="mono tiny">（连接串口令）</td><td class="mono tiny">vault-ref:db-proxy/staging-rw · 指纹 sha256:4a91c2e</td><td>引用化：只显示引用、scope 与轮换状态，不回显秘密</td></tr>
+                  <tr><td class="mono tiny">person</td><td class="mono tiny">（真实姓名）</td><td class="mono tiny">（已移除）</td><td>人员标识移除；演示数据只用虚构称呼</td></tr>
+                  <tr><td class="mono tiny">pool_max</td><td class="mono tiny">200</td><td class="mono tiny">200</td><td>保留：业务参数，非敏感</td></tr>
+                  <tr><td class="mono tiny">无权对象</td><td class="mono tiny">（另一条记录的正文）</td><td class="mono tiny">不展示</td><td>拒绝信息不泄露无权对象的名称与数量</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="panel">
+              <p class="panel-title">tri-512 · 六维风险</p>
+              <table class="tbl compact">
+                <thead><tr><th>维度</th><th>评估</th><th>说明</th></tr></thead>
+                <tbody>
+                  <tr><td>影响范围</td><td><span class="chip warn">单 Project</span></td><td>误归属 Team 会扩大为跨 Project 共享</td></tr>
+                  <tr><td>敏感性</td><td><span class="chip ok">内部信息</span></td><td>无凭据、无健康 / 财务 / 身份字段</td></tr>
+                  <tr><td>证据强度</td><td><span class="chip warn">中</span></td><td>observed 1 项 + inferred 1 项，缺显式授权声明</td></tr>
+                  <tr><td>可逆性</td><td><span class="chip ok">高</span></td><td>尚未写入，纠正只需驳回候选</td></tr>
+                  <tr><td>冲突程度</td><td><span class="chip danger">高</span></td><td>owner 竞争 + connector 绑定未验证</td></tr>
+                  <tr><td>执行影响</td><td><span class="chip ok">无</span></td><td>本项不含 Action Proposal，不触发 RunGate</td></tr>
+                </tbody>
+              </table>
+              <p class="tiny muted">任一高风险即升级：六个维度不折算成单一总分，也不允许用模型置信度替代硬门禁。</p>
+            </div>
+          </div>
+          <p class="tiny muted">状态口径：队列与详情分别区分 <span class="mono">loading</span>（首次加载）、<span class="mono">empty</span>（本批次确无候选）、<span class="mono">filtered-empty</span>（筛选后为空）、<span class="mono">partial</span>（血缘证据部分可用）、<span class="mono">denied</span>（当前身份无权）、<span class="mono">error</span>（解析失败）、<span class="mono">offline</span>（Connector 离线）、<span class="mono">stale</span>（策略版本落后）与 <span class="mono">success</span>。本页当前为 partial，member 身份为 denied，不得用一句「暂无数据」覆盖不同原因。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<h3 id="p7">6.7 记忆与空间策略</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>记忆按 MemorySpace 浏览，owner、可见范围与写策略分别读取；「空间与策略」是记忆的管理视图，因此不再单列一级页面。本屏只读演示，写入一律走候选与审核链路。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/memory</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+      <div class="nav-grp">知识与复用</div>
+      <a class="active" href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">知识与复用 / <b>记忆</b></span><span class="right"><span class="chip">member · 林工（lin.gong）</span><span class="chip mono">pol-2026.09.3</span></span></div>
+      <div class="app-body">
+        <div class="callout warn">
+          <h5>不支持 public Memory</h5>
+          <p class="small">长期 MemorySpace 仅允许 <span class="mono">user / team / project / agent</span> 四类 owner，不存在跨 Team 的公共记忆空间；Task / Run / Session 只是来源与工作上下文，不构成第五类长期空间。跨空间只读复用生成受控引用，长期共享生成带 <span class="mono">derived_from</span> 的派生条目，两者都不改变原 owner，只有显式 Transfer 才改变规范 owner。</p>
+        </div>
+        <div class="tabs" data-tabs role="tablist">
+          <button data-tab="items" role="tab" aria-selected="true">记忆条目</button>
+          <button data-tab="spaces" role="tab" aria-selected="false">空间与策略</button>
+        </div>
+        <div class="tabpanel" data-panel="items" role="tabpanel">
+          <div class="grid">
+            <div class="split">
+              <div class="panel">
+                <p class="panel-title">MemorySpace（4 类 owner 并列）</p>
+                <table class="tbl compact">
+                  <thead><tr><th>空间</th><th>owner 类型</th><th>归属</th><th>写策略</th><th>生命周期</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">ms-proj-db</td><td class="mono">project</td><td class="tiny">p-db「DB-Proxy 可靠性」· owning Team 支付平台</td><td class="tiny">仅写入候选（<span class="mono">ownership_pending</span>），Triage 确认后进入 ChangeSet；不得直接写正式记忆</td><td><span class="chip ok">active</span></td></tr>
+                    <tr><td class="mono">ms-team-pay</td><td class="mono">team</td><td class="tiny">team-pay「支付平台」</td><td class="tiny">写入候选 + Team Owner 审核；跨 Project 提升需 Promotion Candidate 与目标接受</td><td><span class="chip ok">active</span></td></tr>
+                    <tr><td class="mono">ms-user-lin</td><td class="mono">user</td><td class="tiny">林工（lin.gong）</td><td class="tiny">本人直写（不进入 Team）</td><td><span class="chip ok">active</span></td></tr>
+                    <tr><td class="mono">ms-agent-retriever</td><td class="mono">agent</td><td class="tiny">a-retriever「记忆检索助手」</td><td class="tiny">仅运行期写入受限候选；不得写入团队业务规则与生产操作约束</td><td><span class="chip warn">read_only</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">owner ≠ visibility ≠ ACL ≠ execution authority：空间 owner 不决定谁能读，读取权也不能转成执行权。Agent 空间可存工具经验与失败模式，不默认保存团队业务规则、Project 规范事实或生产操作约束。</p>
+              </div>
+              <div class="panel">
+                <p class="panel-title">记忆条目 <span class="chip mono">3</span></p>
+                <table class="tbl compact">
+                  <thead><tr><th>记忆</th><th>层级</th><th>Owner</th><th>来源</th><th>Purpose</th><th>敏感性</th><th>可见范围</th><th>生命周期</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">m-9031</td><td class="mono">L1 原子</td><td class="mono tiny">project/p-db</td><td class="mono tiny">ev-7781 · rev 9f3c7a9</td><td class="mono">diagnose</td><td>内部信息</td><td class="tiny">p-db 成员 + 已授权 Agent</td><td><span class="chip ok">active</span> <span class="chip warn">review_due 2026-12-20</span></td></tr>
+                    <tr><td class="mono">m-9044</td><td class="mono">L2 场景</td><td class="mono tiny">project/p-db</td><td class="mono tiny">cs-2201 场景聚合 · rev 9f3c7a9</td><td class="mono">diagnose</td><td>内部信息</td><td class="tiny">p-db 成员 + 引用方 p-gw（只读引用）</td><td><span class="chip ok">active</span></td></tr>
+                    <tr><td class="mono">m-9102</td><td class="mono">L3 事实</td><td class="mono tiny">team/team-pay</td><td class="mono tiny">ev-7781 + ev-7782 · Review cs-4410</td><td class="mono">verify</td><td>内部信息</td><td class="tiny">team-pay 成员（需 Purpose + ACL）</td><td><span class="chip ok">active</span> <span class="chip">approved ≠ published</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">每条可治理记忆只有一个规范 owner；被引用、被参与、被影响都不改变归属。L1/L2/L3 聚合后在投影中仍保留来源与适用范围，不因是摘要而降低 ACL。</p>
+              </div>
+            </div>
+            <div class="panel">
+              <p class="panel-title">派生投影与撤回传播</p>
+              <table class="tbl compact">
+                <thead><tr><th>派生对象</th><th>类型</th><th>绑定来源版本</th><th>当前状态</th><th>撤回传播状态</th><th>边界</th></tr></thead>
+                <tbody>
+                  <tr><td>关键词索引</td><td>派生索引</td><td class="mono">m-9031 v4</td><td><span class="chip ok">current</span></td><td><span class="chip ok">applied</span></td><td>索引不授予读取、派生、执行或下载权限</td></tr>
+                  <tr><td>向量索引 / Embedding</td><td>派生向量</td><td class="mono">m-9044 v2</td><td><span class="chip ok">current</span></td><td><span class="chip ok">applied</span></td><td>Embedding 不可逆，但不脱离来源治理</td></tr>
+                  <tr><td>查询缓存</td><td>派生缓存</td><td class="mono">m-9031 v4</td><td><span class="chip warn">stale（策略版本变化）</span></td><td><span class="chip warn">pending</span></td><td>缓存未过期不等于仍可用；缓存失效优先于命中率</td></tr>
+                  <tr><td>Context Manifest（r-83）</td><td>运行投影</td><td class="mono">m-9031 v4 · k-ctx-dbproxy v11</td><td><span class="chip ok">current</span></td><td><span class="chip ok">applied</span></td><td>Manifest 是当时的授权投影，不是权限本身</td></tr>
+                  <tr><td>消费者投影（Harness）</td><td>派生投影</td><td class="mono">m-9044 v2</td><td><span class="chip warn">partial（部分字段裁剪）</span></td><td><span class="chip ok">applied</span></td><td>投影差异不改变事实与安全边界</td></tr>
+                  <tr><td>为审计保留的历史版本</td><td>历史版本</td><td class="mono">m-9031 v1–v3</td><td><span class="chip">retained</span></td><td><span class="chip">—</span></td><td>retained ≠ service-visible：审计保留不恢复当前权限，也不作为默认知识</td></tr>
+                </tbody>
+              </table>
+              <p class="tiny muted">派生对象与历史版本都纳入血缘与撤回传播：来源撤回 → 派生资产暂停或撤回 → 索引 / 缓存 / Manifest 失效 → 受影响 Run 阻断或重新解析 → 旧 Snapshot 只保留审计。</p>
+            </div>
+          </div>
+        </div>
+        <div class="tabpanel" data-panel="spaces" role="tabpanel" hidden>
+          <div class="grid">
+            <div class="callout">
+              <h5>写策略与 ACL 是两件事</h5>
+              <p class="small">写策略决定「能否写入、写成什么状态」，ACL 与可见范围决定「谁能读、读到哪些字段」；两者都不等于执行权。有效范围取调用凭据 scope ∩ 主体身份 ∩ 来源 ACL ∩ 目标空间策略 ∩ Purpose ∩ 敏感性 ∩ 发布状态，且 <span class="mono">target_scope ⊆ effective_scope</span>。</p>
+            </div>
+            <table class="tbl compact">
+              <thead><tr><th>空间</th><th>owner</th><th>读 ACL / 可见范围</th><th>写策略</th><th>敏感性上限</th><th>生命周期与保留</th><th>隔离内容处置</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">ms-proj-db</td><td class="mono tiny">project/p-db</td><td class="tiny">Project 成员 + 已授权 Agent（view / use 分别授权）</td><td class="tiny">仅写入候选，经 Triage 确认后进入 ChangeSet，Review 通过才发布</td><td>内部信息</td><td class="tiny">跟随 p-db：Project 归档 → 空间归档 / 只读，保留历史 owner 与来源</td><td class="tiny">不进入检索 / 摘要 / Manifest / 执行链路</td></tr>
+                <tr><td class="mono">ms-team-pay</td><td class="mono tiny">team/team-pay</td><td class="tiny">Team 成员需 Purpose + ACL 交集；成员身份不等于可读全部 Team 记忆</td><td class="tiny">写入候选 + Team Owner 审核；跨 Project 提升需 Promotion Candidate 与目标接受</td><td>内部信息</td><td class="tiny">Team 保留策略；Team 解散不静默转移或删除记忆</td><td class="tiny">同上；传播失败时暂停扩大传播</td></tr>
+                <tr><td class="mono">ms-user-lin</td><td class="mono tiny">user/林工（lin.gong）</td><td class="tiny">仅本人；不得默认独占 Project 事实、Team 约束与第三方隐私</td><td class="tiny">本人直写，不进入 Team；提升为 Team 需显式确认</td><td>个人隐私</td><td class="tiny">跟随账号；导出需 Purpose 与有效期</td><td class="tiny">同上</td></tr>
+                <tr><td class="mono">ms-agent-retriever</td><td class="mono tiny">agent/a-retriever</td><td class="tiny">仅该 Agent 运行身份；关联关系不授予管理权或执行权</td><td class="tiny">仅运行期受限候选；不得写入团队业务规则、Project 规范事实与生产操作约束</td><td>内部信息</td><td class="tiny">Agent 退役 → 停止新增或转只读；其产生的业务记忆不随 Agent 自动删除</td><td class="tiny">同上</td></tr>
+              </tbody>
+            </table>
+            <p class="tiny muted">空间生命周期变化会触发影响评估，但不静默改变 ACL、历史版本或规范归属；归属变化不反写历史事件 owner，也不修改已生成的 Run Context Snapshot。历史存在 ≠ 当前可读，曾经属于 Team ≠ 永久属于 Team。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<h3 id="p8">6.8 知识资产</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>Wiki、Skill、RCA、Template、Code Context 各自保留专业语义，不被一张泛化资产表取代；本屏演示身份为 Memory/Knowledge Owner，member 与只读角色只可见已发布范围。知识正文不是系统指令、不是运维批准、也不是工具授权。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/knowledge</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a class="active" href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">知识与复用 / <b>知识资产</b></span><span class="right"><span class="chip">knowledge-owner · 林工（lin.gong）</span><span class="chip mono">pol-2026.09.3</span></span></div>
+      <div class="app-body">
+        <div class="grid">
+          <div class="callout">
+            <h5>approved ≠ published，published ≠ actionable</h5>
+            <p class="small">审核通过只表示内容治理在指定范围内成立，不代表已对消费者可见；发布只表示在规定范围内可引用 / 可检索，不代表当前可执行。Patch 候选、写操作建议、Runbook 步骤与 RCA 建议默认是声明性产物，需要针对当前主体、Harness、环境与 revision 重新生成 Action Proposal，并经 Tool Policy 与 RunGate 才能执行。</p>
+          </div>
+          <table class="tbl compact">
+            <thead><tr><th>资产</th><th>类型</th><th>版本</th><th>适用范围</th><th>信任状态</th><th>来源 revision</th><th>Owner</th><th>复核到期</th><th>级联撤回影响范围</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="mono">k-wiki-connpool</td><td>Wiki</td><td class="mono tiny">v6 · v7 candidate（待审）</td><td class="tiny">p-db · DB-Proxy 连接池治理</td><td><span class="chip ok">published</span></td><td class="mono tiny">9f3c7a9（源 m-9031 v4）</td><td class="tiny">Content Owner：p-db 知识维护者</td><td class="mono tiny">2026-12-20</td><td class="tiny">6 项派生：索引 / Embedding / 缓存 / Manifest / 消费者投影 / 引用它的 Skill</td>
+              </tr>
+              <tr>
+                <td class="mono">k-skill-pg-triage</td><td>Skill</td><td class="mono tiny">v3（收窄至 staging）</td><td class="tiny">team-pay 运维值班 · 仅 staging</td><td><span class="chip ok">published</span> <span class="chip danger">action blocked</span></td><td class="mono tiny">9f3c7a9</td><td class="tiny">执行领域 Owner + Tool/Run Owner</td><td class="mono tiny">2026-11-15</td><td class="tiny">3 项派生 + 2 个 Agent 配置引用</td>
+              </tr>
+              <tr>
+                <td class="mono">k-rca-2201</td><td>RCA</td><td class="mono tiny">v2 · v1 withdrawn</td><td class="tiny">cs-2201 · 连接池耗尽导致 DB-Proxy P99 抖动</td><td><span class="chip warn">reviewed</span></td><td class="mono tiny">9f3c7a9</td><td class="tiny">Incident Owner + Service Owner</td><td class="mono tiny">2026-10-30</td><td class="tiny">4 项派生（含 k-wiki-connpool v6）</td>
+              </tr>
+              <tr>
+                <td class="mono">k-tpl-scene-db</td><td>Template</td><td class="mono tiny">v4</td><td class="tiny">p-db 场景文档骨架（kind=scene）</td><td><span class="chip ok">published</span></td><td class="mono tiny">9f3c7a9</td><td class="tiny">使用领域 Owner</td><td class="mono tiny">2027-01-31</td><td class="tiny">2 项派生（文档生成记录）</td>
+              </tr>
+              <tr>
+                <td class="mono">k-ctx-dbproxy</td><td>Code Context</td><td class="mono tiny">v11 · v10 superseded</td><td class="tiny">repo:p-db-proxy · revision 9f3c7a9</td><td><span class="chip warn">review_due</span></td><td class="mono tiny">9f3c7a9</td><td class="tiny">Repo/Code Owner</td><td class="mono tiny">2026-10-10</td><td class="tiny">5 项派生：旧 revision 的索引 / Embedding / Manifest 待失效</td>
+              </tr>
+            </tbody>
+          </table>
+          <div>
+            <div class="tabs" data-tabs role="tablist">
+              <button data-tab="wiki" role="tab" aria-selected="true">Wiki 文档</button>
+              <button data-tab="skill" role="tab" aria-selected="false">Skill</button>
+              <button data-tab="rca" role="tab" aria-selected="false">RCA</button>
+              <button data-tab="tpl" role="tab" aria-selected="false">Template</button>
+              <button data-tab="ctx" role="tab" aria-selected="false">Code Context</button>
+            </div>
+            <div class="tabpanel" data-panel="wiki" role="tabpanel">
+              <div class="panel">
+                <p class="panel-title">k-wiki-connpool v6 · 结构与证据（回答「这是什么、为什么这样」）</p>
+                <table class="tbl compact">
+                  <thead><tr><th>章节</th><th>内容要点</th><th>类型</th><th>来源</th><th>状态</th></tr></thead>
+                  <tbody>
+                    <tr><td>主题与定义</td><td class="tiny">DB-Proxy 连接池上限、等待队列与超时语义</td><td>事实</td><td class="mono tiny">m-9031 v4</td><td><span class="chip ok">verified</span></td></tr>
+                    <tr><td>适用范围</td><td class="tiny">repo:p-db-proxy · revision ≥ 9f3c7a9；不适用于网关侧连接复用策略</td><td>事实</td><td class="mono tiny">9f3c7a9</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td>解释</td><td class="tiny">上限 200 下 P99 抖动的表现与常见误判模式</td><td>事实 + 推断（已标注）</td><td class="mono tiny">ev-7781</td><td><span class="chip warn">partially_verified</span></td></tr>
+                    <tr><td>证据引用</td><td class="tiny">指标 / 日志 / 测试三类引用，只引用不复制原文</td><td>事实</td><td class="mono tiny">ev-7781 · ev-7782</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td>事实与推断分离</td><td class="tiny">4 条推断单独标注，1 条待补证据</td><td>不确定</td><td class="mono tiny">9f3c7a9</td><td><span class="chip warn">missing_evidence</span></td></tr>
+                    <tr><td>冲突说明</td><td class="tiny">与另一条无权查看正文的记录存在冲突；不展示其名称与数量</td><td>冲突</td><td class="mono tiny">（受控占位）</td><td><span class="chip danger">conflict（不自动裁决）</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">Wiki 的发布门槛：来源可追溯、事实与表述经核验、范围 / owner / 更新时间 / 依据明确。正文中的「必须执行」「已批准」只是内容，不构成系统指令或审批。</p>
+              </div>
+            </div>
+            <div class="tabpanel" data-panel="skill" role="tabpanel" hidden>
+              <div class="panel">
+                <p class="panel-title">k-skill-pg-triage v3 · 步骤与执行边界（回答「具体应该怎么做」）</p>
+                <table class="tbl compact">
+                  <thead><tr><th>环节</th><th>内容要点</th><th>依赖能力 / 边界</th><th>action_status</th></tr></thead>
+                  <tbody>
+                    <tr><td>触发条件</td><td class="tiny">DB-Proxy P99 抖动且池等待上升；条件不满足即停止</td><td class="tiny">只读指标与日志</td><td><span class="chip danger">blocked</span></td></tr>
+                    <tr><td>前置条件</td><td class="tiny">校验 revision 与审批绑定；不一致则阻断</td><td class="tiny">read_only · 需 RunGate</td><td><span class="chip danger">blocked</span></td></tr>
+                    <tr><td>步骤 1–4</td><td class="tiny">采集指标 → 比对 revision → 生成候选 diff → staging 验证</td><td class="tiny">harness_can_run_tests（仅声明能力，不代表当前授权）</td><td><span class="chip danger">blocked</span></td></tr>
+                    <tr><td>分支与失败处理</td><td class="tiny">结果 unknown 或审批失效 → 冻结并转人工，不自动重试</td><td class="tiny">停止条件优先于成功率</td><td><span class="chip danger">blocked</span></td></tr>
+                    <tr><td>验证方式</td><td class="tiny">静态检查 + 单元测试 + 原问题复现；未达到则 review_required</td><td class="tiny">验证环境 ≠ 生产授权</td><td><span class="chip danger">blocked</span></td></tr>
+                    <tr><td>工具权限</td><td class="tiny">本 Skill 不携带工具授予、凭据或生产批准</td><td class="tiny">需独立 Tool Policy + RunGate</td><td><span class="chip danger">blocked</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">Skill 的发布门槛：触发条件、输入、步骤、分支、输出与失败处理完整，并经演练 / 测试 / 真实任务验证；published ≠ actionable，当前环境未验证时只能作为历史说明，不得进入执行链路。</p>
+              </div>
+            </div>
+            <div class="tabpanel" data-panel="rca" role="tabpanel" hidden>
+              <div class="panel">
+                <p class="panel-title">k-rca-2201 v2 · 证据演进与根因（回答「为什么失败、如何避免复发」）</p>
+                <table class="tbl compact">
+                  <thead><tr><th>时间</th><th>事件 / 证据</th><th>类型</th><th>根因候选</th><th>状态</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono tiny">2026-09-14 09:10</td><td class="tiny">P99 抖动由值班人工上报</td><td>症状</td><td class="mono">—</td><td><span class="chip ok">observed</span></td></tr>
+                    <tr><td class="mono tiny">2026-09-14 10:02</td><td class="tiny">池等待指标 + 代理日志</td><td>证据</td><td class="mono tiny">连接池上限不足</td><td><span class="chip ok">observed</span></td></tr>
+                    <tr><td class="mono tiny">2026-09-15 11:20</td><td class="tiny">假设：连接泄漏导致耗尽</td><td>假设</td><td class="mono tiny">disproved_hypothesis</td><td><span class="chip danger">disproved</span></td></tr>
+                    <tr><td class="mono tiny">2026-09-16 14:00</td><td class="tiny">在上限 200 下复现 P99 抖动</td><td>验证动作</td><td class="mono tiny">confirmed_root_cause</td><td><span class="chip ok">verified</span></td></tr>
+                    <tr><td class="mono tiny">2026-09-21 14:32</td><td class="tiny">r-83 在 staging 验证修复有效</td><td>修复验证</td><td class="mono tiny">contributing_factor（接入层重试放大）</td><td><span class="chip warn">仅 staging 验证</span></td></tr>
+                    <tr><td class="mono tiny">2026-09-21 15:00</td><td class="tiny">生产环境验证待执行</td><td>待执行</td><td class="mono">—</td><td><span class="chip danger">not_attempted（RunGate blocked）</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">RCA 采用证据追加、结论版本化、可重新打开：修复有效 ≠ 根因完整，未复现 ≠ 问题不存在，测试通过 ≠ 生产风险消失。v1 因来源证据级别由 observed 纠正为 inferred 而撤回，v1 保留受控历史引用但不驱动修复。</p>
+              </div>
+            </div>
+            <div class="tabpanel" data-panel="tpl" role="tabpanel" hidden>
+              <div class="panel">
+                <p class="panel-title">k-tpl-scene-db v4 · 结构与插槽（回答「应从什么结构开始产出」）</p>
+                <table class="tbl compact">
+                  <thead><tr><th>插槽 / 变量</th><th>说明</th><th>默认值</th><th>约束</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono tiny">scenario_id · title</td><td class="tiny">场景身份与标题</td><td class="mono">—</td><td>必填；同一场景内唯一</td></tr>
+                    <tr><td class="mono tiny">code_anchor</td><td class="tiny">repo / branch / revision / environment</td><td class="mono tiny">锁定的 revision</td><td>缺少 repo 或 revision 不得发布为稳定资产</td></tr>
+                    <tr><td class="mono tiny">evidence_refs</td><td class="tiny">证据引用集合</td><td class="mono">空</td><td>只引用不复制原文，引用需可回溯</td></tr>
+                    <tr><td class="mono tiny">rca</td><td class="tiny">症状 / 假设 / 根因 / 贡献因素分层</td><td class="mono">空</td><td>必须区分事实与推断，根因需审核</td></tr>
+                    <tr><td class="mono tiny">verification</td><td class="tiny">验证类型与结果、残余风险</td><td class="mono">空</td><td>至少一项独立验证，未验证不得标 resolved</td></tr>
+                    <tr><td class="mono tiny">resume</td><td class="tiny">当前状态 / 阻塞 / 下一步 / 待人工决定</td><td class="mono">空</td><td>必填；交接时随续办投影生成</td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">Template 是结构骨架而不是历史产物复制品：引用必须锁定版本，升级 / 复制 / 派生都是显式变更，不自动持续同步。</p>
+              </div>
+            </div>
+            <div class="tabpanel" data-panel="ctx" role="tabpanel" hidden>
+              <div class="panel">
+                <p class="panel-title">k-ctx-dbproxy v11 · 代码锚点与变更边界（回答「代码意味着什么」）</p>
+                <table class="tbl compact">
+                  <thead><tr><th>字段</th><th>值</th><th>状态</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono tiny">repository / branch</td><td class="mono tiny">p-db-proxy / main</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td class="mono tiny">revision</td><td class="mono tiny">v11 绑定 9f3c7a9；v10 绑定 9f3c7a2</td><td><span class="chip warn">v10 superseded</span></td></tr>
+                    <tr><td class="mono tiny">路径 / 符号</td><td class="mono tiny">internal/pool/pool.go · Pool.Acquire</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td class="mono tiny">职责与依赖</td><td class="mono tiny">连接池分配与等待队列；依赖 metrics、config</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td class="mono tiny">不变量</td><td class="mono tiny">上限变更必须同时更新接入层重试预算</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td class="mono tiny">变更边界</td><td class="mono tiny">不得修改网关侧连接复用策略</td><td><span class="chip ok">有效</span></td></tr>
+                    <tr><td class="mono tiny">验证依据 / 过期条件</td><td class="mono tiny">单元测试 + staging 复现；revision 变更即过期</td><td><span class="chip warn">review_due</span></td></tr>
+                  </tbody>
+                </table>
+                <p class="tiny muted">Code Context 只描述代码事实，不混入未经确认的根因结论；跨 Project 复用时禁止复制源码全文、内部路径与未脱敏 Patch，只允许生成抽象化、脱敏的派生经验。</p>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <p class="panel-title">复核结果、撤回信号与消费者状态</p>
+            <table class="tbl compact">
+              <thead><tr><th>资产</th><th>最近复核结果</th><th>撤回 / 失效信号</th><th>传播状态</th><th>消费者状态（reference / retrieval / action）</th><th>下一门槛</th></tr></thead>
+              <tbody>
+                <tr><td class="mono tiny">k-wiki-connpool</td><td><span class="chip ok">keep</span> 2026-09-18</td><td class="tiny">无</td><td><span class="chip ok">applied</span></td><td class="mono tiny">allowed / allowed / —</td><td class="tiny">v7 candidate 需审核后才可发布</td></tr>
+                <tr><td class="mono tiny">k-skill-pg-triage</td><td><span class="chip warn">narrow</span>（收窄至 staging）</td><td class="tiny">工具权限与 RunGate 策略变化（硬触发）</td><td><span class="chip ok">applied</span></td><td class="mono tiny">allowed / allowed / blocked</td><td class="tiny">新环境验证通过前不得进入执行链</td></tr>
+                <tr><td class="mono tiny">k-rca-2201</td><td><span class="chip warn">revise</span>（生成 v2，不覆盖 v1）</td><td class="tiny">v1 来源证据级别由 observed 纠正为 inferred → withdrawn</td><td><span class="chip warn">partial</span>（1 项消费者投影待更新）</td><td class="mono tiny">allowed / allowed / blocked</td><td class="tiny">Incident Owner 复核根因完整性与预防行动</td></tr>
+                <tr><td class="mono tiny">k-tpl-scene-db</td><td><span class="chip ok">keep</span></td><td class="tiny">无</td><td><span class="chip ok">applied</span></td><td class="mono tiny">allowed / allowed / —</td><td class="tiny">引用锁定版本；升级走显式变更</td></tr>
+                <tr><td class="mono tiny">k-ctx-dbproxy</td><td><span class="chip warn">revise</span>（v11 绑定新 revision）</td><td class="tiny">代码 revision 重大变化（硬触发）→ v10 superseded</td><td><span class="chip warn">pending</span>（旧 revision 索引 / Embedding 待失效）</td><td class="mono tiny">allowed / partial / blocked</td><td class="tiny">旧 revision 派生对象失效并复核 v11 适用范围</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout warn">
+            <h5>撤回优先于发布、巩固与缓存刷新</h5>
+            <p class="small">来源撤回 → 派生资产 suspended / revoked → 索引、缓存与 Manifest 失效 → 新 Run 阻断或重新解析 → 旧 Snapshot 仅保留审计。无法完成影响评估、索引失效、缓存清理或敏感扫描时：暂停新发布 → 隔离受影响资产 → 阻止受影响召回与执行 → 保留失败任务与审计 → 等待重试或人工处理，不得宣称全链路撤回完成。</p>
+          </div>
+          <p class="tiny muted">状态口径：候选 / 审核 / 发布 / 撤回 / 取代分别读取，<span class="mono">candidate</span> 与未发布内容不得进入普通检索、上下文注入与自动执行；<span class="mono">review_due</span> 表示到期需复核，不等于内容错误；<span class="mono">superseded</span> 与 <span class="mono">withdrawn</span> 保留受控历史引用，但不恢复当前权限。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

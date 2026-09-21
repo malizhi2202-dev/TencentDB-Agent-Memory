@@ -1,0 +1,518 @@
+<h3 id="p1">6.1 登录</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>登录是壳外页面，不出现侧栏，也不混入 API Key、组织管理或任何 Project 数据；账号由平台管理员创建，无自助注册。失败提示统一为「账号或密码不正确」，不区分「用户不存在」与「密码错误」，也不返回剩余尝试次数；成功与失败都写入审计。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/login</span><span class="fake">演示数据</span></div>
+  <div style="background:var(--color-bg); padding:var(--space-2xl) var(--space-lg); display:grid; place-items:center; min-height:420px">
+    <div class="panel" style="width:360px; padding:var(--space-lg)">
+      <div class="app-brand" style="padding:0 0 var(--space-md); font-size:15px"><i style="width:26px;height:26px">am</i><span>Agent Memory</span></div>
+      <div class="rows">
+        <div class="field"><label>账号</label><div class="input mono">lin.gong</div></div>
+        <div class="field"><label>密码</label><div class="input mono">••••••••••</div></div>
+        <button class="btn primary" type="button" style="justify-content:center">登录</button>
+      </div>
+      <div class="callout danger" style="margin-top:var(--space-md)">
+        <h5>登录失败（denied）</h5>
+        <p class="small" style="margin:0">账号或密码不正确。该提示对「用户不存在」与「密码错误」完全一致，避免通过错误信息反推账号是否存在。</p>
+      </div>
+      <p class="tiny muted" style="margin:var(--space-sm) 0 0">登录成功与失败均写入审计：主体、时间、来源、结果。连续失败不锁号，但持续留痕。会话不继承任何 Team、Project 或 MemorySpace 授权；权限在每次访问时按当前 ACL 重新计算。</p>
+    </div>
+  </div>
+</div>
+
+<h3 id="p2">6.2 工作台</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>工作台只显示「可行动事项」，不显示统计图表。当前身份为 member · 林工，可见范围限自己的工作现场。每张卡同屏给出范围、证据时间、责任边界与下一门槛；分诊、审核、清理与 RunGate 在此只做入口，高风险动作不提供一键执行。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/home</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a class="active" href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top">
+        <span class="crumb"><b>工作台</b> / 我的工作</span>
+        <span class="right">
+          <span class="chip mono">范围</span>
+          <span class="input" style="width:200px; gap:6px">我的工作 · 支付平台 <span class="muted" style="margin-left:auto">▾</span></span>
+          <span class="chip">member · 林工</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <div class="tag-row">
+          <span class="chip">待处理 7</span>
+          <span class="chip warn">等待分诊 2</span>
+          <span class="chip warn">等待审核 1</span>
+          <span class="chip danger">失败 Run 1</span>
+          <span class="chip danger">清理 unknown 1</span>
+          <span class="chip danger">RunGate blocked 1</span>
+        </div>
+        <div class="grid g3">
+          <div class="panel">
+            <p class="panel-title">我的 Task · t-104 <span class="chip">进行中</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">修复 DB-Proxy 连接池耗尽</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>project/p-db · 你是 participant</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 14:32</dd>
+              <dt>责任边界</dt><dd>可推进 Task、追加证据；不可审批 ChangeSet、不可通过 RunGate</dd>
+              <dt>下一门槛</dt><dd>交付物验证 → Task 验收（需 project-admin）</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">等待分诊 · tri-512 <span class="chip warn">归属冲突</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">imp-77 候选同时匹配 p-db 与 p-gw</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>imp-77 · 候选目标 ms-proj-db 与 ms-team-pay</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 13:58</dd>
+              <dt>责任边界</dt><dd>member 只读；分流决策属 knowledge-owner，不自动写入更宽 scope</dd>
+              <dt>下一门槛</dt><dd>人工确认归属（冲突需逐项裁决）</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">等待分诊 · tri-513 <span class="chip warn">低置信度</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">ms-team-pay 候选，证据支持强度为 low</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>imp-77 · 候选目标 ms-team-pay</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 14:05</dd>
+              <dt>责任边界</dt><dd>不自动写入 Team Memory；自动判定只生成候选，不自动发布</dd>
+              <dt>下一门槛</dt><dd>补齐来源证据或人工确认</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">等待审核 · cs-4410 <span class="chip">ChangeSet</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">k-wiki-connpool 内容变更候选</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>project/p-db · k-wiki-connpool（待发布 revision）</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 14:12</dd>
+              <dt>责任边界</dt><dd>member 可评论、可追加证据；不可批准、不可发布</dd>
+              <dt>下一门槛</dt><dd>Review 通过 → Publish（approved ≠ published）</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">失败 Run · r-81 <span class="chip danger">failed</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">t-104 · Harness Claude Code · Agent a-coder</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>project/p-db · t-104 · 实际上下文快照已冻结</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 14:02</dd>
+              <dt>责任边界</dt><dd>失败不改变 Task 状态；重试产生新 Run，不覆盖 r-81 证据</dd>
+              <dt>下一门槛</dt><dd>补齐失败证据后新建 Run</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">清理 unknown · ci-8812 <span class="chip danger">unknown</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">CopyInventory 7 项中 1 项未知</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>Provider 外部副本（声明范围内未回执）</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 13:40</dd>
+              <dt>责任边界</dt><dd>unknown ≠ zero；不宣称「全量已清理」，对账由 governance 负责</dd>
+              <dt>下一门槛</dt><dd>外部对账证据 → 独立验证</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">RunGate blocked · 1 项 <span class="chip danger">blocked</span></p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">a-coder 申请对 p-db 生产库执行变更</p>
+            <dl class="kv">
+              <dt>范围</dt><dd>project/p-db · ActionProposal，高风险副作用</dd>
+              <dt>证据时间</dt><dd class="mono">2026-09-21 14:28</dd>
+              <dt>责任边界</dt><dd>高风险动作默认阻断，不提供一键执行；ToolPolicy 不能被 RunGate 放宽</dd>
+              <dt>下一门槛</dt><dd>project-admin 审批 + Purpose 与 ACL 复核</dd>
+            </dl>
+          </div>
+        </div>
+        <p class="h2p" style="margin-top:var(--space-lg)">最近证据</p>
+        <table class="tbl compact">
+          <thead><tr><th>证据</th><th>范围</th><th>类型</th><th>状态</th><th>证据时间</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">ev-7781</td><td>project/p-db · t-104</td><td>测试结果</td><td><span class="chip ok">verified</span></td><td class="mono">2026-09-21 14:30</td></tr>
+            <tr><td class="mono">ev-7782</td><td>project/p-db · t-104</td><td>指标快照</td><td><span class="chip warn">partial</span></td><td class="mono">2026-09-21 14:31</td></tr>
+            <tr><td class="mono">r-83</td><td>project/p-db · t-104</td><td>Run</td><td><span class="chip ok">verified</span></td><td class="mono">2026-09-21 14:26</td></tr>
+            <tr><td class="mono">r-81</td><td>project/p-db · t-104</td><td>Run</td><td><span class="chip danger">failed</span></td><td class="mono">2026-09-21 14:02</td></tr>
+            <tr><td class="mono">m-9031</td><td>ms-proj-db</td><td>Memory · L1 原子</td><td><span class="chip ok">current</span></td><td class="mono">2026-09-21 13:47</td></tr>
+            <tr><td class="mono">m-9044</td><td>ms-proj-db</td><td>Memory · L2 场景</td><td><span class="chip ok">current</span></td><td class="mono">2026-09-21 13:52</td></tr>
+            <tr><td class="mono">tri-512</td><td>imp-77</td><td>分诊项</td><td><span class="chip warn">conflict</span></td><td class="mono">2026-09-21 13:58</td></tr>
+            <tr><td class="mono">cs-4410</td><td>project/p-db · k-wiki-connpool</td><td>ChangeSet</td><td><span class="chip warn">待 Review</span></td><td class="mono">2026-09-21 14:12</td></tr>
+            <tr><td class="mono">ci-8812</td><td>Provider 副本 · 7 项</td><td>CopyInventory</td><td><span class="chip danger">unknown 1/7</span></td><td class="mono">2026-09-21 13:40</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny muted" style="margin-top:var(--space-sm)">已应用筛选：范围 = 我的工作，仅未处理项。筛选无结果时显示「当前筛选无结果（filtered-empty）」，与「暂无数据（empty）」分开表达；证据读取超时显示 partial 并保留上次成功时间，不把 unknown 显示为 0。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 id="p3">6.3 项目</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>项目是工作现场：卡片只显示你被授权看到的项目与 owning Team；受限项目对无读权限主体返回统一投影，不泄露对象名称与数量。点击项目进入概览，不直跳 Task；Run 从 Task 或项目下钻，不作为常规一级对象出现。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/projects</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a class="active" href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top">
+        <span class="crumb">项目 / <b>全部项目</b></span>
+        <span class="right">
+          <span class="chip mono">scope</span>
+          <span class="input" style="width:170px; gap:6px">我参与的项目 <span class="muted" style="margin-left:auto">▾</span></span>
+          <span class="chip">member · 林工</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <p class="h1">项目</p>
+        <div class="grid g3">
+          <div class="panel">
+            <p class="panel-title">DB-Proxy 可靠性</p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">owning Team：支付平台 · <span class="chip ok">open</span> <span class="chip mono">p-db</span></p>
+            <dl class="kv">
+              <dt>最近活动</dt><dd class="mono">2026-09-21 14:32</dd>
+              <dt>我的角色</dt><dd>participant（可推进 Task、追加证据）</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">网关可观测性</p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">owning Team：支付平台 · <span class="chip warn">restricted</span> <span class="chip mono">p-gw</span></p>
+            <dl class="kv">
+              <dt>最近活动</dt><dd class="mono">2026-09-21 11:20</dd>
+              <dt>我的角色</dt><dd>仅基础元数据（Team 成员不自动获得本项目权限）</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">数据同步服务</p>
+            <p class="small muted" style="margin:0 0 var(--space-sm)">owning Team：数据平台 · <span class="chip ok">open</span> <span class="chip mono">p-sync</span></p>
+            <dl class="kv">
+              <dt>最近活动</dt><dd class="mono">2026-09-21 09:58</dd>
+              <dt>我的角色</dt><dd>协作关联可见（关联不等于读写授权）</dd>
+            </dl>
+          </div>
+        </div>
+        <p class="h2p" style="margin-top:var(--space-lg)">DB-Proxy 可靠性 · 项目概览 <span class="chip mono">p-db</span> <span class="chip">owning Team：支付平台</span></p>
+        <div>
+          <div class="tabs" role="tablist" aria-label="项目导航" data-tabs>
+            <button type="button" data-tab="overview" aria-selected="true">Overview</button>
+            <button type="button" data-tab="tasks" aria-selected="false">Tasks</button>
+            <button type="button" data-tab="agents" aria-selected="false">Agents</button>
+            <button type="button" data-tab="runs" aria-selected="false">Runs</button>
+            <button type="button" data-tab="resources" aria-selected="false">Resources</button>
+            <button type="button" data-tab="activity" aria-selected="false">Activity</button>
+            <button type="button" data-tab="access" aria-selected="false">Access</button>
+          </div>
+          <div class="tabpanel" data-panel="overview">
+            <div class="grid g2">
+              <div class="panel">
+                <p class="panel-title">当前 scope</p>
+                <dl class="kv">
+                  <dt>项目</dt><dd class="mono">p-db</dd>
+                  <dt>owning Team</dt><dd>支付平台（team-pay）· open</dd>
+                  <dt>Project MemorySpace</dt><dd class="mono">ms-proj-db</dd>
+                  <dt>Team 共享空间</dt><dd class="mono">ms-team-pay</dd>
+                </dl>
+                <p class="tiny muted" style="margin:var(--space-sm) 0 0">open 是日常协作入口，不等于对所有资源与管理动作的全权授权；Team 成员身份不等于本项目成员。</p>
+              </div>
+              <div class="panel">
+                <p class="panel-title">成员与访问</p>
+                <dl class="kv">
+                  <dt>成员数</dt><dd>6 人（owning Team 成员）</dd>
+                  <dt>显式 ProjectMember</dt><dd>2 人（含 1 项 ACL 例外）</dd>
+                  <dt>最近权限变更</dt><dd class="mono">2026-09-18 10:04</dd>
+                </dl>
+                <p class="tiny muted" style="margin:var(--space-sm) 0 0">owner 不等于 visibility，也不等于 ACL 或执行权；无读权限主体只得到统一的 denied 投影。</p>
+              </div>
+              <div class="panel">
+                <p class="panel-title">关联 Agent（3）</p>
+                <div class="rows">
+                  <div class="small"><span class="chip mono">a-retriever</span> 记忆检索助手 · view / use</div>
+                  <div class="small"><span class="chip mono">a-coder</span> 代码修复 Agent · view / use（write 走 ChangeSet）</div>
+                  <div class="small"><span class="chip mono">a-reviewer</span> 变更评审 Agent · view</div>
+                </div>
+                <p class="tiny muted" style="margin:var(--space-sm) 0 0">关联只授予明确能力：Agent 不能修改项目、成员、关联、策略或 ACL，也不能自我审批；装配（mounted）不等于本次 Run 实际生效（effective）。</p>
+              </div>
+              <div class="panel">
+                <p class="panel-title">ContextBinding（工作上下文）</p>
+                <dl class="kv">
+                  <dt class="mono">primaryProjectId</dt><dd class="mono">p-db</dd>
+                  <dt class="mono">referenceProjectIds[]</dt><dd class="mono">[p-gw]（只读，逐项授权）</dd>
+                  <dt class="mono">writeTargetSpaceId</dt><dd class="mono">ms-proj-db</dd>
+                </dl>
+                <p class="tiny muted" style="margin:var(--space-sm) 0 0">读取权限不等于写入权限；显式无权目标直接拒绝，弱证据或多候选进入 Triage，不回退到最近项目或个人空间。</p>
+              </div>
+            </div>
+            <div class="tag-row" style="margin-top:var(--space-md)">
+              <span class="chip warn">stale</span>
+              <span class="small muted">a-coder 的装配版本落后于已发布 revision，下次 Run 前需重新解析 Manifest；Manifest 原子发布，历史 Run 的实际快照不被回填。</span>
+            </div>
+          </div>
+          <div class="tabpanel" data-panel="tasks" hidden>
+            <div class="panel">
+              <p class="panel-title">Tasks（7）</p>
+              <div class="tag-row">
+                <span class="chip mono">t-104</span><span class="chip">进行中</span>
+                <span class="chip mono">t-101</span><span class="chip ok">已完成</span>
+                <span class="chip mono">t-118</span><span class="chip warn">待分诊</span>
+              </div>
+              <p class="tiny muted" style="margin:0">列表默认按「需我处理」排序；已完成 Task 的历史证据仍受当前 ACL 约束，历史可见不等于当前可执行。</p>
+            </div>
+          </div>
+          <div class="tabpanel" data-panel="agents" hidden>
+            <div class="panel">
+              <p class="panel-title">关联 Agent（3）</p>
+              <p class="small muted" style="margin:0">a-retriever（view / use）、a-coder（view / use，write 走 ChangeSet）、a-reviewer（view）。关联不授予管理权、执行权或审批权。</p>
+            </div>
+          </div>
+          <div class="tabpanel" data-panel="runs" hidden>
+            <div class="panel">
+              <p class="panel-title">Runs（2，均来自 t-104）</p>
+              <p class="small muted" style="margin:0"><span class="mono">r-83</span> verified · <span class="mono">r-81</span> failed。Run 是 Task 的一次执行尝试，不作为常规一级对象出现；RunGate 就近显示在 Run 详情。</p>
+            </div>
+          </div>
+          <div class="tabpanel" data-panel="resources" hidden>
+            <div class="panel">
+              <p class="panel-title">项目资源</p>
+              <div class="tag-row">
+                <span class="chip mono">ms-proj-db</span>
+                <span class="chip mono">k-wiki-connpool</span>
+                <span class="chip mono">k-rca-2201</span>
+                <span class="chip mono">k-ctx-dbproxy</span>
+                <span class="chip mono">cs-2201</span>
+              </div>
+              <p class="tiny muted" style="margin:0">项目可比 Team 默认规则更严格，不能放宽或绕过 Platform / Team 上级策略；引用 Template 必须锁定版本。</p>
+            </div>
+          </div>
+          <div class="tabpanel" data-panel="activity" hidden>
+            <div class="panel">
+              <p class="panel-title">最近活动</p>
+              <p class="small muted" style="margin:0"><span class="mono">2026-09-21 14:32</span> 林工 追加证据 ev-7782（partial） · <span class="mono">2026-09-21 14:12</span> 提交 ChangeSet cs-4410 · <span class="mono">2026-09-21 13:58</span> imp-77 候选进入分诊（tri-512 conflict）。</p>
+            </div>
+          </div>
+          <div class="tabpanel" data-panel="access" hidden>
+            <div class="panel">
+              <p class="panel-title">成员与访问</p>
+              <p class="small muted" style="margin:0">owning Team 成员 6 人；显式 ProjectMember 2 人（含 1 项 ACL 例外）。无读权限主体只得到统一的 denied 投影，不显示对象名称与数量。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 id="p4">6.4 任务</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>Task 是可验收目标：本屏给出目标、验收标准、计划（planning snapshot）、Runs、交付物与 ContextBinding。Run 成功不等于 Task 已验收——r-83 已是 verified，而 t-104 仍为「进行中」；本屏同时列出 ContextBinding 三个字段以及它们不授予的能力。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/task/t-104</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a class="active" href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top">
+        <span class="crumb">项目 / <b>DB-Proxy 可靠性</b> / 任务 / t-104</span>
+        <span class="right">
+          <span class="chip">进行中</span>
+          <span class="chip mono">owner: project/p-db</span>
+          <span class="chip">member · 林工</span>
+        </span>
+      </div>
+      <div class="app-body">
+        <p class="h1">t-104 修复 DB-Proxy 连接池耗尽</p>
+        <div class="tag-row">
+          <span class="chip">Task 状态：进行中</span>
+          <span class="chip warn">验收：待验证</span>
+          <span class="chip mono">planning snapshot sha256:9f3c7a2</span>
+          <span class="chip mono">Run r-83 verified</span>
+        </div>
+        <div class="grid g2">
+          <div class="panel">
+            <p class="panel-title">目标</p>
+            <p class="small" style="margin:0">修复 DB-Proxy 连接池耗尽导致的 P99 抖动：在连接池达到上限时按等待时长与租约回收连接，并保留可验证的回收证据，使 p-db 的读取路径在峰值下不再出现连接等待超时。</p>
+            <dl class="kv" style="margin-top:var(--space-sm)">
+              <dt>所属现场</dt><dd class="mono">project/p-db</dd>
+              <dt>计划来源</dt><dd>Task 创建时冻结（planning snapshot）</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">验收标准</p>
+            <ol class="small" style="margin:0; padding-left:1.25em">
+              <li>P99 低于 120ms，且连续 30 分钟无连接池等待超时。</li>
+              <li>回归测试覆盖连接池上限与租约回收路径，并在 CI 通过。</li>
+              <li>变更经 ChangeSet Review 并 Publish 后才算交付完成（approved ≠ published）。</li>
+            </ol>
+            <div class="tag-row" style="margin-top:var(--space-sm)">
+              <span class="chip ok">标准 1：已有证据</span>
+              <span class="chip warn">标准 2：证据 partial</span>
+              <span class="chip danger">标准 3：未开始</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:var(--space-md)">
+          <p class="panel-title">计划与 planning snapshot</p>
+          <div class="flow">
+            <span class="step">复现连接池等待</span><span class="to">→</span>
+            <span class="step">定位上限与租约回收</span><span class="to">→</span>
+            <span class="step">提交修复与回归测试</span><span class="to">→</span>
+            <span class="step">验证 P99 与等待超时</span><span class="to">→</span>
+            <span class="step">ChangeSet Review 与 Publish</span>
+          </div>
+          <p class="small muted" style="margin:var(--space-sm) 0 0">planning snapshot 是 Task 创建/显式更新计划时冻结的计划版本（revision <span class="mono">sha256:9f3c7a2</span>），用于解释「当时的计划是什么」；它不随当前最新配置回填，也不等于 Run 实际拿到的上下文。Run 实际使用的集合记录在 Run Context Snapshot（不可变），Manifest 原子发布；计划变更生成新的 Task revision，历史 Run 继续指向旧 snapshot。基于过期 revision 的写入必须转为 Merge Candidate 或重新生成。</p>
+        </div>
+        <p class="h2p" style="margin-top:var(--space-lg)">Runs（2）</p>
+        <table class="tbl compact">
+          <thead><tr><th>Run</th><th>Harness / Agent</th><th>状态</th><th>实际上下文</th><th>证据时间</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">r-83</td>
+              <td>Claude Code · <span class="mono">a-coder</span></td>
+              <td><span class="chip ok">verified</span></td>
+              <td>Run Context Snapshot 已冻结 · effective 资源 3 项</td>
+              <td class="mono">2026-09-21 14:26</td>
+            </tr>
+            <tr>
+              <td class="mono">r-81</td>
+              <td>Claude Code · <span class="mono">a-coder</span></td>
+              <td><span class="chip danger">failed</span></td>
+              <td>同一基线 revision · 失败证据已追加</td>
+              <td class="mono">2026-09-21 14:02</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          <h5>Run succeeded ≠ Task accepted</h5>
+          <p class="small" style="margin:0">r-83 已完成验证（verified），只说明这次执行产生了可验证的结果；它不使 t-104 自动变为已完成，也不使 ChangeSet cs-4410 自动发布。Task 验收需要同时满足验收标准 1–3，并由有验收权限的角色确认；Run 成功、产物存在、Harness 宣称完成都不能单独决定完成。</p>
+        </div>
+        <p class="h2p" style="margin-top:var(--space-lg)">交付物与证据</p>
+        <table class="tbl compact">
+          <thead><tr><th>交付物 / 证据</th><th>类型</th><th>来源</th><th>状态</th><th>证据时间</th></tr></thead>
+          <tbody>
+            <tr><td>连接池租约回收补丁</td><td>代码 diff</td><td class="mono">r-83 · sha256:9f3c7a2</td><td><span class="chip ok">verified</span></td><td class="mono">2026-09-21 14:24</td></tr>
+            <tr><td>回归测试报告</td><td>测试</td><td class="mono">ev-7781</td><td><span class="chip ok">verified</span></td><td class="mono">2026-09-21 14:30</td></tr>
+            <tr><td>P99 指标快照</td><td>指标</td><td class="mono">ev-7782</td><td><span class="chip warn">partial（采样缺口）</span></td><td class="mono">2026-09-21 14:31</td></tr>
+            <tr><td>连接池耗尽根因分析</td><td>RCA</td><td class="mono">k-rca-2201</td><td><span class="chip ok">reviewed</span></td><td class="mono">2026-09-21 13:20</td></tr>
+            <tr><td>连接池耗尽代码场景</td><td>Code Scenario</td><td class="mono">cs-2201</td><td><span class="chip ok">published</span></td><td class="mono">2026-09-21 12:40</td></tr>
+            <tr><td>本次上下文清单</td><td>ContextManifest</td><td class="mono">ms-proj-db · m-9031 / m-9044</td><td><span class="chip">effective</span></td><td class="mono">2026-09-21 14:20</td></tr>
+            <tr><td>连接池上限依据</td><td>Memory · L1 原子</td><td class="mono">m-9031</td><td><span class="chip ok">current</span></td><td class="mono">2026-09-21 13:47</td></tr>
+          </tbody>
+        </table>
+        <p class="h2p" style="margin-top:var(--space-lg)">ContextBinding（工作上下文与边界）</p>
+        <table class="tbl compact">
+          <thead><tr><th class="mono">字段</th><th>值</th><th>不授予的能力</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">primaryProjectId</td><td class="mono">p-db</td><td>对其他项目的读取或写入。</td></tr>
+            <tr><td class="mono">referenceProjectIds[]</td><td class="mono">[p-gw]（只读，逐项授权）</td><td>向 p-gw 写入或复制来源内容。</td></tr>
+            <tr><td class="mono">writeTargetSpaceId</td><td class="mono">ms-proj-db</td><td>对同 owner 的其他空间写入。</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny muted" style="margin-top:var(--space-sm)">ContextBinding 不是页面筛选或最近访问；显式无权目标直接拒绝，绑定冲突返回 context_conflict，弱证据或多候选进入 Triage。读取权限不等于写入权限，也不等于执行权。</p>
+        <div class="grid g2" style="margin-top:var(--space-md)">
+          <div class="panel">
+            <p class="panel-title">本屏可做的动作</p>
+            <div class="tag-row">
+              <span class="chip">追加证据 evidence.append</span>
+              <span class="chip">创建 Checkpoint</span>
+              <span class="chip">发起 Handoff 请求</span>
+              <span class="chip">提交状态变更提案</span>
+            </div>
+            <p class="tiny muted" style="margin:var(--space-sm) 0 0">动作按当前身份、Purpose、ACL 与策略逐项判定，状态展示不隐式授予动作权限。</p>
+          </div>
+          <div class="panel">
+            <p class="panel-title">本屏不可做的动作 <span class="chip danger">blocked</span></p>
+            <div class="tag-row">
+              <span class="chip">审批 ChangeSet cs-4410</span>
+              <span class="chip">通过 RunGate</span>
+              <span class="chip">Owner 转移</span>
+              <span class="chip">导出原文</span>
+              <span class="chip">发布知识资产</span>
+            </div>
+            <p class="tiny muted" style="margin:var(--space-sm) 0 0">下一门槛：由 knowledge-owner 完成 Review，由 project-admin 通过 RunGate；高风险动作默认阻断，不做成一键执行。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

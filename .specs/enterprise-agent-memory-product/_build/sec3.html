@@ -1,0 +1,522 @@
+<section class="doc-sec" id="s3">
+  <h2>3 · 系统架构</h2>
+  <p class="lead">本章回答：平台由哪些层组成、每层负责什么、数据在哪些对象上落地，以及本轮的交付形态和技术边界是什么。所有分层与职责口径来自 <span class="mono">ARCHITECTURE.md</span> 第 1 节与 <span class="mono">CONCEPTS.md</span> 第 3 节；尚未固化的选型与契约一律标注「待确认」，不写成已实现事实。</p>
+
+  <h3 id="s3-1">3.1 部署拓扑</h3>
+  <p class="small muted">外部 Harness 负责执行工作，平台负责保留、理解、授权、复用、撤回、验证并审计工作证据。下图为 <span class="mono">ARCHITECTURE.md</span> 第 1 节分层架构的等价表达，节点名称与该节逐字一致；箭头只表示依赖与数据流向，不表示部署在同一进程或同一主机。</p>
+
+  <div class="diagram">
+    <div class="layer">
+      <h5>External Harness</h5>
+      <div class="row"><span class="pill">Codex</span><span class="pill">Claude Code</span><span class="pill">DSH</span><span class="pill mono">Harness Session / Run</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>证据 + source revision + scope</small></div>
+
+    <div class="layer">
+      <h5>Connector Gateway</h5>
+      <div class="row"><span class="pill">identity</span><span class="pill">capability</span><span class="pill">replay</span><span class="pill mono">Handshake</span><span class="pill mono">Event Append</span><span class="pill mono">Health / Lease</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>幂等接纳 + Cursor</small></div>
+
+    <div class="layer">
+      <h5>Ingestion &amp; Triage</h5>
+      <div class="row"><span class="pill">dedupe</span><span class="pill">ownership</span><span class="pill">redaction</span><span class="pill mono">Ownership Decision</span><span class="pill mono">Ownership Review Item</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>归属候选 + 写入目标</small></div>
+
+    <div class="layer">
+      <h5>Memory Spaces</h5>
+      <div class="row"><span class="pill">User</span><span class="pill">Team</span><span class="pill">Project</span><span class="pill">Agent</span><span class="pill mono">MemoryItem</span><span class="pill mono">MemoryRevision</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>提炼候选</small></div>
+
+    <div class="layer">
+      <h5>Knowledge Pipeline</h5>
+      <div class="row"><span class="pill">Wiki</span><span class="pill">Skill</span><span class="pill">RCA</span><span class="pill">Template</span><span class="pill">Code Context</span><span class="pill mono">KnowledgeAssetVersion</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>revision + provenance</small></div>
+
+    <div class="layer">
+      <h5>Lineage &amp; Evidence</h5>
+      <div class="row"><span class="pill">revision</span><span class="pill">provenance</span><span class="pill">trace</span><span class="pill">manifest</span><span class="pill mono">LineageRelation</span><span class="pill mono">EvidenceEvent</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>当前有效性与撤回状态</small></div>
+
+    <div class="layer brand">
+      <h5>Policy Plane</h5>
+      <div class="row"><span class="pill">ACL</span><span class="pill">Purpose</span><span class="pill">sensitivity</span><span class="pill">retention</span><span class="pill mono">ToolPolicy</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>硬拒绝优先；下游只能收紧</small></div>
+
+    <div class="layer">
+      <h5>Visibility Context</h5>
+      <div class="row"><span class="pill">subject</span><span class="pill">target</span><span class="pill">scope</span><span class="pill mono">policy version</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>已授权候选范围（过滤先于召回）</small></div>
+
+    <div class="layer">
+      <h5>Retrieval Plane</h5>
+      <div class="row"><span class="pill">keyword</span><span class="pill">vector</span><span class="pill">code</span><span class="pill">graph</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>建议（默认不可执行）</small></div>
+
+    <div class="layer">
+      <h5>Action Proposal</h5>
+      <div class="row"><span class="pill mono">proposal_id / version</span><span class="pill">impact preview</span><span class="pill">preconditions</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>需通过当前准入</small></div>
+
+    <div class="layer brand">
+      <h5>RunGate + Tool Policy</h5>
+      <div class="row"><span class="pill mono">admit / hold / deny</span><span class="pill">approval ref</span><span class="pill">continuous recheck</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>准入通过才进入执行</small></div>
+
+    <div class="layer">
+      <h5>Constrained Run</h5>
+      <div class="row"><span class="pill mono">Run Plan / version</span><span class="pill">actual tool calls</span><span class="pill">idempotency key</span><span class="pill">stop condition</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>结果 + 外部效果</small></div>
+
+    <div class="layer">
+      <h5>Verification + External Effect</h5>
+      <div class="row"><span class="pill mono">executed ≠ verified</span><span class="pill">residual risk</span><span class="pill">unknown</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>派生副本进入清理闭包</small></div>
+
+    <div class="layer">
+      <h5>Copy Inventory</h5>
+      <div class="row"><span class="pill">cache</span><span class="pill">index</span><span class="pill">export</span><span class="pill">backup</span><span class="pill">provider</span><span class="pill">terminal</span></div>
+    </div>
+    <div class="arrow-v">▼ <small>投影 + 投递 + 修订</small></div>
+
+    <div class="layer">
+      <h5>Notification &amp; Reports</h5>
+      <div class="row"><span class="pill">projection</span><span class="pill">delivery</span><span class="pill">revision</span><span class="pill mono">Delivery Intent</span><span class="pill mono">supersedes / revokes</span></div>
+    </div>
+  </div>
+
+  <p class="small muted">上图为纵向主链。下列侧向依赖边同样来自 <span class="mono">ARCHITECTURE.md</span> 第 1 节，不改变主链顺序。</p>
+  <table class="tbl compact">
+    <thead><tr><th style="width:250px">侧向依赖边</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">Connector Gateway → Lineage &amp; Evidence</td><td>接入层直接产生可审计的连接与事件事实，不只经由 Ingestion。</td></tr>
+      <tr><td class="mono">Memory Spaces → Lineage &amp; Evidence</td><td>记忆的归属、版本与来源进入血缘，供撤回与影响分析使用。</td></tr>
+      <tr><td class="mono">Knowledge Pipeline → Lineage &amp; Evidence</td><td>知识资产的来源 revision、脱敏版本与派生关系进入血缘。</td></tr>
+      <tr><td class="mono">Policy Plane → Visibility Context</td><td>策略平面决定可见上下文；先授权、再召回、再投影。</td></tr>
+      <tr><td class="mono">Policy Plane → RunGate + Tool Policy</td><td>策略平面是执行的硬边界，RunGate 不得放宽 Tool Policy。</td></tr>
+      <tr><td class="mono">Lineage &amp; Evidence → Visibility Context</td><td>当前有效性、撤回状态与敏感性随血缘进入可见上下文。</td></tr>
+      <tr><td class="mono">Lineage &amp; Evidence → Copy Inventory</td><td>副本清单以来源 revision 与血缘为范围基线。</td></tr>
+      <tr><td class="mono">Verification → Lineage &amp; Evidence</td><td>验证结果与外部效果回写为证据，不回写为权限。</td></tr>
+      <tr><td class="mono">Notification &amp; Reports → Lineage &amp; Evidence</td><td>报告版本、投递与修订关系回写为可审计事实。</td></tr>
+      <tr><td class="mono">Copy Inventory → Notification &amp; Reports</td><td>清理证据是分层报告的事实来源；未知与保留必须保留语义。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <h5>部署形态说明</h5>
+    <p class="small">本节是<strong>产品架构</strong>，不是部署拓扑承诺。物理存储采用「语义统一、物理实现可替换」，不提前冻结图数据库、向量库或 Provider；Schema、PDP/PEP、事件总线与部署边界均待真实拓扑验证。见 <span class="mono">ARCHITECTURE.md</span> 第 5、6 节。</p>
+  </div>
+
+  <h3 id="s3-2">3.2 组件职责</h3>
+  <table class="tbl">
+    <thead><tr><th style="width:200px">组件</th><th>职责</th><th style="width:230px">上游依赖</th><th style="width:280px">失败时的安全默认值</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">External Harness</td>
+        <td>执行工作并产生证据、代码 revision、工具调用与外部效果；平台不把 Harness Session 当作工作真源。</td>
+        <td>企业身份或工作负载身份、短期凭证或租约。</td>
+        <td>不宣称外部 Harness 可用性、原环境恢复、外部副作用完成或缓存物理清除；<span class="mono">unknown ≠ 成功</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">Connector Gateway</td>
+        <td>Connector Contract V1 八项能力：Handshake、Event Append、Idempotency + Cursor、Capability Declaration、Resource Reference、Health / Lease、Probe、Structured Result。</td>
+        <td>协议与能力协商、实例身份、资源引用、租约。</td>
+        <td>身份无法验证、能力未声明、租约过期或撤销状态未知时拒绝接纳；<span class="mono">未探测 ≠ 可用</span>，<span class="mono">assessment.valid ≠ execution.eligible</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">Ingestion &amp; Triage</td>
+        <td>去重、脱敏、归属候选与分诊；区分 Identity / Provenance / Binding / Temporal State 四个独立判断面。</td>
+        <td>Connector 的幂等事件与 Cursor、来源 ACL、敏感性分类。</td>
+        <td>权限检查、归属解析、敏感性判断、审计记录、撤回传播或目标 scope 访问验证失败时默认拒绝写入或隔离；缺失或不可信元数据永不扩大 Scope。</td>
+      </tr>
+      <tr>
+        <td class="mono">Memory Spaces</td>
+        <td>User / Team / Project / Agent 四类并列归属边界；承载记忆的版本、敏感性、生命周期与写策略。</td>
+        <td>Triage 产出的 <span class="mono">canonical_owner_scope</span> 与目标写入授权。</td>
+        <td>归属未定时保留较窄边界或 <span class="mono">ownership_pending</span>；不 fallback 到 Team、最近 Project、个人空间或全局检索。</td>
+      </tr>
+      <tr>
+        <td class="mono">Knowledge Pipeline</td>
+        <td>Wiki、Skill、RCA、Template、Code Context 五类对象的候选识别、证据补齐、审核与发布。</td>
+        <td>已确认记忆、Work Thread、代码 revision、审核责任矩阵。</td>
+        <td>预检失败默认隔离、补证、退回或拒绝，不是「带警告继续」；审核超时保持 Review 或暂停，不自动批准。</td>
+      </tr>
+      <tr>
+        <td class="mono">Lineage &amp; Evidence</td>
+        <td>不可变对象版本、类型化关系、运行事件与派生状态的可追溯体系；支持来源闭包与影响闭包。</td>
+        <td>对象版本、关系断言、运行与验证事件。</td>
+        <td>血缘缺失或不可信时低风险暂存为不可执行候选、高风险隔离或阻断；影响分析失败返回 <span class="mono">unknown / partial</span>，不返回「无影响」。</td>
+      </tr>
+      <tr>
+        <td class="mono">Policy Plane</td>
+        <td>主体—资源—动作—用途—作用域—条件—风险—当前状态的授权判定；授权决策与实际执行分离。</td>
+        <td>主体与委托链、资源 ACL、Purpose、敏感性、保留与保全状态。</td>
+        <td>硬拒绝优先，下游只能进一步收紧，<span class="mono">unknown</span> 不转换成允许；策略或审计系统不可用时高风险路径 fail-closed。</td>
+      </tr>
+      <tr>
+        <td class="mono">Visibility Context</td>
+        <td>把主体、委托、源/目标空间、Purpose、ACL、敏感性、revision、环境与策略版本固化为一次可审计的可见上下文。</td>
+        <td>Policy Plane 与 Lineage &amp; Evidence。</td>
+        <td>缺少主体、用途、ACL、敏感性、血缘或当前策略时使用最小投影或 fail-closed；未声明用途、深度与范围时不推断最大权限。</td>
+      </tr>
+      <tr>
+        <td class="mono">Retrieval Plane</td>
+        <td>关键词、向量、代码邻近、关系与血缘四通道候选发现；通道只加速候选，不授予权限。</td>
+        <td>已授权 scope 集合、四类派生索引。</td>
+        <td>索引或过滤环节失败时不退化为全局不受控召回，默认收窄或拒绝；<span class="mono">Eligibility = false</span> 不能被 <span class="mono">Utility</span> 翻转为可用。</td>
+      </tr>
+      <tr>
+        <td class="mono">Action Proposal</td>
+        <td>把建议表达为默认不可执行的声明性对象：目标、来源资产、建议动作、参数摘要、影响预览、前置条件与不适用范围。</td>
+        <td>检索结果、Purpose、目标 scope、当前上下文。</td>
+        <td>默认 <span class="mono">blocked</span>；需通过当前 RunGate 才能进入 Run。<span class="mono">approval ≠ current plan valid</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">RunGate + Tool Policy</td>
+        <td>Tool Policy 声明工具能力硬边界；RunGate 针对当前主体、目标、资产版本、风险、审批与能力做动态准入与持续重检。</td>
+        <td>当前主体与委托链、审批、目标 revision 与环境、Tool Capability Profile。</td>
+        <td>任一条件缺失、冲突、过期或 <span class="mono">unknown</span> 时为 <span class="mono">blocked</span> 或人工审核，不得默认低风险；RunGate 不得放宽 Tool Policy。</td>
+      </tr>
+      <tr>
+        <td class="mono">Constrained Run</td>
+        <td>按版本化 Run Plan 执行受约束动作，记录实际 Tool Call、计划外差异、停止条件与补偿路径。</td>
+        <td>RunGate 准入、Run Plan 版本、Tool Policy。</td>
+        <td>权限撤回时新调用立即阻断并逐 Attempt 重检；结果未知时冻结重复副作用并外部对账，<span class="mono">unknown result ≠ safe to retry</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">Verification + External Effect</td>
+        <td>独立验证结果、实际影响范围、残余风险与是否需要回滚；区分执行、验证与外部效果。</td>
+        <td>实际 Tool Call 与差异记录、验证计划与证据。</td>
+        <td><span class="mono">executed ≠ verified</span>；无法证明外部效果时标记 <span class="mono">unknown</span>，不宣称完成，也不自动扩大副作用。</td>
+      </tr>
+      <tr>
+        <td class="mono">Copy Inventory</td>
+        <td>缓存、索引、Embedding、Manifest、导出、备份、Provider 与终端副本的版本化清单、分层处置与独立验证。</td>
+        <td>权威撤回版本、副本发现观测、责任边界与合同/保全状态。</td>
+        <td>未发现、不可访问或未接入的副本不能默认为不存在；覆盖率以分层分母与盲区报告，不以单一百分比代表全量。</td>
+      </tr>
+      <tr>
+        <td class="mono">Notification &amp; Reports</td>
+        <td>事实内核 → 授权投影 → 渠道 Delivery Intent；支持修订、撤回与投递证据。</td>
+        <td>事实内核与证据、受众与用途、投递渠道能力。</td>
+        <td>投影先于渲染，模板不能自行决定权限；<span class="mono">unknown</span>、<span class="mono">retained</span>、<span class="mono">not_scoped</span>、<span class="mono">external_copy</span> 必须保持语义；渠道接受不等于送达。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="s3-3">3.3 数据模型（按域）</h3>
+  <p class="small muted">下表是<strong>概念对象与语义边界</strong>，不是最终数据库 Schema。字段名取自议题文档中的最小字段集表述；最终字段名、必填性、嵌套、索引与迁移在各议题中均记为暂缓，不在此冻结。</p>
+
+  <h4>身份与组织域</h4>
+  <table class="tbl">
+    <thead><tr><th style="width:180px">实体</th><th>关键字段</th><th style="width:340px">关系与边界</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">User</td>
+        <td><span class="mono">user_id</span>、<span class="mono">principal_type</span>、<span class="mono">memberships</span>、<span class="mono">status</span></td>
+        <td>通过 TeamMember / ProjectMember 关系加入；身份认证与组织成员关系分离；<span class="mono">createdBy ≠ owner ≠ actor</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">Team</td>
+        <td><span class="mono">team_id</span>、<span class="mono">members</span>、<span class="mono">default_policy</span>、<span class="mono">lifecycle_state</span></td>
+        <td>
+          管理 Team scope 共享资源与默认规则。<span class="chip warn">待确认</span> Team↔Project 基数存在两种口径：<span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> §3.1 记为「Team → Project 是一对多归属关系，每个 Project 必须且只能有一个 owning Team」；<span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §3.1 记为「Team ↔ Project：多对多协作关联」，且 §2 明确「Team 不是 Project 的父目录」。两处口径冲突，本文件不自行裁决。
+        </td>
+      </tr>
+      <tr>
+        <td class="mono">Project</td>
+        <td><span class="mono">project_id</span>、<span class="mono">owning_team_id</span>、<span class="mono">visibility</span>（<span class="mono">open</span> / <span class="mono">restricted</span>）、<span class="mono">members / ACL</span></td>
+        <td>具体工作现场，组织 Task 与 Project scope 资源；Project 可比 Team 默认规则更严格，不能放宽或绕过上级限制。基数口径同上。</td>
+      </tr>
+      <tr>
+        <td class="mono">Agent</td>
+        <td><span class="mono">agent_id</span>、<span class="mono">version</span>、<span class="mono">visibility</span>、<span class="mono">owner</span>、<span class="mono">view / use / write grant</span>、<span class="mono">status</span></td>
+        <td>关联 Team / Project 只授予明确的 <span class="mono">view</span> / <span class="mono">use</span> 能力；不自动获得写入、工具或审批权；<span class="mono">Agent proposal ≠ approval / publish</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">Harness</td>
+        <td><span class="mono">harness_id</span>、<span class="mono">instance_id</span>、<span class="mono">capability_profile</span>、<span class="mono">credential_reference</span>、<span class="mono">lease_id</span>、<span class="mono">revoked_at</span></td>
+        <td>能力声明不等于当前授权；身份分 Logical / Deployment / Instance / Credential 与工作负载证明；撤销分凭证、实例、部署、单项能力、组织或租户。</td>
+      </tr>
+      <tr>
+        <td class="mono">MemorySpace</td>
+        <td><span class="mono">space_id</span>、<span class="mono">space_type</span>（<span class="mono">user</span> / <span class="mono">team</span> / <span class="mono">project</span> / <span class="mono">agent</span>）、<span class="mono">canonical_owner_ref</span>、<span class="mono">lifecycle_state</span>、<span class="mono">sensitivity</span>、<span class="mono">current_revision</span></td>
+        <td>四类并列，不采用单一树形；不提供 public Memory；<span class="mono">belongs_to</span> / <span class="mono">participates_in</span> / <span class="mono">references</span> 不自动继承 owner、读取权或发布权。</td>
+      </tr>
+      <tr>
+        <td class="mono">Delegation</td>
+        <td><span class="mono">delegator</span>、<span class="mono">delegate</span>、<span class="mono">resource_scope</span>、<span class="mono">allowed_actions</span>、<span class="mono">expires_at</span>、<span class="mono">allow_subdelegation</span>、<span class="mono">revocable</span></td>
+        <td><span class="mono">delegate_effective_permission ⊆ delegator_effective_permission</span>；默认禁止无限再委托；代理责任链必须记录发起用户、委托 Agent、执行 Harness、审批者与验证者。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>工作对象域</h4>
+  <table class="tbl">
+    <thead><tr><th style="width:180px">实体</th><th>关键字段</th><th style="width:340px">关系与边界</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">WorkThread</td>
+        <td><span class="mono">work_thread_id</span>、<span class="mono">canonical_owner_scope</span>、<span class="mono">work_status</span>、<span class="mono">responsibility_state</span>、<span class="mono">current_revision</span></td>
+        <td>跨执行者持续存在的工作主体。<span class="mono">Work Thread ≠ Chat Session / Harness Session / Run / Checkpoint</span>；认领只改变 active executor。</td>
+      </tr>
+      <tr>
+        <td class="mono">Task / Work Phase</td>
+        <td><span class="mono">task_id</span>、<span class="mono">acceptance_criteria</span>、<span class="mono">phase_state</span>、<span class="mono">deliverables</span></td>
+        <td>可验收目标与阶段。<span class="mono">Run succeeded ≠ Task accepted</span>；<span class="mono">Phase 完成 ≠ Work Thread 完成</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">Execution / Run</td>
+        <td><span class="mono">execution_id</span>、<span class="mono">run_id</span>、<span class="mono">harness_id</span>、<span class="mono">agent_id</span>、<span class="mono">result</span>、<span class="mono">external_effect</span></td>
+        <td>Run 是外部 Harness 的执行容器，「不是平台的工作真源」；失败重试创建新 Run。</td>
+      </tr>
+      <tr>
+        <td class="mono">Attempt</td>
+        <td><span class="mono">attempt_id</span>、<span class="mono">goal</span>、<span class="mono">action</span>、<span class="mono">input_context</span>、<span class="mono">result</span>、<span class="mono">evidence_refs</span>、<span class="mono">next_decision</span></td>
+        <td>一次实际推进尝试；失败路径是一等数据，恢复视图应明确已排除路径。</td>
+      </tr>
+      <tr>
+        <td class="mono">Checkpoint</td>
+        <td><span class="mono">checkpoint_id</span>、<span class="mono">created_at</span>、<span class="mono">superseded_by</span></td>
+        <td>某个时间点的可恢复检查点。<span class="mono">Checkpoint ≠ 长期记忆</span>、<span class="mono">Checkpoint ≠ Run Context Snapshot</span>；<span class="mono">Checkpoint exists ≠ can restore old rights</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">CodeScenario</td>
+        <td><span class="mono">scenario_id</span>、<span class="mono">code_anchor</span>（<span class="mono">repository</span> / <span class="mono">revision</span>）、<span class="mono">scope</span>、<span class="mono">paths</span>、<span class="mono">rca_refs</span>、<span class="mono">verification_refs</span>、<span class="mono">status</span></td>
+        <td><span class="mono">repo + revision</span> 是共同硬锚点；缺少时不得发布为稳定 Code Context、确定性 RCA、可执行 Patch 或 Skill；<span class="mono">branch</span> 是可移动引用，不能替代稳定 revision。</td>
+      </tr>
+      <tr>
+        <td class="mono">Evidence</td>
+        <td><span class="mono">evidence_id</span>、<span class="mono">type</span>、<span class="mono">content / reference</span>、<span class="mono">observed_at</span>、<span class="mono">source_revision</span>、<span class="mono">supports / contradicts</span>、<span class="mono">sensitivity</span></td>
+        <td>追加式保存，只追加不覆盖；事实与推断分开，抽取器不能把模型推断写回成 <span class="mono">observed fact</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">ContextBinding</td>
+        <td><span class="mono">primaryProjectId</span>、<span class="mono">referenceProjectIds[]</span>、<span class="mono">writeTargetSpaceId</span></td>
+        <td>每个参考项目单独授权只读；读取权限不等于写入权限；显式无权目标直接拒绝，绑定冲突返回 <span class="mono">context_conflict</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">ContinuationPackage</td>
+        <td><span class="mono">package_version</span>、<span class="mono">source_revision</span>、<span class="mono">projection_target</span>、<span class="mono">gaps</span>、<span class="mono">minimum_safe_action</span></td>
+        <td>面向下一执行者的续办投影，是可重建的派生物；凭据、Token、私钥与登录态不得进入正文，只记录 <span class="mono">credential_ref</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">RunContextSnapshot</td>
+        <td><span class="mono">snapshot_id</span>、<span class="mono">manifest_id</span>、<span class="mono">resolved_at</span></td>
+        <td>某次 Run 实际获得的不可变上下文，不热更新；只证明过去发生过什么，不授予当前访问权、发布权或执行权。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>记忆与知识域</h4>
+  <table class="tbl">
+    <thead><tr><th style="width:180px">实体</th><th>关键字段</th><th style="width:340px">关系与边界</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">MemoryItem</td>
+        <td><span class="mono">memory_id</span>、<span class="mono">canonical_owner_scope</span>、<span class="mono">related_scopes</span>、<span class="mono">sensitivity</span>、<span class="mono">lifecycle</span>、<span class="mono">current_revision_ref</span></td>
+        <td>
+          每条可治理记忆只有一个规范归属；归属只表达规范责任与语义边界，不等于权限。<span class="chip warn">待确认</span> 分层口径存在两种表述：议题 02（<span class="mono">_facts/01-02-digest.md</span>）记为「L1 = 原子记忆、L2 = 可恢复场景边界、L3 = 长期记忆演进规则」，并明确该文件<strong>未定义 L0</strong>、未使用「L3 事实」表述；<span class="mono">.specs/enterprise-agent-memory-platform/README.md</span> 与 <span class="mono">_build/CONTRACT.md</span> 统一演示数据集使用「L0 对话 / L1 原子 / L2 场景 / L3 事实」。两处口径冲突，不自行裁决。
+        </td>
+      </tr>
+      <tr>
+        <td class="mono">MemoryRevision</td>
+        <td><span class="mono">revision_id</span>、<span class="mono">immutable content</span>、<span class="mono">parent_revision</span>、<span class="mono">evidence_refs</span>、<span class="mono">schema_version</span>、<span class="mono">content_integrity</span></td>
+        <td>不可变内容与状态版本；纠正用追加式 <span class="mono">correction_record</span>，不覆盖原归属事实。</td>
+      </tr>
+      <tr>
+        <td class="mono">MemoryEvent</td>
+        <td><span class="mono">event_id</span>、<span class="mono">memory_revision</span>、<span class="mono">event_type</span>、<span class="mono">occurred_at</span>、<span class="mono">actor / producer</span>、<span class="mono">idempotency_key</span>、<span class="mono">causation_id</span>、<span class="mono">policy_context</span></td>
+        <td>追加式事实；迟到、乱序或重复事件必须隔离、幂等或生成校正候选，不得以到达顺序覆盖较新有效版本。</td>
+      </tr>
+      <tr>
+        <td class="mono">KnowledgeAsset</td>
+        <td><span class="mono">asset_id</span>、<span class="mono">asset_kind</span>、<span class="mono">source_refs</span>、<span class="mono">target_space</span>、<span class="mono">effective_scope</span>、<span class="mono">status</span>、<span class="mono">lineage_run</span></td>
+        <td>五类对象各有不可替代的回答与消费者：<span class="mono">Wiki ≠ Skill</span>、<span class="mono">RCA ≠ 普通 Wiki</span>、<span class="mono">Template ≠ 历史产物复制品</span>、<span class="mono">Code Context ≠ 单纯代码索引</span>、<span class="mono">Skill ≠ Prompt 收藏</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">KnowledgeAssetVersion</td>
+        <td><span class="mono">asset_version</span>、<span class="mono">source_memory_versions</span>、<span class="mono">source_work_thread_versions</span>、<span class="mono">source_code_revisions</span>、<span class="mono">source_policy_version</span>、<span class="mono">source_redaction_version</span>、<span class="mono">valid_from / valid_until</span></td>
+        <td>已发布版本不原地覆盖；派生资产权限不得宽于来源，且 <span class="mono">target_scope ⊆ effective_scope</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">ChangeSet</td>
+        <td><span class="mono">changeset_id</span>、<span class="mono">target_object</span>、<span class="mono">mergedHash</span>、<span class="mono">headRevision</span>、<span class="mono">review_state</span>、<span class="mono">publication_state</span></td>
+        <td>
+          内容变更、合并、审核与发布对象，不与 RunGate 混称为 Approval。<span class="chip warn">待确认</span> 知识化链路是否以 ChangeSet 为统一变更对象存在两种口径：议题 05 与议题 06 的蒸馏稿明确「两份文档均未出现 ChangeSet 作为知识对象或变更对象」，其链路为 <span class="mono">Knowledge Candidate → Review → Publish</span>；<span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> §2 与 <span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §2、§6 定义 ChangeSet 为内容审核发布的唯一入口。不自行裁决。
+        </td>
+      </tr>
+      <tr>
+        <td class="mono">ProcedureTemplate</td>
+        <td><span class="mono">template_id</span>、<span class="mono">kind</span>（<span class="mono">scene</span> / <span class="mono">playbook</span>）、<span class="mono">variables / slots</span>、<span class="mono">constraints</span>、<span class="mono">verification_rules</span>、<span class="mono">locked_version</span></td>
+        <td>引用必须锁定版本，升级、复制或派生是显式变更；不创建第二套运行时或独立编排引擎。</td>
+      </tr>
+      <tr>
+        <td class="mono">ConsumerProjection</td>
+        <td><span class="mono">reference_status</span>、<span class="mono">retrieval_status</span>、<span class="mono">action_status</span></td>
+        <td>三级适配 <span class="mono">discoverable → referenceable → actionable</span>；<span class="mono">published ≠ actionable</span>，投影必须指向同一资产版本且不扩大原始权限。</td>
+      </tr>
+      <tr>
+        <td class="mono">FeedbackEvent</td>
+        <td><span class="mono">feedback_id</span>、<span class="mono">feedback_type</span>、<span class="mono">asset_id / asset_version</span>、<span class="mono">context_manifest_id</span>、<span class="mono">run_id</span>、<span class="mono">repository / revision</span>、<span class="mono">authorization_state</span>、<span class="mono">anomaly_state</span></td>
+        <td>追加证据，不能直接改写资产；反馈不能自动改变 ACL、canonical owner、敏感性、跨空间范围、Tool Policy 或 RunGate。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>安全与副本域</h4>
+  <table class="tbl">
+    <thead><tr><th style="width:180px">实体</th><th>关键字段</th><th style="width:340px">关系与边界</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">Purpose</td>
+        <td><span class="mono">purpose_id</span>、<span class="mono">allowed_actions</span>、<span class="mono">policy_version</span></td>
+        <td>用途决定「能不能使用」，相关性只决定「值不值得优先使用」；相关性不能越过权限。</td>
+      </tr>
+      <tr>
+        <td class="mono">VisibilityContext</td>
+        <td><span class="mono">subject / delegated_by</span>、<span class="mono">purpose / consumer</span>、<span class="mono">tenant / project / space</span>、<span class="mono">source ACL / target policy</span>、<span class="mono">sensitivity</span>、<span class="mono">asset state / revocation state</span>、<span class="mono">requested depth / expiry</span>、<span class="mono">policy_version</span></td>
+        <td>不可变、带版本；过滤优先于召回，「不能先全库召回再在最后隐藏内容」。</td>
+      </tr>
+      <tr>
+        <td class="mono">ContextManifest</td>
+        <td><span class="mono">manifest_id</span>、<span class="mono">memory_id</span>、<span class="mono">source_revision</span>、<span class="mono">owner_scope</span>、<span class="mono">inclusion_reason</span>、<span class="mono">authorization_context</span>、<span class="mono">policy_version</span>、<span class="mono">sensitivity_decision</span>、<span class="mono">redaction_state</span></td>
+        <td>当前授权的一次投影，不是权限本身；必须原子发布，旧 Manifest 只作历史审计，不得继续用于新的检索、注入或行动。</td>
+      </tr>
+      <tr>
+        <td class="mono">ToolPolicy</td>
+        <td><span class="mono">tool_type</span>、<span class="mono">resource_scope</span>、<span class="mono">parameter limits</span>、<span class="mono">network / file / environment constraints</span>、<span class="mono">prohibitions</span>、<span class="mono">audit requirements</span></td>
+        <td>能力与约束声明，不是某一次执行的批准；RunGate 不得放宽 Tool Policy。</td>
+      </tr>
+      <tr>
+        <td class="mono">RunGate</td>
+        <td><span class="mono">run_id</span>、<span class="mono">subject / delegation</span>、<span class="mono">target revision / environment</span>、<span class="mono">risk_level</span>、<span class="mono">approval_ref</span>、<span class="mono">decision</span>（<span class="mono">admit</span> / <span class="mono">hold</span> / <span class="mono">deny</span>）</td>
+        <td>动态准入与持续重检，不由 Knowledge Asset、Agent 或普通业务代码直接绕过；<span class="mono">approval exists ≠ current plan valid</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">ActionProposal</td>
+        <td><span class="mono">proposal_id / version</span>、<span class="mono">target</span>、<span class="mono">suggested action</span>、<span class="mono">impact preview</span>、<span class="mono">preconditions</span>、<span class="mono">not_applicable</span></td>
+        <td>默认不可执行；建议不等于执行，Tool Policy 是硬边界。</td>
+      </tr>
+      <tr>
+        <td class="mono">CopyInventory</td>
+        <td><span class="mono">copy_identity / source_revision</span>、<span class="mono">boundary / owner / controller / provider / recipient</span>、<span class="mono">purpose / classification / retention_hold</span>、<span class="mono">lifecycle / access / disposition</span>、<span class="mono">observation / coverage / freshness</span>、<span class="mono">proof_snapshot / claim_scope</span></td>
+        <td>快照是清理证明的范围基线；内部全量不等于普通用户可见；每个观测、处置和验证保留自己的时间、版本与来源。</td>
+      </tr>
+      <tr>
+        <td class="mono">ExportAsset</td>
+        <td><span class="mono">export_id / version</span>、<span class="mono">requester / approver / recipient</span>、<span class="mono">scope / depth</span>、<span class="mono">sensitivity</span>、<span class="mono">expires_at / revoked_at</span>、<span class="mono">integrity digest</span>、<span class="mono">reshare policy</span></td>
+        <td>独立受控资产；<span class="mono">export success ≠ recipient may reshare</span>；<span class="mono">revoked ≠ 外部设备已删除</span>。</td>
+      </tr>
+      <tr>
+        <td class="mono">EvidenceEvent</td>
+        <td><span class="mono">event_id</span>、<span class="mono">event_type</span>、<span class="mono">observed_at</span>、<span class="mono">subject / harness / agent / purpose</span>、<span class="mono">source_asset / source_revision / target_scope</span>、<span class="mono">sensitivity / policy_version / lineage_ref</span>、<span class="mono">operation / result / external_effect</span>、<span class="mono">evidence_ref / coverage / freshness</span>、<span class="mono">unknown_reason / responsibility / supersedes</span></td>
+        <td>清理、报告、投递和补救都引用 EvidenceEvent 与版本化 snapshot；不用一个实时布尔字段覆盖历史事实。</td>
+      </tr>
+      <tr>
+        <td class="mono">LineageRelation</td>
+        <td><span class="mono">source_object_id / version</span>、<span class="mono">target_object_id / version</span>、<span class="mono">relation_type</span>、<span class="mono">authorization_context</span>、<span class="mono">valid_time</span>、<span class="mono">status</span></td>
+        <td>至少 13 种关系（<span class="mono">captured_from</span>、<span class="mono">derived_from</span>、<span class="mono">supports</span>、<span class="mono">contradicts</span>、<span class="mono">verified_by</span>、<span class="mono">applies_to</span>、<span class="mono">projected_to</span>、<span class="mono">used_by</span>、<span class="mono">invalidated_by</span>、<span class="mono">supersedes</span>、<span class="mono">revoked_by</span> 等）；<span class="mono">derived_from ≠ verified_by</span>；血缘不扩大权限，也不得成为绕过 ACL 的反向索引。</td>
+      </tr>
+      <tr>
+        <td class="mono">AuditRecord</td>
+        <td><span class="mono">event_id</span>、<span class="mono">principal / delegation</span>、<span class="mono">purpose / resource_scope</span>、<span class="mono">policy_version / decision / reason</span>、<span class="mono">plan / run / trace refs</span>、<span class="mono">retention_class / legal_hold</span>、<span class="mono">event_digest</span></td>
+        <td>五类分层追加式证据（Decision / Execution / Impact / Identity-Policy / Lineage-Retention）；<span class="mono">retained ≠ retrievable</span>，审计不静默修改。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="s3-4">3.4 技术栈</h3>
+  <table class="tbl">
+    <thead><tr><th style="width:150px">层</th><th style="width:330px">选型</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td>交付形态</td><td>本地单文件 HTML 原型（<span class="mono">lang="zh-CN"</span>，UTF-8，浏览器直接打开）</td><td>对应 AC-8：离线可检查、零外部请求，可快速验证信息架构与状态模型。</td></tr>
+      <tr><td>前端</td><td>原生 HTML + CSS + JavaScript，无构建依赖</td><td>满足离线检查与快速验证；不引入 UI 框架依赖。</td></tr>
+      <tr><td>后端</td><td>无；合成数据</td><td>本轮不引入真实服务端，避免把未确定的契约固化。</td></tr>
+      <tr><td>数据</td><td>无持久化</td><td>原型只展示对象与状态语义，不承担存储实现。</td></tr>
+      <tr><td>部署</td><td>本地文件或静态服务器</td><td>不进入生产实现。</td></tr>
+      <tr><td>关键依赖</td><td>现代浏览器；Node.js <span class="mono">--check</span>（脚本静态检查）</td><td>零外部依赖前提下完成脚本语法检查。</td></tr>
+      <tr><td>检查与验收</td><td>浏览器人工检查、键盘与窄屏浏览、hash 深链</td><td>对应 AC-8；原型不发送埋点。</td></tr>
+      <tr class="grp-row"><td colspan="3">明确排除</td></tr>
+      <tr><td>前端框架</td><td><span class="chip danger">本轮排除</span> React / Next.js</td><td>避免原型把未确定的契约固化。</td></tr>
+      <tr><td>真实 API</td><td><span class="chip danger">本轮排除</span> 真实 API、数据库、鉴权、事件总线、RBAC/ABAC 与 RunGate 实现</td><td>真实实现必须在 Schema、责任矩阵、法务和部署拓扑确认后另开实现 change。</td></tr>
+      <tr><td>真实副作用</td><td><span class="chip danger">本轮排除</span> Provider 删除、终端擦除、消息发送、生产 Run</td><td>原型只使用本地合成数据。</td></tr>
+    </tbody>
+  </table>
+  <p class="small muted">口径来源：<span class="mono">.specs/enterprise-agent-memory-product/DESIGN.md</span> §0「技术栈选定」与 §6「不在范围」，<span class="mono">.specs/enterprise-agent-memory-product/CHANGE.md</span>「非目标」。</p>
+  <div class="callout warn">
+    <h5>存储与索引选型</h5>
+    <p class="small"><span class="chip warn">待确认</span> <span class="mono">ARCHITECTURE.md</span> 第 5 节把「物理存储」定为「语义统一、物理实现可替换」，并明确不提前冻结图数据库、向量库与 Provider；具体数据库、索引引擎、事件存储与部署拓扑在各议题中均记为暂缓。本文件只声明语义层，不给出选型结论。</p>
+  </div>
+
+  <h3 id="s3-5">3.5 接口一览</h3>
+  <p class="small muted">本 change 明确<strong>不实现真实 API</strong>（见 <span class="mono">CHANGE.md</span> 非目标、<span class="mono">DESIGN.md</span> §0、<span class="mono">REQUIREMENT.md</span> v2 范围）。下表列的是议题文档中<strong>已经出现的能力与操作名称</strong>，用于说明未来的契约边界；<strong>不是已实现接口</strong>。路径、HTTP 方法、错误码、版本兼容、幂等键与鉴权方式均未固化，因此每一行的状态都是「候选契约（未实现，待确认）」。</p>
+  <table class="tbl">
+    <thead><tr><th style="width:260px">端点（候选能力名）</th><th style="width:150px">方法（候选协议形态）</th><th>用途</th><th style="width:130px">状态</th></tr></thead>
+    <tbody>
+      <tr class="grp-row"><td colspan="4">Harness 接入：Connector Contract V1 八项最小能力</td></tr>
+      <tr><td class="mono">Handshake</td><td class="mono">stream / negotiate</td><td>绑定协议版本、Connector 与 Harness 身份、实例、主体身份、租户范围、能力档案与凭据引用。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Event Append</td><td class="mono">append</td><td>追加证据、来源 revision、观测时间与业务意图幂等键。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Idempotency + Cursor</td><td class="mono">append / query</td><td>消息级重复与业务意图级重复分离；Source / Acceptance / Processing / Projection 四类 Cursor 分离。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Capability Declaration</td><td class="mono">declare / query</td><td>能力结果区分支持、带约束支持、部分支持、暂时不可用、不支持、未验证、已撤销与未知。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Resource Reference</td><td class="mono">reference</td><td>记录资源类型、标识、来源系统、revision、内容哈希、观测与过期时间、访问要求、敏感性与当前状态。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Health / Lease</td><td class="mono">heartbeat</td><td>记录 Connector 与实例健康、租约标识、过期时间、最近可见与撤销时间。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Probe</td><td class="mono">command</td><td>执行前探测能力与资源可达性；<span class="mono">assessment.valid ≠ execution.eligible</span>。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">Structured Result</td><td class="mono">result</td><td>结构化结果与错误分层返回，错误不得反向泄露无权对象。</td><td><span class="chip warn">待确认</span></td></tr>
+
+      <tr class="grp-row"><td colspan="4">记忆与知识变更</td></tr>
+      <tr><td class="mono">authorize</td><td class="mono">decision</td><td>授权请求与决策；输出含 obligations、required_approvals、redactions、allowed_scope、expiry 与审计级别，不能只有布尔值。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">derive</td><td class="mono">command</td><td>脱敏与派生：生成带来源、目标范围、敏感性前后、血缘与适用范围的派生候选。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">publish</td><td class="mono">command</td><td>审核通过后发布指定资产版本；<span class="mono">Approved ≠ Published</span>、<span class="mono">published ≠ actionable</span>。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">get_lineage</td><td class="mono">query</td><td>查询来源闭包与影响闭包；按 existence / metadata / summary / content / impact / export / admin 分层返回最小必要投影。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">revoke</td><td class="mono">command</td><td>撤回：先逻辑撤回（立即不可检索、不可注入、不可执行），物理删除按合规与生命周期异步执行。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">recompute</td><td class="mono">command</td><td>重算指标或派生结果，不篡改历史结果；回滚不能恢复已 <span class="mono">revoked</span> 的来源或权利。</td><td><span class="chip warn">待确认</span></td></tr>
+
+      <tr class="grp-row"><td colspan="4">检索与上下文投影</td></tr>
+      <tr><td class="mono">retrieve</td><td class="mono">query</td><td>在已授权 scope 内做四通道候选发现；索引只用于加速候选，不授予权限。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">project</td><td class="mono">projection</td><td>按 Harness 能力、用途与预算生成最小上下文投影；两次授权复核，第二次不可省略。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">resolve_manifest</td><td class="mono">command</td><td>原子发布 ContextManifest；Manifest 是当前授权的投影，不是权限本身。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">submit_feedback</td><td class="mono">append</td><td>追加反馈事件并绑定资产版本、Manifest、Run、revision 与用途；反馈不能自动改变治理面。</td><td><span class="chip warn">待确认</span></td></tr>
+
+      <tr class="grp-row"><td colspan="4">执行与门禁</td></tr>
+      <tr><td class="mono">create_action</td><td class="mono">command</td><td>生成 Action Proposal；默认不可执行，需重新绑定当前上下文。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">approve_action</td><td class="mono">decision</td><td>独立审批并绑定不可变 Run Plan 版本；关键变化使原审批自动失效。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">run_gate_check</td><td class="mono">decision</td><td>执行前与每个 Tool Call / Attempt 前的准入重检；返回 <span class="mono">admit</span> / <span class="mono">hold</span> / <span class="mono">deny</span> 或接管要求。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">execute</td><td class="mono">command</td><td>受约束 Run；记录实际 Tool Call 与计划外差异。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">cancel / rollback</td><td class="mono">command</td><td>取消或补偿；<span class="mono">cancel requested ≠ side effect stopped</span>，<span class="mono">rollback requested ≠ rollback succeeded</span>。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">verify</td><td class="mono">result</td><td>验证结果与外部效果；<span class="mono">executed ≠ verified</span>。</td><td><span class="chip warn">待确认</span></td></tr>
+
+      <tr class="grp-row"><td colspan="4">跨空间复用与清理</td></tr>
+      <tr><td class="mono">reference / share</td><td class="mono">command</td><td>受控引用或分享：默认 <span class="mono">reference_status = available</span>、<span class="mono">retrieval_status = restricted</span>、<span class="mono">action_status = blocked</span>。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">promote / replicate / aggregate</td><td class="mono">command</td><td>跨空间提升、复制与聚合；目标权限不得宽于来源，没有明确 Target Owner 时只能保留候选。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">export</td><td class="mono">command</td><td>生成 Export Asset；绑定范围、接收者、用途、有效期、审批与撤回方式，默认关闭。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">inventory_snapshot</td><td class="mono">query</td><td>生成版本化 Copy Inventory 快照作为清理证明的范围基线；按主体与用途做最小投影。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">dispose / verify_clearance</td><td class="mono">command / result</td><td>分层处置与独立验证；证据等级不跨副本继承，抽样不等于全量证明。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">publish_report / deliver</td><td class="mono">command</td><td>先生成授权投影再渲染；一个报告共享 Delivery Intent、各渠道独立 Attempt。</td><td><span class="chip warn">待确认</span></td></tr>
+
+      <tr class="grp-row"><td colspan="4">治理与平台</td></tr>
+      <tr><td class="mono">review / approve</td><td class="mono">decision</td><td>内容审核与发布审批；自动化 Agent 只能是 author 或 proposer，不能自审、自批、自发布。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">analyze_impact</td><td class="mono">query / async</td><td>影响分析；只能生成 Impact Report、Impact Candidate、Recommended Review 或 Blocking Recommendation。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">audit</td><td class="mono">query</td><td>审计查询按当前授权最小披露；<span class="mono">audit</span> 不自动解锁原始凭据或客户数据。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">administer / delegate</td><td class="mono">command</td><td>平台配置与受限委托；委托是委托者有效权限的子集，禁止无限再委托。</td><td><span class="chip warn">待确认</span></td></tr>
+      <tr><td class="mono">—</td><td class="mono">—</td><td>真实 HTTP / gRPC 端点、数据库 Schema、事件总线、鉴权与会话。</td><td><span class="chip danger">本轮不实现</span></td></tr>
+    </tbody>
+  </table>
+  <p class="small muted">能力名来源：<span class="mono">05-记忆自动知识化</span> 子议题 3 的 <span class="mono">authorize / derive / publish / get_lineage / revoke / recompute</span>；议题 10 第 1 轮的 <span class="mono">reference / project / derive / promote / export / share / replicate / aggregate</span>；议题 9 第 1 轮的动作清单；议题 1 子议题深化 16 的 Connector Contract V1 八项能力。</p>
+
+  <div class="callout warn">
+    <h5>边界声明</h5>
+    <p class="small">本文件是产品架构设计，不是最终工程架构；实现前需以低敏样本、真实部署边界和责任矩阵验证。未经过验证不得冻结最终 Schema、阈值、SLA、合同或法域模板。</p>
+  </div>
+</section>

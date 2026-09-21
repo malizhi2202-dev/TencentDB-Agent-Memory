@@ -1,0 +1,33 @@
+  </section>
+
+  <footer class="doc-foot">
+    <p style="margin:0 0 4px"><b>Enterprise Agent Memory Platform · 产品设计文档与界面原型</b> · v0.2 · 2026-09-21 · change-id <span class="mono">enterprise-agent-memory-product</span></p>
+    <p class="small" style="margin:0">本文件为单文件离线文档，零外部依赖。第 6 章全部界面为只读静态原型，数据均为虚构演示数据，不连接后端、不产生真实副作用。涉及 Schema、阈值、算法、SLA、责任矩阵、供应商合同与法域模板的内容均标注为待确认或暂缓，不构成法律、合规或工程实现结论。</p>
+  </footer>
+
+  </main>
+</div>
+
+<script>
+// 主题切换：纯本地，写入 localStorage，不发请求
+(function(){
+  var root = document.documentElement;
+  var btn = document.getElementById('theme-toggle');
+  var label = document.getElementById('theme-label');
+  var stored = null;
+  try { stored = localStorage.getItem('eam-theme'); } catch (e) {}
+  function apply(t){
+    root.setAttribute('data-theme', t);
+    if (label) label.textContent = (t === 'dark') ? '亮色' : '暗色';
+    if (btn) btn.setAttribute('aria-label', (t === 'dark') ? '切换到亮色主题' : '切换到暗色主题');
+  }
+  apply(stored === 'dark' ? 'dark' : 'light');
+  if (btn) btn.addEventListener('click', function(){
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    apply(next);
+    try { localStorage.setItem('eam-theme', next); } catch (e) {}
+  });
+})();
+</script>
+
+<script>

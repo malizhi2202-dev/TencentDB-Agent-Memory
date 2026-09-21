@@ -1,0 +1,765 @@
+<h3 id="p9">6.9 Agent 配置与资源装配</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>回答三个不同的问题：这个 Agent 被允许看什么（关联范围）、默认装配什么（mounted）、本次运行实际用到什么（effective）。Agent Admin 可编辑配置，其他角色只看到只读摘要；<b>关联不自动授予管理权或执行权</b>；Vault 只显示引用与状态，绝不回显 Secret。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/agent/a-retriever</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a class="active" href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">Agent / <b>a-retriever</b> / 配置与资源装配</span><span class="right"><span class="chip mono">agent-admin · 郑工</span><span class="chip mono">v14 · 生效 2026-09-21 14:32</span><button class="btn sm">版本历史</button><button class="btn sm">复制为新版本</button></span></div>
+      <div class="app-body">
+        <div class="panel">
+          <p class="h1">a-retriever · 记忆检索助手 <span class="chip brand">retriever</span> <span class="chip ok">active</span> <span class="chip mono">v14</span></p>
+          <dl class="kv">
+            <dt>name</dt><dd class="mono">a-retriever</dd>
+            <dt>description</dt><dd>在已授权 scope 内检索记忆与知识资产，生成只读引用与上下文投影；不写入源空间。</dd>
+            <dt>type</dt><dd>retriever（产品定义类型；同类：assistant / coder / reviewer / workflow）</dd>
+            <dt>visibility</dt><dd>scope-visible（Team team-pay 内可发现元数据）· <span class="muted">visibility 只控制发现与查看元数据，不代表可读内容</span></dd>
+            <dt>owner</dt><dd>郑工（zheng.gong）· agent-admin</dd>
+            <dt>status</dt><dd><span class="chip ok">active</span> v14 生效中；v13 已 <span class="chip">superseded</span></dd>
+            <dt>version</dt><dd class="mono">v14 · revision sha256:9f3c7a2</dd>
+            <dt>模型配置引用</dt><dd class="mono">mc-platform-default</dd>
+          </dl>
+          <p class="tiny muted">模型配置以引用方式绑定平台公共配置，不复制密钥；Agent 版本变化不改变资源 owner 与 ACL。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">关联范围（只授予明确的 view / use）</p>
+          <table class="tbl compact">
+            <thead><tr><th>关联对象</th><th>关系类型</th><th>授予动作</th><th>生效条件</th><th>是否继承管理权</th></tr></thead>
+            <tbody>
+              <tr><td>Team <span class="mono">team-pay</span>「支付平台」</td><td class="mono tiny">AgentTeamRelation</td><td class="mono tiny">view</td><td>仅 team-pay 成员可发现</td><td>否 · 不授予成员管理、Team 资源 CRUD 或策略修改</td></tr>
+              <tr><td>Project <span class="mono">p-db</span>「DB-Proxy 可靠性」</td><td class="mono tiny">AgentProjectRelation</td><td class="mono tiny">view + use</td><td>owning Team 支付平台 · open</td><td>否 · 不授予 Project 成员管理或配置修改</td></tr>
+              <tr><td>Project <span class="mono">p-gw</span>「网关可观测性」</td><td class="mono tiny">AgentProjectRelation</td><td><span class="chip warn">requested</span> view + use</td><td>restricted · 需 Project Admin 批准</td><td>否 · 批准后仍不继承管理权</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">关联范围只解释「可以使用哪些已获准对象」；它不改变资源 owner、ACL 或 visibility，也不能作为写授权。历史 Snapshot 保存当时事实，不能绕过当前撤权。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">资源装配三层对比</p>
+          <table class="tbl compact">
+            <thead><tr><th>资源</th><th>accessible<span class="tiny muted"> 当前主体可用候选</span></th><th>mounted<span class="tiny muted"> Agent 默认装配</span></th><th>effective<span class="tiny muted"> r-83 实际解析</span></th></tr></thead>
+            <tbody>
+              <tr><td>MemorySpace <span class="mono">ms-proj-db</span>（project/p-db）</td><td>只读候选</td><td>已装配</td><td>已注入（只读）</td></tr>
+              <tr><td>MemorySpace <span class="mono">ms-team-pay</span>（team/team-pay）</td><td>只读候选</td><td>未装配</td><td>未生效</td></tr>
+              <tr><td>MemorySpace <span class="mono">ms-agent-retriever</span>（agent）</td><td>候选写入（进 ChangeSet）</td><td>已装配</td><td>未写入</td></tr>
+              <tr><td><span class="mono">k-wiki-connpool</span>（Wiki v7）</td><td>按策略可用</td><td>已装配</td><td>引用 2 段</td></tr>
+              <tr><td><span class="mono">k-skill-pg-triage</span>（Skill v3）</td><td>按策略可用</td><td>已装配</td><td><span class="chip danger">未生效</span> RunGate blocked</td></tr>
+              <tr><td><span class="mono">k-ctx-dbproxy</span>（Code Context）</td><td><span class="chip danger">不可用</span> Team 策略收紧</td><td>未装配</td><td>无</td></tr>
+              <tr><td><span class="mono">k-tpl-scene-db</span>（Template v2）</td><td>按策略可用</td><td>已装配（锁定 v2）</td><td>未使用</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted"><span class="mono">accessible ≠ mounted ≠ effective</span>：effective 是本次 Run 解析出的不可变集合，不随 Agent 配置回填；引用锁定版本，升级必须显式变更。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">工具与 Tool Policy（能力硬边界）</p>
+          <table class="tbl compact">
+            <thead><tr><th>工具 / Connector</th><th>能力声明</th><th>Tool Policy</th><th>当前状态</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny">repo.read</td><td>read_only · reversible · 幂等支持</td><td class="mono tiny">allow read</td><td><span class="chip ok">可用</span></td></tr>
+              <tr><td class="mono tiny">memory.retrieve</td><td>read_only · 支持 cancel</td><td class="mono tiny">allow retrieve</td><td><span class="chip ok">可用</span></td></tr>
+              <tr><td class="mono tiny">memory.write</td><td>write · compensatable</td><td class="mono tiny">未授予</td><td><span class="chip danger">blocked</span></td></tr>
+              <tr><td class="mono tiny">db.query</td><td>write · irreversible · 无回滚</td><td class="mono tiny">需 RunGate + 独立审批</td><td><span class="chip danger">blocked</span> 风险 R2</td></tr>
+              <tr><td class="mono tiny">deploy.prod</td><td>write · irreversible</td><td class="mono tiny">禁止</td><td><span class="chip danger">禁止</span></td></tr>
+              <tr><td class="mono tiny">export.share</td><td>write · irreversible · 外部副作用</td><td class="mono tiny">未授予</td><td><span class="chip danger">blocked</span></td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">Tool Policy 描述能力与硬约束，RunGate 只做当前准入判断、<b>不能放宽 Tool Policy</b>；缺少能力声明的工具默认进入人工或受控接管，不由 Agent 自行选择回滚方式。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">Skill 与 Memory 挂载</p>
+          <table class="tbl compact">
+            <thead><tr><th>挂载对象</th><th>版本</th><th>Purpose</th><th>写策略</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mono">k-skill-pg-triage</span>（Skill）</td><td class="mono tiny">v3（锁定）</td><td class="mono tiny">diagnose</td><td>只读引用</td><td><span class="chip ok">published</span></td></tr>
+              <tr><td><span class="mono">k-wiki-connpool</span>（Wiki）</td><td class="mono tiny">v7</td><td class="mono tiny">observe</td><td>只读</td><td><span class="chip ok">published</span></td></tr>
+              <tr><td><span class="mono">ms-proj-db</span>（MemorySpace）</td><td class="mono tiny">project/p-db</td><td class="mono tiny">diagnose</td><td>写入需 ChangeSet Review</td><td><span class="chip ok">active</span></td></tr>
+              <tr><td><span class="mono">ms-agent-retriever</span>（MemorySpace）</td><td class="mono tiny">agent</td><td class="mono tiny">—</td><td>Agent 专属候选写入（进 ChangeSet）</td><td><span class="chip ok">active</span></td></tr>
+              <tr><td><span class="mono">k-tpl-scene-db</span>（Template）</td><td class="mono tiny">v2（锁定）</td><td class="mono tiny">diagnose</td><td>引用不自动同步</td><td><span class="chip ok">published</span></td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">对 Wiki / Code / Skill 的写入是「创建或修改候选并进入 ChangeSet」；Agent 不能凭自身关联修改资源 ACL、owner 或发布状态，也不能审批自己提出的候选。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">Vault 引用（只显示引用与状态）</p>
+          <div class="callout danger"><p class="small">本页只显示引用、指纹、scope 与轮换 / 撤销状态，<b>绝不回显 Secret</b>。密钥内容不进入页面、日志、Trace、Context Manifest 或 Agent 配置；撤销后不重新签发，只能重建引用。</p></div>
+          <table class="tbl compact">
+            <thead><tr><th>引用</th><th>用途</th><th>指纹</th><th>Scope</th><th>轮换</th><th>撤销状态</th><th>最近使用</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny">vault-ref-7f3c</td><td>模型调用凭据</td><td class="mono tiny">sha256:9f3c7a2…</td><td class="mono tiny">llm.invoke@team-pay</td><td class="mono tiny">90 天 · 下次 2026-11-04</td><td><span class="chip ok">active</span></td><td class="mono tiny">2026-09-21 14:32</td></tr>
+              <tr><td class="mono tiny">vault-ref-2b81</td><td>Embedding 生成</td><td class="mono tiny">sha256:2b81ee40…</td><td class="mono tiny">embed.write@platform</td><td class="mono tiny">已轮换 2026-09-01</td><td><span class="chip ok">active</span></td><td class="mono tiny">2026-09-20 09:12</td></tr>
+              <tr><td class="mono tiny">vault-ref-4411</td><td>离线导出签名</td><td class="tiny muted">撤销后不展示</td><td class="mono tiny">export.sign@team-pay</td><td class="tiny muted">—</td><td><span class="chip danger">revoked</span> 2026-09-18</td><td class="tiny muted">无</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">RunGate 与运行证据</p>
+          <table class="tbl compact">
+            <thead><tr><th>门槛项</th><th>当前值</th><th>判定</th></tr></thead>
+            <tbody>
+              <tr><td>主体与委托链</td><td>林工 → <span class="mono">a-retriever</span>（acts_for 已登记）</td><td><span class="chip ok">allow</span></td></tr>
+              <tr><td>Purpose</td><td class="mono tiny">diagnose</td><td><span class="chip ok">allow</span></td></tr>
+              <tr><td>目标 ACL</td><td class="mono tiny">p-db · open · 允许 view/use</td><td><span class="chip ok">allow</span></td></tr>
+              <tr><td>资产 revision</td><td class="mono tiny">sha256:9f3c7a2 与计划一致</td><td><span class="chip ok">allow</span></td></tr>
+              <tr><td>敏感性</td><td>内部（无客户数据、无凭据）</td><td><span class="chip ok">allow</span></td></tr>
+              <tr><td>Tool Policy</td><td class="mono tiny">memory.write 未授予</td><td><span class="chip danger">blocked</span></td></tr>
+              <tr><td>审批绑定计划版本</td><td class="mono tiny">rp-2207 v2 的审批随计划变更失效</td><td><span class="chip danger">blocked</span></td></tr>
+              <tr><td>策略与审计可用性</td><td class="mono tiny">policy-service 可用 · audit-service 可用</td><td><span class="chip ok">allow</span></td></tr>
+              <tr><td>风险分级</td><td>R2（受控资源变更、不可逆）</td><td><span class="chip warn">review</span></td></tr>
+            </tbody>
+          </table>
+          <div class="callout danger">
+            <h5>RunGate = blocked（高风险动作默认阻断，不提供「一键执行」）</h5>
+            <p class="small">阻断原因：<span class="mono">memory.write</span> 不在 Tool Policy 内；<span class="mono">rp-2207 v2</span> 的审批已随计划版本变化失效。</p>
+            <p class="small">下一门槛：① agent-admin 提交 write grant 申请 → ② project-admin 批准资源写授权 → ③ 重新生成 Run Plan v3 → ④ governance 独立审批（提者不批）→ ⑤ RunGate 重检。</p>
+            <p class="small">责任角色：agent-admin（申请）/ project-admin（授权）/ governance（审批）/ auditor（只读复核）。</p>
+          </div>
+          <table class="tbl compact">
+            <thead><tr><th>Run</th><th>时间</th><th>实际使用集合（effective）</th><th>结果</th><th>证据</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny">r-83（t-104）</td><td class="mono tiny">2026-09-21 14:32</td><td class="mono tiny">ms-proj-db（只读）+ k-wiki-connpool v7</td><td><span class="chip ok">verified</span></td><td class="mono tiny">ev-7781 · sha256:9f3c7a2</td></tr>
+              <tr><td class="mono tiny">r-81（t-104）</td><td class="mono tiny">2026-09-20 18:05</td><td class="mono tiny">同 r-83 装配</td><td><span class="chip danger">failed</span> 工具调用超时，副作用未提交</td><td class="mono tiny">ev-7782</td></tr>
+              <tr><td class="mono tiny">r-77（t-101）</td><td class="mono tiny">2026-09-18 11:20</td><td class="mono tiny">ms-proj-db（只读）</td><td><span class="chip ok">verified</span></td><td class="mono tiny">ev-7781</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted"><span class="mono">Run succeeded ≠ Task accepted</span>；历史 Run 保留当时的授权上下文与证据，不被静默改写。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 id="p10">6.10 清理证据</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>回答「撤回请求之后，每个副本到底走到哪一步」。Governance / Security 可操作处置，其他角色只看到按风险分层的摘要；本页<b>不显示「全量已清理」</b>，外部未知不伪造为已清除，法律保全与备份保留单列。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/governance/cleanup</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a class="active" href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">治理 / 清理证据 / <b>ci-8812</b></span><span class="right"><span class="chip mono">governance · 演示身份</span><span class="chip mono">snapshot inv-3312</span><button class="btn sm">导出证据包</button></span></div>
+      <div class="app-body">
+        <div class="callout danger">
+          <h5>本页不显示「全量已清理」</h5>
+          <p class="small">处置状态按副本逐项给出 <span class="mono">requested / blocked / executed / verified / partial / retained / unknown / stale</span>，并绑定范围、证据时间、责任边界与下一门槛。Provider 回执缺失记 <span class="mono">unknown</span>，法律保全记 <span class="mono">retained</span>，两者都不进入「已清理」声明；覆盖率以分层分母、扫描窗口、证据等级和盲区报告，不用单一百分比代表全量。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">源撤回对象与传播状态</p>
+          <dl class="kv">
+            <dt>根事件 root_event</dt><dd class="mono">src-revoke-2201（源资产撤回）</dd>
+            <dt>权威撤回版本</dt><dd class="mono">authority_version rev-4410 v3</dd>
+            <dt>源资产 / 源空间</dt><dd><span class="mono">k-wiki-connpool</span> v7（Wiki）· 源空间 <span class="mono">project/p-db</span> · revision <span class="mono">sha256:9f3c7a2</span></dd>
+            <dt>Copy Inventory</dt><dd><span class="mono">ci-8812</span> · 快照 <span class="mono">inv-3312</span> · 2026-09-21 14:32（快照是清理证明的范围基线）</dd>
+            <dt>传播状态 propagation</dt><dd><span class="chip warn">partial</span> 9 个预期消费者中 3 个已确认应用所需版本，4 个 pending，2 个 unknown</dd>
+            <dt>服务可见性</dt><dd><span class="chip danger">service_visible = blocked</span> 检索、投影、下载与执行自 2026-09-21 14:35 起阻断（阻断不冒充删除完成）</dd>
+            <dt>责任边界</dt><dd>平台可直接控制的副本由平台提供执行与验证证据；只能发起请求的副本记录请求、回执与证明范围；无法确认的副本标记 <span class="mono">unknown</span></dd>
+          </dl>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">副本分类清单（10 类，逐类给状态与门槛）</p>
+          <div class="legend">
+            <span><b>requested</b> 已请求</span>
+            <span><b>blocked</b> 已阻断/被拒</span>
+            <span><b>executed</b> 已执行</span>
+            <span><b>verified</b> 范围内已验证</span>
+            <span><b>partial</b> 部分完成</span>
+            <span><b>retained</b> 依法/依保留策略留存</span>
+            <span><b>unknown</b> 无法确认</span>
+            <span><b>stale</b> 证据过期</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl compact">
+              <thead><tr><th>副本类别</th><th>位置 / 边界</th><th>处置状态</th><th>范围</th><th>证据等级</th><th>证据时间</th><th>责任边界</th><th>下一门槛</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>在线索引</td><td class="mono tiny">index-idx-07（4 分片）</td>
+                  <td><span class="chip ok">verified</span></td><td>4 个分片全部失效并重建</td><td class="mono tiny">E3</td><td class="mono tiny">2026-09-21 14:40</td><td>平台可直接控制 · knowledge-owner 执行</td><td class="tiny">已关闭（范围内验证）</td>
+                </tr>
+                <tr>
+                  <td>版本化存储</td><td class="mono tiny">obj-store/ver-bucket/dbproxy</td>
+                  <td><span class="chip ok">verified</span></td><td>3 个版本对象删除并校验摘要</td><td class="mono tiny">E3</td><td class="mono tiny">2026-09-21 14:50</td><td>平台可直接控制</td><td class="tiny">已关闭</td>
+                </tr>
+                <tr>
+                  <td>热缓存 Cache</td><td class="mono tiny">cache-node-a / b / c</td>
+                  <td><span class="chip brand">executed</span></td><td>3 节点逻辑失效，留有回执</td><td class="mono tiny">E2</td><td class="mono tiny">2026-09-21 14:38</td><td>平台运维</td><td class="tiny">24 小时后抽样复验 → verified</td>
+                </tr>
+                <tr>
+                  <td>Embedding</td><td class="mono tiny">emb-index-v7 + 2 个近邻缓存</td>
+                  <td><span class="chip ok">verified</span></td><td>1 个向量索引 + 2 个近邻缓存</td><td class="mono tiny">E3</td><td class="mono tiny">2026-09-21 14:45</td><td>平台可直接控制 · embedding owner</td><td class="tiny">已关闭（Embedding 不默认等于已脱敏）</td>
+                </tr>
+                <tr>
+                  <td>Context Manifest</td><td class="mono tiny">mf-8801 / mf-8802</td>
+                  <td><span class="chip brand">executed</span></td><td>2 份历史 Manifest 标记 invalidated</td><td class="mono tiny">E2</td><td class="mono tiny">2026-09-21 14:36</td><td>平台可直接控制</td><td class="tiny">Run 责任人对账 pending Run 后再验证</td>
+                </tr>
+                <tr>
+                  <td>备份 / 灾备</td><td class="mono tiny">backup-2026-09-14 · dr-site-b</td>
+                  <td><span class="chip warn">retained</span></td><td>不可变保留 90 天，普通删除不能绕过</td><td class="mono tiny">E1</td><td class="mono tiny">2026-09-21 14:32</td><td>备份责任人 + 法务（解除保全需独立高风险审批）</td><td class="tiny">2026-12-13 到期后执行并验证</td>
+                </tr>
+                <tr>
+                  <td>离线导出 <span class="mono">exp-4411</span></td><td class="mono tiny">受管终端 3 台 · 非受管 1 台</td>
+                  <td><span class="chip warn">partial</span></td><td>受管 3 台已确认，非受管终端 <span class="mono">not_confirmed</span></td><td class="mono tiny">E1</td><td class="mono tiny">2026-09-21 15:02</td><td>导出接收者责任人</td><td class="tiny">收窄交付 + 待接收方处置确认（不承诺全量发现）</td>
+                </tr>
+                <tr>
+                  <td>Provider 处理副本</td><td class="mono tiny">provider-a → 再处理者 sub-b</td>
+                  <td><span class="chip danger">unknown</span></td><td>请求已发出，未收到执行回执；对象 / 版本清单缺失</td><td class="mono tiny">E0</td><td class="mono tiny">2026-09-21 15:20</td><td>供应商管理责任人（平台不能自行宣布违约，也不能把自述回执升级为独立验证）</td><td class="tiny">再次对账 + 合同补救评估；期间维持高敏复用阻断</td>
+                </tr>
+                <tr>
+                  <td>终端副本</td><td class="mono tiny">受管 3 · 非受管 1 · 外部接收者 1</td>
+                  <td><span class="chip warn">partial</span></td><td>受管设备远程擦除已执行；非受管与外部记 <span class="mono">external_unknown</span></td><td class="mono tiny">E1</td><td class="mono tiny">2026-09-21 15:02</td><td>设备管理责任人 + 外部接收者责任人</td><td class="tiny">待接收方确认；未纳管终端不作全量发现承诺</td>
+                </tr>
+                <tr>
+                  <td>法律保全</td><td class="mono tiny">legal-hold LH-2201</td>
+                  <td><span class="chip warn">retained</span></td><td>冻结 k-wiki-connpool v7 + 关联 RCA v2</td><td class="mono tiny">E1</td><td class="mono tiny">2026-09-21 14:32</td><td>法务责任人（auditor 只能查看，不能修改事实或批准删除）</td><td class="tiny">保全解除需独立审批；保留 ≠ 可继续检索或执行</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tiny muted">证据等级不跨副本继承：在线范围的 <span class="mono">E3</span> 不会自动使备份、离线导出或第三方副本达到 E3；新 revision 也不继承旧清理证明。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">声明边界（哪些话可以说，哪些不能说）</p>
+          <table class="tbl compact">
+            <thead><tr><th>声明边界</th><th>当前取值</th><th>不允许的表述</th></tr></thead>
+            <tbody>
+              <tr><td>在线可控范围已验证</td><td>在线索引 / 版本化存储 / Embedding → <span class="mono">verified</span>（范围限定）</td><td>不得写成「全量已清理」或「已删除」</td></tr>
+              <tr><td>备份待生命周期到期</td><td><span class="mono">retained</span>（不可变保留 90 天）</td><td>不得把保留写成已删除，也不得把保留当作服务可用</td></tr>
+              <tr><td>第三方已回执但未独立验证</td><td>暂无（Provider 回执缺失）</td><td>不得把自述回执升级为独立验证结论</td></tr>
+              <tr><td>离线 / 外部副本未知</td><td>离线导出 <span class="mono">partial</span>；终端 <span class="mono">external_unknown</span></td><td>不得把「看不到」解释成「不存在」或「零副本」</td></tr>
+              <tr><td>依法保留</td><td><span class="mono">legal-hold LH-2201</span> → <span class="mono">retained</span></td><td>不得把保全范围计入已清理，也不得把保留当作可继续服务</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">处置任务与证据</p>
+          <table class="tbl compact">
+            <thead><tr><th>任务</th><th>处置动作</th><th>请求状态</th><th>执行状态</th><th>验证状态</th><th>证据时间</th><th>责任边界</th><th>下一门槛</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny">task-cp-3301</td><td>在线索引失效并重建</td><td><span class="chip">requested</span></td><td><span class="chip brand">executed</span></td><td><span class="chip ok">verified</span></td><td class="mono tiny">2026-09-21 14:40</td><td>平台 · knowledge-owner</td><td class="tiny">已关闭；evidence <span class="mono">ev-7781</span></td></tr>
+              <tr><td class="mono tiny">task-cp-3302</td><td>Provider 对账与证明请求</td><td><span class="chip">requested</span> 2026-09-21 14:41</td><td><span class="chip danger">blocked</span> 供应商门户拒绝访问 2026-09-21 15:20</td><td><span class="chip danger">unknown</span></td><td class="mono tiny">2026-09-21 15:20</td><td>供应商管理责任人</td><td class="tiny">升级到合同补救评估；不得重试不可逆动作</td></tr>
+              <tr><td class="mono tiny">task-cp-3303</td><td>非受管终端处置</td><td><span class="chip">requested</span></td><td><span class="chip warn">partial</span> 接收方未确认</td><td><span class="chip warn">stale</span> 7 天未确认</td><td class="mono tiny">2026-09-21 15:02</td><td>设备管理责任人 + 接收者</td><td class="tiny">收窄交付范围并保留未知；超时不是成功</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">每个证据卡同屏显示：<b>范围 + 证据时间 + 责任边界 + 下一门槛</b>；<span class="mono">requested ≠ executed ≠ verified</span>，<span class="mono">retained ≠ service-visible</span>，<span class="mono">unknown ≠ zero</span>。证据引用：<span class="mono">ev-7781</span>（在线范围）、<span class="mono">ev-7782</span>（Provider 回执缺失）。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 id="p11">6.11 报告中心与投递</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>报告由一个<b>不可变事实内核</b>加多个<b>接收者投影</b>组成：先授权投影、再渲染格式，模板不能自行决定权限。渠道接受 ≠ 阅读，撤回 ≠ 外部副本删除；未知与保留字段不得在渲染时被省略。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/reports</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a class="active" href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">治理 / 报告中心 / <b>rpt-3301</b></span><span class="right"><span class="chip mono">auditor · 演示身份</span><span class="chip mono">v3</span><button class="btn sm">事实内核</button><button class="btn sm">导出证据包</button></span></div>
+      <div class="app-body">
+        <div class="panel">
+          <p class="h1">rpt-3301 · Provider 副本清理说明（客户版） <span class="chip ok">approved</span> <span class="chip mono">v3</span> <span class="chip warn">有效期至 2026-10-21</span></p>
+          <dl class="kv">
+            <dt>事实快照</dt><dd><span class="mono">ci-8812</span> · inventory snapshot <span class="mono">inv-3312</span> · authority <span class="mono">rev-4410 v3</span></dd>
+            <dt>版本与修订</dt><dd>v3 生成 2026-09-21 15:12；<span class="mono">supersedes rpt-3301 v2</span>（2026-09-20 18:40）；<span class="mono">revokes rpt-3301 v1</span>（2026-09-19 10:05，原因：Provider 状态由 requested 更新为 unknown）</dd>
+            <dt>撤回状态</dt><dd><span class="chip">not_revoked</span> 撤回请求 <span class="mono">req-rev-2201</span> 已登记，未执行</dd>
+            <dt>生成 / 批准</dt><dd>生成者 governance；批准者 法务责任人（执行者不能自批高影响外发，auditor 只读）</dd>
+            <dt>受众</dt><dd>内部（治理 / 安全 / 审计）· 客户 · Provider · 监管 / 执法</dd>
+          </dl>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">事实快照 vs 接收者投影（字段级投影，先授权投影再渲染）</p>
+          <div class="tbl-wrap">
+            <table class="tbl compact">
+              <thead><tr><th>字段</th><th>事实内核取值</th><th class="c">内部</th><th class="c">客户</th><th class="c">Provider</th><th class="c">监管</th><th>字段分类</th></tr></thead>
+              <tbody>
+                <tr><td>事件 / 关联 ID</td><td class="mono tiny">inc-2201 · corr-7712</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示</td><td>必须披露</td></tr>
+                <tr><td>源 / 目标空间</td><td class="mono tiny">project/p-db → provider-a</td><td class="c">显示</td><td class="c">显示（仅本租户）</td><td class="c">显示（仅处置范围）</td><td class="c">显示</td><td>必须披露</td></tr>
+                <tr><td>资产 / revision</td><td class="mono tiny">k-wiki-connpool v7 · sha256:9f3c7a2</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示（对象 + 版本）</td><td class="c">显示</td><td>必须披露</td></tr>
+                <tr><td>Copy Inventory 快照</td><td class="mono tiny">ci-8812 · inv-3312</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示</td><td>必须披露</td></tr>
+                <tr><td>Provider 回执</td><td>缺失（最后一次请求 2026-09-21 14:41）</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示</td><td class="c">显示</td><td>必须披露（<span class="mono">unknown</span> 不得省略）</td></tr>
+                <tr><td>副本范围与未知边界</td><td>10 类副本 · 1 项 unknown · 2 项 retained</td><td class="c">显示</td><td class="c">显示（含 retained / unknown）</td><td class="c">显示（仅其责任范围）</td><td class="c">显示</td><td>必须披露</td></tr>
+                <tr><td>其他租户关联</td><td>另有 1 项跨租户关联（名称不进入任何投影）</td><td class="c">仅内部聚合，不含名称</td><td class="c">禁止外发</td><td class="c">禁止外发</td><td class="c">条件披露（法务批准）</td><td>禁止外发</td></tr>
+                <tr><td>内部全量血缘</td><td>42 条关系（含未验证断言）</td><td class="c">显示</td><td class="c">禁止外发</td><td class="c">禁止外发</td><td class="c">禁止外发</td><td>仅内部</td></tr>
+                <tr><td>凭据 / Vault 引用</td><td class="mono tiny">vault-ref-7f3c（仅引用，无 Secret）</td><td class="c">显示引用</td><td class="c">禁止外发</td><td class="c">禁止外发</td><td class="c">条件披露（法务批准）</td><td>禁止外发</td></tr>
+                <tr><td>法律保全</td><td class="mono tiny">legal-hold LH-2201 → retained</td><td class="c">显示</td><td class="c">显示（保留事实）</td><td class="c">显示（保留事实）</td><td class="c">显示</td><td>条件披露</td></tr>
+                <tr><td>受影响数据主体清单</td><td><span class="mono">unknown</span>（待法务确认）</td><td class="c">仅内部</td><td class="c">禁止外发（未批准）</td><td class="c">禁止外发</td><td class="c">由法务批准</td><td>由法务批准</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tiny muted">字段五分类：必须披露 / 条件披露 / 仅内部 / 禁止外发 / 由法务批准。字段披露、脱敏、未知与禁止外发规则在渲染前执行，不能靠模板文字补救；<span class="mono">verified_scope</span> 不等于全局 verified，<span class="mono">unknown / retained / not_scoped / external_copy</span> 必须保持语义。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">投递记录</p>
+          <table class="tbl compact">
+            <thead><tr><th>投递</th><th>渠道</th><th>接收者</th><th>报告版本</th><th>状态</th><th>时间</th><th>证据</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny">dlv-902</td><td>平台内受控交付</td><td>客户安全负责人（客户）</td><td class="mono tiny">v3</td><td><span class="chip ok">delivered</span> 接收端已确认，未阅读</td><td class="mono tiny">2026-09-21 15:34</td><td class="mono tiny">att-9021 · rc-902</td></tr>
+              <tr><td class="mono tiny">dlv-903</td><td>邮件</td><td>客户安全负责人（客户）</td><td class="mono tiny">v3</td><td><span class="chip danger">delivery_unknown</span> SMTP 已接受，无回执</td><td class="mono tiny">2026-09-21 15:36</td><td class="mono tiny">att-9031</td></tr>
+              <tr><td class="mono tiny">dlv-904</td><td>供应商门户</td><td>Provider 处置联系人（provider-a）</td><td class="mono tiny">v3</td><td><span class="chip warn">accepted</span> 渠道接受，未确认接收人</td><td class="mono tiny">2026-09-21 15:38</td><td class="mono tiny">att-9041</td></tr>
+              <tr><td class="mono tiny">dlv-905</td><td>Webhook / API</td><td>监管报送接口（评估中，未发送）</td><td class="mono tiny">v3</td><td><span class="chip danger">blocked</span> 法务批准未完成</td><td class="tiny muted">—</td><td class="mono tiny">att-9051</td></tr>
+              <tr><td class="mono tiny">dlv-906</td><td>平台内受控交付</td><td>内部治理组</td><td class="mono tiny">v3</td><td><span class="chip ok">acknowledged</span> 已确认并阅读</td><td class="mono tiny">2026-09-21 15:30</td><td class="mono tiny">att-9061</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">渠道接受 ≠ 传输完成 ≠ 接收 ≠ 阅读 ≠ 行动确认；一个渠道成功不能冒充全局送达。高敏报告默认优先平台内受控交付，外部渠道需要接收者绑定、有效期、加密、审计与最小投影。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">渠道 Attempt（共享 Delivery Intent，各渠道独立记录）</p>
+          <table class="tbl compact">
+            <thead><tr><th>Attempt</th><th>渠道</th><th>发送时间</th><th>渠道响应</th><th>传输完成</th><th>接收确认</th><th>阅读 / 下载</th><th>撤回</th></tr></thead>
+            <tbody>
+              <tr><td class="mono tiny">att-9021</td><td>平台内受控交付</td><td class="mono tiny">15:33</td><td><span class="chip ok">accepted</span></td><td><span class="chip ok">complete</span></td><td><span class="chip ok">confirmed 15:34</span></td><td><span class="chip warn">未阅读</span></td><td>未撤回</td></tr>
+              <tr><td class="mono tiny">att-9031</td><td>邮件</td><td class="mono tiny">15:36</td><td><span class="chip warn">accepted（SMTP 250）</span></td><td><span class="chip danger">unknown</span></td><td><span class="chip danger">无回执</span></td><td><span class="chip danger">未知</span></td><td>未撤回</td></tr>
+              <tr><td class="mono tiny">att-9041</td><td>供应商门户</td><td class="mono tiny">15:38</td><td><span class="chip warn">accepted</span></td><td><span class="chip ok">complete</span></td><td><span class="chip danger">未确认</span></td><td><span class="chip danger">未知</span></td><td>未撤回</td></tr>
+              <tr><td class="mono tiny">att-9051</td><td>Webhook / API</td><td class="tiny muted">—</td><td><span class="chip danger">未发送</span></td><td class="tiny muted">—</td><td class="tiny muted">—</td><td class="tiny muted">—</td><td class="tiny muted">—</td></tr>
+              <tr><td class="mono tiny">att-9061</td><td>平台内受控交付</td><td class="mono tiny">15:29</td><td><span class="chip ok">accepted</span></td><td><span class="chip ok">complete</span></td><td><span class="chip ok">confirmed</span></td><td><span class="chip ok">已阅读 15:31</span></td><td>未撤回</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">撤回、删除和高影响声明不能因超时盲目重复；已下载到外部设备的副本记 <span class="mono">external_unknown</span>，不降级为 cleared。<b>撤回 ≠ 外部副本删除</b>，新事实也不能静默改写已发送报告。</p>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">多受众最小披露差异</p>
+          <table class="tbl compact">
+            <thead><tr><th>受众</th><th>接收内容</th><th>明确不包含</th><th>批准要求</th></tr></thead>
+            <tbody>
+              <tr><td>内部（治理 / 安全 / 审计）</td><td>全量事实内核 + 内部血缘 + 未决缺口 + 证据引用</td><td class="tiny muted">—</td><td>无需外发审批</td></tr>
+              <tr><td>客户</td><td>本租户范围事实、已验证范围、<span class="mono">unknown</span>、<span class="mono">retained</span>、下一步与联系渠道</td><td>其他租户名称 / 数量 / 关系、凭据、内部全量血缘、未批准的数据主体清单</td><td>governance + 法务批准</td></tr>
+              <tr><td>Provider</td><td>处置所需对象与版本、请求与回执状态、下一门槛</td><td>其他租户信息、客户身份、内部血缘、未处置范围</td><td>供应商管理 + 法务批准</td></tr>
+              <tr><td>监管 / 执法</td><td>经批准的事实与未知、时间线、行动要求</td><td>超出请求范围的租户数据；平台不作法律结论</td><td>法务批准（平台提供事实与候选投影）</td></tr>
+            </tbody>
+          </table>
+          <p class="tiny muted">一个租户的通知不能泄露其他租户名称、数量、关系、资产、攻击路径或副本存在性；平台提供事实和候选投影，法务 / 责任人决定适用规则与是否发送。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 id="p12">6.12 团队 · 权限矩阵 · 审计</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>三个平级页签回答三个问题：团队里有谁、谁和哪个 Project 有关系；每个模块对每类角色是<b>可操作 / 只可见 / 不可见</b>；谁在什么 Purpose 下对什么范围做了什么、依据哪个策略版本。矩阵是上限而不是授予，审计只追加、不改写事实。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/team</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a class="active" href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb">组织与平台 / <b>团队 · 权限矩阵 · 审计</b></span><span class="right"><span class="chip mono">team-owner · 林工</span><span class="chip mono">policy pol-2026-09-18</span></span></div>
+      <div class="app-body">
+        <div class="tabs" data-tabs role="tablist">
+          <button data-tab="team" role="tab" aria-selected="true">团队</button><button data-tab="matrix" role="tab" aria-selected="false">权限矩阵</button><button data-tab="audit" role="tab" aria-selected="false">审计</button>
+        </div>
+
+        <div class="tabpanel" data-panel="team" role="tabpanel">
+          <div class="panel">
+            <p class="h1">team-pay「支付平台」 <span class="chip mono">6 人</span> <span class="chip">关联 Project 2 个</span></p>
+            <dl class="kv">
+              <dt>Team ID</dt><dd class="mono">team-pay</dd>
+              <dt>Team Owner</dt><dd>林工（lin.gong）· 管成员与 Team 共享资源，拥有 Project</dd>
+              <dt>owning Project</dt><dd><span class="mono">p-db</span>「DB-Proxy 可靠性」open · <span class="mono">p-gw</span>「网关可观测性」restricted</dd>
+              <dt>Team 默认规则</dt><dd>Team 资源对成员默认可见；<span class="mono">publish / revoke / export / execute / approve_action</span> 与生产、敏感、跨空间动作<b>不自动继承</b></dd>
+              <dt>明确不具备</dt><dd>Team Owner 不管理 Platform 公共目录，也不能对任意资源做 CRUD；Team 成员关系不自动等于 Project 成员</dd>
+            </dl>
+          </div>
+          <div class="panel">
+            <p class="panel-title">成员与关联项目</p>
+            <table class="tbl compact">
+              <thead><tr><th>成员</th><th>角色</th><th>状态</th><th>Project 归属</th><th>关联 Team</th><th>职责与边界</th></tr></thead>
+              <tbody>
+                <tr><td>林工（<span class="mono">lin.gong</span>）</td><td><span class="chip brand">team-owner</span></td><td><span class="chip ok">active</span></td><td class="mono tiny">p-db（成员）· p-gw（成员）</td><td class="mono tiny">team-pay</td><td>管成员与 Team 共享资源；不能放宽 Platform / Team 上级策略</td></tr>
+                <tr><td>陈工（<span class="mono">chen.gong</span>）</td><td><span class="chip">project-admin</span></td><td><span class="chip ok">active</span></td><td class="mono tiny">p-db（Project Admin）</td><td class="mono tiny">team-pay</td><td>管 p-db 成员、Task、上下文与资源；不能放宽 Team / Platform 策略</td></tr>
+                <tr><td>周工（<span class="mono">zhou.gong</span>）</td><td><span class="chip">knowledge-owner</span></td><td><span class="chip ok">active</span></td><td class="mono tiny">p-db（成员）</td><td class="mono tiny">team-pay</td><td>分流、脱敏、审核、发布知识；不能直接跨租户执行</td></tr>
+                <tr><td>郑工（<span class="mono">zheng.gong</span>）</td><td><span class="chip">agent-admin</span></td><td><span class="chip ok">active</span></td><td class="tiny muted">无 Project 归属</td><td class="mono tiny">team-pay</td><td>配 Agent、工具、技能、记忆关联；不回显秘密、不绕过 RunGate</td></tr>
+                <tr><td>吴工（<span class="mono">wu.gong</span>）</td><td><span class="chip">member</span></td><td><span class="chip ok">active</span></td><td class="mono tiny">p-db（成员）</td><td class="mono tiny">team-pay</td><td>查看工作现场、记忆与待办；无 Team / Project 管理权</td></tr>
+                <tr><td>孙工（<span class="mono">sun.gong</span>）</td><td><span class="chip">member</span></td><td><span class="chip warn">suspended</span></td><td class="mono tiny">p-db（成员，暂停）</td><td class="mono tiny">team-pay</td><td>权限暂停后立即阻断新的检索与执行；历史 Run 审计保留</td></tr>
+                <tr class="grp-row"><td colspan="6">其他 Team 的对照样本（不属于 team-pay）</td></tr>
+                <tr><td>王工（<span class="mono">wang.gong</span>）</td><td><span class="chip">member</span></td><td><span class="chip ok">active</span></td><td class="mono tiny">p-sync（数据平台 owning Team）</td><td class="mono tiny">team-data</td><td>说明 Team 成员与 Project 成员是两条独立关系</td></tr>
+              </tbody>
+            </table>
+            <p class="tiny muted">角色代号与 §7 角色权限矩阵一致：<span class="mono">member / team-owner / project-admin / knowledge-owner / agent-admin / governance / auditor / platform-admin</span>。</p>
+          </div>
+          <div class="panel">
+            <p class="panel-title">owning Team 与 Project 归属说明</p>
+            <ul class="small">
+              <li><b>owning Team 唯一</b>：每个 Project 必须且只能归属一个 owning Team（来源：<span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> §3.1、<span class="mono">CONCEPTS.md</span> §3.1）。p-db 与 p-gw 的 owning Team 都是支付平台。</li>
+              <li><b>协作关联可多对多</b>：Team 与 Project 之间另有协作关联，用于解释「哪些组织参与项目」，它不解释「谁能访问项目」（来源：<span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §3.1）。</li>
+              <li><span class="chip warn">待确认</span>一个 Project 是否可关联多个<b>非 owning</b> Team，两份来源口径不同（<span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> §3 vs <span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §3.1），本页不作裁决，按「owning 唯一 + 协作关联待定」展示。</li>
+              <li>三条禁止推导：<span class="mono">Team 成员 ≠ 关联 Project 成员</span>；<span class="mono">TeamProject 关联 ≠ 项目读写授权</span>；<span class="mono">Agent 加入 Team ≠ 可写 / 可调用工具 / 可审批</span>。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="tabpanel" data-panel="matrix" role="tabpanel" hidden>
+          <div class="legend">
+            <span><b>●</b> 可操作</span>
+            <span><b>○</b> 只可见</span>
+            <span><b>—</b> 不可见</span>
+            <span class="muted">矩阵是能力上限而非授予；实际能否操作还要过资源 ACL、Purpose、敏感性与 RunGate。</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl compact">
+              <thead>
+                <tr>
+                  <th style="min-width:118px">功能模块</th>
+                  <th class="c">成员<br><span class="tiny muted">member</span></th>
+                  <th class="c">Team Owner<br><span class="tiny muted">team-owner</span></th>
+                  <th class="c">Project Admin<br><span class="tiny muted">project-admin</span></th>
+                  <th class="c">知识 Owner<br><span class="tiny muted">knowledge-owner</span></th>
+                  <th class="c">Agent Admin<br><span class="tiny muted">agent-admin</span></th>
+                  <th class="c">治理 / 安全<br><span class="tiny muted">governance</span></th>
+                  <th class="c">审计 / 法务<br><span class="tiny muted">auditor</span></th>
+                  <th class="c">平台管理员<br><span class="tiny muted">platform-admin</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="grp-row"><td colspan="9">工作</td></tr>
+                <tr><td>工作台</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td></tr>
+                <tr><td>项目与成员</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>任务与运行</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>Agent 配置</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr class="grp-row"><td colspan="9">知识与复用</td></tr>
+                <tr><td>记忆与空间</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>知识资产</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td></tr>
+                <tr><td>代码场景</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr class="grp-row"><td colspan="9">输入与治理</td></tr>
+                <tr><td>导入与分诊</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td></tr>
+                <tr><td>变更与发布</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>血缘</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>清理证据</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>报告中心</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td></tr>
+                <tr class="grp-row"><td colspan="9">组织与平台</td></tr>
+                <tr><td>团队</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+                <tr><td>设置</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td></tr>
+                <tr><td>权限矩阵</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td></tr>
+                <tr><td>审计</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tiny muted">16 个模块 × 8 个角色，与契约 §5 矩阵逐格一致，也与 §7 角色权限矩阵同源。<b>○ 也受最小投影约束</b>：可以看到入口或摘要，不代表能看到全部字段、名称或数量；<span class="mono">platform-admin</span> 只维护公共 Wiki / Skill / Template 与公共模型配置，不能越过 Team / Project 策略直接读私有内容，也不能代替治理角色审批。</p>
+        </div>
+
+        <div class="tabpanel" data-panel="audit" role="tabpanel" hidden>
+          <div class="panel">
+            <p class="panel-title">审计事件（追加式，不可静默修改）</p>
+            <div class="tbl-wrap">
+              <table class="tbl compact">
+                <thead><tr><th>事件</th><th>主体</th><th>Purpose</th><th>范围</th><th>策略版本</th><th>结果</th><th>证据引用</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono tiny">agent.write_grant.requested</td><td>郑工（agent-admin）</td><td class="mono tiny">configure</td><td class="mono tiny">agent/a-retriever → p-db</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip warn">needs_review</span> 待 project-admin 批准</td><td class="mono tiny">ev-7781</td></tr>
+                  <tr><td class="mono tiny">rungate.blocked</td><td>a-retriever（delegated_by 林工）</td><td class="mono tiny">diagnose</td><td class="mono tiny">p-db · memory.write</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip danger">deny</span> Tool Policy 未授予</td><td class="mono tiny">ev-7782</td></tr>
+                  <tr><td class="mono tiny">cleanup.disposition.executed</td><td>周工（knowledge-owner）</td><td class="mono tiny">remediate</td><td class="mono tiny">ci-8812 在线索引 4 分片</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip brand">executed</span> E2，待独立验证</td><td class="mono tiny">ev-7781</td></tr>
+                  <tr><td class="mono tiny">cleanup.verification.verified</td><td>治理审计员（governance）</td><td class="mono tiny">audit</td><td class="mono tiny">ci-8812 在线可控范围</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip ok">verified</span> 范围限定</td><td class="mono tiny">ev-7782</td></tr>
+                  <tr><td class="mono tiny">report.projection.rendered</td><td>治理（governance）</td><td class="mono tiny">notify</td><td class="mono tiny">rpt-3301 v3 → 客户投影</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip ok">allow</span> 投影先于渲染</td><td class="mono tiny">ev-7781</td></tr>
+                  <tr><td class="mono tiny">delivery.attempted</td><td>治理（governance）</td><td class="mono tiny">notify</td><td class="mono tiny">dlv-903 · 邮件渠道</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip danger">delivery_unknown</span> 渠道接受但无回执</td><td class="mono tiny">att-9031</td></tr>
+                  <tr><td class="mono tiny">snapshot.read</td><td>审计 / 法务（auditor）</td><td class="mono tiny">audit</td><td class="mono tiny">task/t-104 · planning snapshot</td><td class="mono tiny">pol-2026-09-18</td><td><span class="chip ok">allow</span> 只读，不修改事实</td><td class="mono tiny">ev-7782</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <p class="panel-title">读审计的三个前提</p>
+            <ul class="small">
+              <li><b>历史 Snapshot 不能绕过当前撤权</b>：Snapshot 保存的是当时事实，只用于解释与审计；当前是否允许消费由权威状态决定，恢复、重建、迁移或重试都产生新副本与新 revision，旧证明不自动继承。</li>
+              <li><b>审计不可静默修改</b>：事件按追加顺序与完整性引用保留；<span class="mono">requested / executed / verified</span> 与 <span class="mono">approved / published</span> 分别记录，不用单一「已完成」覆盖。</li>
+              <li><b>审计或策略不可用时 fail-closed</b>：高风险动作默认阻断并记录 <span class="mono">policy_or_audit_unavailable</span>；审计名义不复制凭据、客户数据与无关 Trace。</li>
+            </ul>
+            <p class="tiny muted">保留与访问边界：auditor 只能查看授权范围内的事实与证据，不能修改事实或自动批准删除；报告与通知由责任人批准，平台不代替法务作法律结论。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3 id="p13">6.13 状态与边界态画廊</h3>
+<p class="proto-note"><span class="chip warn">演示数据</span>九个状态在所有列表页与详情页通用。每个状态必须能回答「什么时候出现、页面显示什么、下一步做什么」；<b>不得用一个「暂无数据」覆盖不同原因</b>，也不得把 <span class="mono">unknown</span> 当作 0、把 <span class="mono">Run succeeded</span> 当作 Task 已验收、把 <span class="mono">approved</span> 当作 published。</p>
+<div class="proto">
+  <div class="proto-bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">#/home（状态画廊以工作台为示例宿主）</span><span class="fake">演示数据</span></div>
+  <div class="app tall">
+    <aside class="app-side">
+      <div class="app-brand"><i>am</i><span>Agent Memory</span></div>
+
+      <div class="nav-grp">工作</div>
+      <a class="active" href="#/home"><svg class="icon"><use href="#i-grid"/></svg>工作台</a>
+      <a href="#/projects"><svg class="icon"><use href="#i-folder"/></svg>项目</a>
+      <a href="#/project/p-db"><svg class="icon"><use href="#i-flow"/></svg>任务与运行</a>
+      <a href="#/agent/a-retriever"><svg class="icon"><use href="#i-cpu"/></svg>Agent</a>
+
+      <div class="nav-grp">知识与复用</div>
+      <a href="#/memory"><svg class="icon"><use href="#i-pin"/></svg>记忆</a>
+      <a href="#/memory/spaces"><svg class="icon"><use href="#i-shield"/></svg>空间与策略</a>
+      <a href="#/library"><svg class="icon"><use href="#i-download"/></svg>资源库</a>
+      <a href="#/knowledge"><svg class="icon"><use href="#i-audit"/></svg>知识资产</a>
+      <a href="#/scenario/cs-2201"><svg class="icon"><use href="#i-scene"/></svg>代码场景</a>
+
+      <div class="nav-grp">输入与治理</div>
+      <a href="#/ingestion/import"><svg class="icon"><use href="#i-plus"/></svg>导入</a>
+      <a href="#/ingestion/triage"><svg class="icon"><use href="#i-search"/></svg>分诊</a>
+      <a href="#/changes"><svg class="icon"><use href="#i-check"/></svg>变更与发布</a>
+      <a href="#/governance/lineage"><svg class="icon"><use href="#i-flow"/></svg>血缘</a>
+      <a href="#/governance/cleanup"><svg class="icon"><use href="#i-trash"/></svg>清理证据</a>
+      <a href="#/reports"><svg class="icon"><use href="#i-chat"/></svg>报告中心</a>
+
+      <div class="nav-grp">组织与平台</div>
+      <a href="#/team"><svg class="icon"><use href="#i-shield"/></svg>团队</a>
+      <a href="#/settings"><svg class="icon"><use href="#i-gear"/></svg>设置</a>
+      <a href="#/permissions"><svg class="icon"><use href="#i-shield"/></svg>权限矩阵</a>
+      <a href="#/audit"><svg class="icon"><use href="#i-audit"/></svg>审计</a>
+
+      <div class="spacer"></div>
+      <a>退出登录</a>
+    </aside>
+    <div class="app-main">
+      <div class="app-top"><span class="crumb"><b>状态与边界态画廊</b> / 九个可区分状态</span><span class="right"><span class="chip mono">member · 林工</span><span class="chip">只读演示</span></span></div>
+      <div class="app-body">
+        <div class="callout warn">
+          <h5>同一个「空」不是同一个原因</h5>
+          <p class="small">空列表至少区分：<b>确实没有对象</b>（empty）、<b>有对象但被筛选或权限排除</b>（filtered-empty）、<b>只取到部分范围</b>（partial）、<b>无权访问</b>（denied）、<b>服务失败</b>（error）、<b>离线快照</b>（offline）、<b>证据过期</b>（stale）。未观察不等于不存在，看不到也不等于没有；<span class="mono">unknown</span> 不能当 0，无权结果不得泄露对象名称、类型、数量或存在性。</p>
+        </div>
+
+        <div class="grid g3">
+          <div class="panel">
+            <p class="h2p">loading <span class="chip">加载中</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>首次进入或切换 scope，权限过滤与索引查询尚未返回</dd>
+              <dt>页面显示</dt><dd>骨架占位 + 「正在按当前权限过滤」；<b>不显示任何计数</b>，避免用 0 暗示结果</dd>
+              <dt>下一步</dt><dd>等待返回；超过 8 秒转 error，保留重试入口与请求 ID</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">empty <span class="chip">确实为空</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>当前 scope 内确实没有对象，且权限过滤已完成</dd>
+              <dt>页面显示</dt><dd>「当前 scope 内没有对象」+ 明确范围（<span class="mono">p-db · project/p-db</span>）+ 过滤已完成说明</dd>
+              <dt>下一步</dt><dd>创建、导入或切换 scope；<b>不暗示</b>「可能有但你看不到」</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">filtered-empty <span class="chip warn">筛选后为空</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>存在对象，但被当前筛选条件或权限条件排除</dd>
+              <dt>页面显示</dt><dd>「0 条匹配」+ 已排除原因类别；数量只按策略返回分桶 / 近似值，不返回精确数</dd>
+              <dt>下一步</dt><dd>调整筛选条件，或按入口申请授权；保留筛选条件回显</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">partial <span class="chip warn">部分完成</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>影响闭包未遍历完、分区未返回、Provider 未回执或扫描被限流</dd>
+              <dt>页面显示</dt><dd>覆盖率分母 + 盲区 + 快照时间点 + 显式 <span class="mono">partial</span> 标记；不用单一百分比代表全量</dd>
+              <dt>下一步</dt><dd>等待分区完成或发起对账；截断、超时与无权范围<b>不得标作 complete</b></dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">denied <span class="chip danger">无权访问</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>当前主体对该对象或该动作没有授权（含策略硬拒绝）</dd>
+              <dt>页面显示</dt><dd>统一拒绝文案：「无权访问此对象（或该对象不存在）」；<b>不返回对象名称、类型、精确数量、路径或存在性</b>，与「不存在」保持一致响应</dd>
+              <dt>下一步</dt><dd>申请授权或切换到有权限的 scope；不提供「猜一猜」式的重试与计数回显</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">error <span class="chip danger">失败</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>策略、血缘、索引或审计服务调用失败，或返回结果不完整</dd>
+              <dt>页面显示</dt><dd>错误类别 + 请求 ID + 已重试次数；不显示后端堆栈、SQL、内部路径或他人对象信息</dd>
+              <dt>下一步</dt><dd>重试或联系责任人；策略 / 审计不可用时高风险动作 fail-closed 阻断，不放行</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">offline <span class="chip warn">离线</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>Connector / Harness 离线，或网络与外部系统不可达</dd>
+              <dt>页面显示</dt><dd>离线标识 + 数据新鲜度 + 「当前显示 2026-09-21 14:32 的快照」；离线期间的写动作明确标注不可提交</dd>
+              <dt>下一步</dt><dd>恢复连接后重新校验权限与撤回状态；离线不改用缓存结果充当实时结果</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">stale <span class="chip warn">证据过期</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>快照超过有效期、Provider 状态未回填、revision 或策略版本漂移</dd>
+              <dt>页面显示</dt><dd><span class="mono">stale</span> 徽标 + 最后确认时间 + 需要重算的范围 + 责任角色</dd>
+              <dt>下一步</dt><dd>触发重算或对账；<b>stale 不得当作 current</b>，旧证明与旧幂等键不得覆盖新 revision 状态</dd>
+            </dl>
+          </div>
+
+          <div class="panel">
+            <p class="h2p">success <span class="chip ok">成功</span></p>
+            <dl class="kv">
+              <dt>何时出现</dt><dd>请求范围在某个版本快照下完成计算或处置</dd>
+              <dt>页面显示</dt><dd>成功 + <b>声明范围</b> + 证据时间 + 证据引用（如 <span class="mono">ev-7781</span>）+ 明确不适用范围</dd>
+              <dt>下一步</dt><dd>查看证据或关闭任务；success 只对声明范围成立，<b>不等于全局已验证</b>，也不授予新的执行或外发权限</dd>
+            </dl>
+          </div>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">状态口径（三元组与易混对）</p>
+          <div class="legend">
+            <span><b>requested ≠ executed ≠ verified</b></span>
+            <span><b>retained ≠ service-visible</b></span>
+            <span><b>unknown ≠ zero</b></span>
+            <span><b>approved ≠ published</b></span>
+            <span><b>Run succeeded ≠ Task accepted</b></span>
+            <span><b>owner ≠ visibility ≠ ACL ≠ execution authority</b></span>
+            <span><b>渠道接受 ≠ 阅读</b></span>
+            <span><b>撤回 ≠ 外部副本删除</b></span>
+          </div>
+          <table class="tbl compact">
+            <thead><tr><th>场景</th><th>禁止的等价</th><th>页面必须补充</th></tr></thead>
+            <tbody>
+              <tr><td>影响分析超时或无权</td><td>把 partial / unknown 说成「无影响」</td><td>缺口原因、已扫描范围、下一门槛与责任角色</td></tr>
+              <tr><td>清理请求已提交</td><td>把 requested 说成已执行或已验证</td><td>逐副本状态、证据等级、证据时间与责任边界</td></tr>
+              <tr><td>报告已发送</td><td>把渠道接受说成已送达或已阅读</td><td>发送 / 传输 / 接收 / 阅读 / 行动确认分开显示</td></tr>
+              <tr><td>Run 执行成功</td><td>把 Run success 当作 Task 已验收</td><td>验收标准、交付物与人工验收结论</td></tr>
+              <tr><td>内容已批准</td><td>把 approved 当作 published</td><td>发布状态、版本、适用范围与消费者状态</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

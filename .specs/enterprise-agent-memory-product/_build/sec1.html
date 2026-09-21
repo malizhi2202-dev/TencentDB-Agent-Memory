@@ -1,0 +1,103 @@
+  <!-- ============================ §1 ============================ -->
+  <section class="doc-sec" id="s1">
+    <h2>1 · 产品全景</h2>
+    <p class="lead">本章回答：这个产品是什么、给谁用、能做什么、以及最重要的——<b>它明确不做什么</b>。</p>
+
+    <h3 id="s1-1">1.1 一句话定位</h3>
+    <div class="callout">
+      <p style="margin:0"><b>Enterprise Agent Memory Platform 是外部 Harness 的记忆、知识、血缘与治理平台。</b>Harness（Codex、Claude Code、DSH 等）负责执行工作；平台负责保留、理解、授权、复用、撤回、验证并审计工作证据。</p>
+    </div>
+    <div class="diagram" style="margin-top:var(--space-md)">
+      <div class="layer brand">
+        <h5>外部 Harness（执行侧，平台不接管）</h5>
+        <div class="row"><span class="pill">Codex</span><span class="pill">Claude Code</span><span class="pill">DSH</span><span class="pill">OpenClaw</span><span class="pill">Hermes</span></div>
+      </div>
+      <div class="arrow-v">↓ <small>Connector：身份 / 能力 / 租约 / 证据上报</small></div>
+      <div class="layer">
+        <h5>Memory Platform（治理侧，本产品）</h5>
+        <div class="row"><span class="pill">证据与现场</span><span class="pill">记忆分层</span><span class="pill">归属与空间</span><span class="pill">知识化</span><span class="pill">血缘</span><span class="pill">权限与 Purpose</span><span class="pill">RunGate</span><span class="pill">撤回与副本</span><span class="pill">报告与通知</span></div>
+      </div>
+      <div class="arrow-v">↓ <small>按当前授权投影出的最小上下文 / 决策 / 证据</small></div>
+      <div class="layer">
+        <h5>消费者</h5>
+        <div class="row"><span class="pill">下一次 Run</span><span class="pill">团队复用</span><span class="pill">审计与法务</span><span class="pill">客户与监管报告</span></div>
+      </div>
+    </div>
+
+    <h3 id="s1-2">1.2 目标用户与典型场景</h3>
+    <table class="tbl">
+      <thead><tr><th style="width:16%">场景</th><th style="width:14%">角色</th><th style="width:22%">触发</th><th style="width:26%">动作</th><th>结果</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>S1 跨 Harness 续办</b></td><td>成员</td>
+          <td>在 Codex 里做到一半，改用 Claude Code 继续同一个任务</td>
+          <td>接手者查看 Work Thread 与 Continuation Package，确认接手</td>
+          <td>拿到最小充分上下文（当前状态、代码 revision、证据引用、未完成项），交接留痕可回溯</td>
+        </tr>
+        <tr>
+          <td><b>S2 记忆归属分流</b></td><td>Memory / Knowledge Owner</td>
+          <td>对话与工具结果被自动归纳成候选记忆，其中一条同时像 Project 与 Team 的内容</td>
+          <td>在分诊队列查看归属理由、置信度、Purpose、敏感性、来源血缘</td>
+          <td>候选被确认归属或隔离；<b>未经确认不写入 Team Memory</b></td>
+        </tr>
+        <tr>
+          <td><b>S3 经验知识化</b></td><td>Memory / Knowledge Owner</td>
+          <td>同一类连接池故障第三次出现</td>
+          <td>把 L2 场景 + RCA 提交为 ChangeSet，经 Review 后 Publish 为 Skill / Wiki</td>
+          <td>资产带来源 revision、Owner、适用范围与复核期限；被复用后回收消费反馈</td>
+        </tr>
+        <tr>
+          <td><b>S4 高风险执行准入</b></td><td>Agent Admin / Governance</td>
+          <td>Agent 提出一个会改动生产配置的 Action Proposal</td>
+          <td>系统按当前身份、Purpose、目标 ACL、血缘、脱敏、Tool Policy 与审批状态复核 RunGate</td>
+          <td>默认 <span class="chip danger">blocked</span>，页面显示阻断原因、下一门槛与责任人；获批后才进入受约束 Run</td>
+        </tr>
+        <tr>
+          <td><b>S5 撤回与清理证明</b></td><td>Governance / Auditor</td>
+          <td>某个源记忆被撤回，需要确认派生副本是否真的清除</td>
+          <td>查看 Copy Inventory：传播已阻断，在线索引 / 缓存 / Embedding 已处置，Provider 回执缺失，备份处于法律保全</td>
+          <td>系统报告 <span class="mono">verified</span> / <span class="mono">retained</span> / <span class="mono">unknown</span> 分层事实，<b>不显示「全量已清理」</b></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="s1-3">1.3 能力地图</h3>
+    <p class="small muted">模块 → 核心能力。模块名与第 5 章使用指南、第 7 章权限矩阵逐字对应。</p>
+    <table class="tbl compact">
+      <thead><tr><th style="width:18%">模块</th><th>核心能力</th><th style="width:22%">主要角色</th></tr></thead>
+      <tbody>
+        <tr><td>工作台</td><td>只汇总可行动事项：我的任务、等待分诊、等待审核、失败 Run、清理 unknown、RunGate blocked</td><td class="mono">全部角色</td></tr>
+        <tr><td>项目与成员</td><td>Project 概览、成员与访问、关联 Agent、资源入口、版本与变更</td><td class="mono">team-owner / project-admin</td></tr>
+        <tr><td>任务与运行</td><td>目标与验收、计划与 planning snapshot、Runs、交付物、ContextBinding；Run 的实际上下文与证据</td><td class="mono">member / project-admin</td></tr>
+        <tr><td>Agent</td><td>版本化配置、关联范围（view / use）、资源装配（accessible / mounted / effective）、Tool Policy、RunGate、运行证据</td><td class="mono">agent-admin</td></tr>
+        <tr><td>记忆与空间</td><td>MemorySpace 归属与写策略、记忆浏览 / 来源 / 版本 / 纠错、分层 L0–L3</td><td class="mono">member / knowledge-owner</td></tr>
+        <tr><td>导入与分诊</td><td>Import → Triage → Quality / Examples；归属候选、冲突、置信度、脱敏预览</td><td class="mono">knowledge-owner</td></tr>
+        <tr><td>变更与发布</td><td>ChangeSet 队列、Review、Publish 与发布构建状态；唯一的<b>内容</b>审核入口</td><td class="mono">knowledge-owner</td></tr>
+        <tr><td>知识资产</td><td>Wiki / Skill / RCA / Template / Code Context 的版本、适用范围、信任状态与级联撤回</td><td class="mono">knowledge-owner / project-admin</td></tr>
+        <tr><td>代码场景</td><td>source + revision 场景、症状 / 失败 / 根因 / 修复 / 验证、跨 revision 与跨 Project 复用边界</td><td class="mono">member / project-admin</td></tr>
+        <tr><td>血缘</td><td>来源闭包与影响闭包、血缘声明与当前关系分离、最小必要投影、隐藏节点</td><td class="mono">knowledge-owner / governance</td></tr>
+        <tr><td>清理证据</td><td>Copy Inventory、传播阻断、分层处置、独立验证、保留与法律保全、未知边界</td><td class="mono">governance</td></tr>
+        <tr><td>报告中心</td><td>事实内核 → 授权投影 → Delivery Intent → 渠道 Attempt；版本、修订、撤回</td><td class="mono">governance / auditor</td></tr>
+        <tr><td>团队</td><td>成员、关联项目、Team 级资源入口；不是权限替代品</td><td class="mono">team-owner</td></tr>
+        <tr><td>设置与审计</td><td>Users / Keys / Models / Integrations；权限矩阵、审计事件与策略版本</td><td class="mono">platform-admin / governance</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s1-4">1.4 这个产品不做什么（边界）</h3>
+    <div class="callout danger">
+      <p class="small" style="margin:0 0 var(--space-xs)"><b>边界即需求。</b>以下每一条都是明确的产品承诺，越界即视为缺陷。</p>
+    </div>
+    <table class="tbl">
+      <thead><tr><th style="width:30%">不做</th><th>理由 / 替代做法</th></tr></thead>
+      <tbody>
+        <tr><td>不做新的 Agent Harness 或编排运行时</td><td>执行属于 Codex / Claude Code / DSH 等外部 Harness；平台只治理证据与记忆，不接管执行循环。</td></tr>
+        <tr><td>不提供 public Memory</td><td>长期 MemorySpace 的 owner 只有 <span class="mono">user | team | project | agent</span> 四类。需要跨边界复用时走「分诊 → 脱敏 → 审核 → 发布为 Wiki / Skill / Template」。</td></tr>
+        <tr><td>不用一张泛化 Asset 表替代专业资源</td><td>Wiki、Code、Skill、Template、Memory 各有来源、版本、编辑与阅读语义；资源库只做授权后的发现与跳转，不编辑。</td></tr>
+        <tr><td>不把「关联 / 可见」当作「可写 / 可执行」</td><td><span class="mono">owner ≠ visibility ≠ ACL ≠ execution authority</span>；发布或检索不授予执行权。</td></tr>
+        <tr><td>不在原型里执行真实副作用</td><td>不真实删除、不擦除终端、不迁移、不发送通知、不跑生产 Run、不暴露凭据明文。</td></tr>
+        <tr><td>不把阶段性方案写成最终结论</td><td>Schema、阈值、算法、SLA、责任矩阵、合同与法域模板一律标注待确认，实现前另开 change。</td></tr>
+        <tr><td>不创建第二套并行信息架构</td><td>本轮收敛到唯一导航（工作 / 知识与复用 / 输入与治理 / 组织与平台），历史 <span class="mono">final-v1</span>、<span class="mono">redesign-v2</span>、<span class="mono">redesign-v3</span> 只作参考、不修改。</td></tr>
+        <tr><td>不用单一绿色标签掩盖未知</td><td><span class="mono">unknown ≠ zero</span>；无法证明时显示「未知 + 范围 + 证据时间 + 下一门槛」。</td></tr>
+      </tbody>
+    </table>
+  </section>

@@ -1,0 +1,49 @@
+  <!-- ============================ §8 ============================ -->
+  <section class="doc-sec" id="s8">
+    <h2>8 · 术语表</h2>
+    <p class="lead">本章回答：文档里那些加粗术语到底指什么。定义以本表为准；与散落各章的简述不一致时，以本表为权威口径。</p>
+    <div class="tbl-wrap">
+      <table class="tbl compact">
+        <thead><tr><th style="width:20%">术语</th><th>定义</th><th style="width:12%">首次出现</th></tr></thead>
+        <tbody>
+          <tr><td><b>Principal</b></td><td>经认证的操作主体，可能是 User，也可能是服务主体。未识别真人时为 <span class="mono">actor_unknown</span>。</td><td class="mono">§2.1</td></tr>
+          <tr><td><b>Credential</b></td><td>认证凭据：包含 scope、指纹、到期与撤销状态。系统只保存哈希 / 指纹，明文仅在创建时展示一次。</td><td class="mono">§2.1</td></tr>
+          <tr><td><b>Team</b></td><td>组织与共享协作层，管理成员、Team scope 资源与默认规则。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Project</b></td><td>具体协作现场，组织 Task、关联 Agent 与 Project scope 资源。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Agent</b></td><td>可版本化的执行配置：职责、模型、工具与资源装配。关联范围只授予明确的 view / use 能力。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Harness</b></td><td>外部执行环境（Codex / Claude Code / DSH 等）。平台通过 Connector 与其对接，不接管其执行循环。</td><td class="mono">§1.1</td></tr>
+          <tr><td><b>Work Thread</b></td><td>一次跨 Harness 可交接的工作现场，单一规范归属，默认连续、边界变化才拆分。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Continuation Package</b></td><td>交接产物：规范状态 + 接手者投影。<b>必须经接手者明确确认后才生效。</b></td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Task</b></td><td>Project 内带验收标准的工作目标。不是执行记录。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Run</b></td><td>一次执行尝试及其不可改写证据。<b>Run succeeded ≠ Task accepted。</b></td><td class="mono">§2.2</td></tr>
+          <tr><td><b>ContextBinding</b></td><td>本次工作的主 Project、只读参考 Project 与唯一写入目标空间。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>CodeScenario</b></td><td>代码场景：由代码版本、症状、失败、根因、修复与验证组成，可恢复、可复用。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>Evidence</b></td><td>对话、Trace、日志、指标、工具结果、代码 diff、测试、人工判断或 Provider 回执。证据与结论分别版本化。</td><td class="mono">§2.2</td></tr>
+          <tr><td><b>MemorySpace</b></td><td>记忆的归属、可见性与写策略边界。owner 只有 user / team / project / agent 四类，<b>不提供 public Memory</b>。</td><td class="mono">§2.3</td></tr>
+          <tr><td><b>MemoryItem</b></td><td>记忆候选或已确认记忆：层级（L0–L3）、来源、置信度、敏感性、Owner、Purpose 与生命周期。</td><td class="mono">§2.3</td></tr>
+          <tr><td><b>KnowledgeAsset</b></td><td>可复用知识资产：Wiki、Skill、RCA、Template、Code Context，各有独立来源与版本语义。</td><td class="mono">§2.3</td></tr>
+          <tr><td><b>ChangeSet</b></td><td>对记忆 / 知识 / 策略的变更候选，经 Review 后 Publish。<b>内容变更的唯一审核对象。</b></td><td class="mono">§2.3</td></tr>
+          <tr><td><b>ProcedureTemplate</b></td><td>可复用步骤 / 流程模板。引用锁定版本，升级或派生都是显式 ChangeSet，不自动同步。</td><td class="mono">§2.3</td></tr>
+          <tr><td><b>Snapshot</b></td><td>Task 的 planning snapshot 或 Run 的 actual snapshot。不可被最新配置回填或篡改。</td><td class="mono">§2.3</td></tr>
+          <tr><td><b>Purpose</b></td><td>本次读取、复用、导出或执行的用途。它参与权限判定，不是备注字段。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>VisibilityContext</b></td><td>一次判定的完整上下文：主体、委托、源 / 目标空间、Purpose、ACL、敏感性、revision、环境与策略版本。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>ContextManifest</b></td><td>本次 Run 实际使用的记忆、知识与证据清单。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>CopyInventory</b></td><td>源资产的版本化副本清单：在线索引、缓存、Embedding、Manifest、导出、备份、Provider、终端。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>ExportAsset</b></td><td>绑定源 revision、范围、接收者、用途、有效期与证据的导出对象。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>ToolPolicy</b></td><td>工具能力的硬边界。RunGate 只能在它之内收紧，不能放宽。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>RunGate</b></td><td>高风险工具副作用的动态执行准入，执行过程中持续重检。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>ActionProposal</b></td><td>默认不可执行的动作建议；通过当前 RunGate 后才能进入受约束 Run。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>Triage</b><br><span class="tiny muted">分诊</span></td><td>对导入候选做归属判定与风险分级的唯一人工处理入口：确认归属、转人工、隔离。</td><td class="mono">§1.2</td></tr>
+          <tr><td><b>Review / Publish</b></td><td>内容审核与发布两个独立步骤。<b>approved ≠ published。</b></td><td class="mono">§2.5</td></tr>
+          <tr><td><b>Projection</b><br><span class="tiny muted">投影</span></td><td>按接收者授权裁剪字段后的视图。必须先授权投影，再渲染输出。</td><td class="mono">§2.4</td></tr>
+          <tr><td><b>Delivery Intent</b></td><td>一次投递的意图记录（接收者、渠道、版本、有效期），与渠道实际 Attempt 分开记录。</td><td class="mono">§5.16</td></tr>
+          <tr><td><b>Provider</b><br><span class="tiny muted">再处理者</span></td><td>代平台处理数据的外部服务 / 供应商，属于独立副本面，需要范围绑定证明与审计权。</td><td class="mono">§5.15</td></tr>
+          <tr><td><b>accessible / mounted / effective</b></td><td>三层资源状态：主体可用候选 / Agent 默认装配 / 某次 Run 实际解析出的不可变集合。三者不可互换。</td><td class="mono">§5.6</td></tr>
+          <tr><td><b>fail-closed</b></td><td>无法证明、权限不明、状态未知时，优先收窄、隔离、阻断与升级，而不是乐观放行。</td><td class="mono">§2.6</td></tr>
+          <tr><td><b>Legal Hold</b><br><span class="tiny muted">法律保全</span></td><td>因法律原因暂停处置的状态。保留不等于服务可见：<span class="mono">retained ≠ service-visible</span>。</td><td class="mono">§5.15</td></tr>
+          <tr><td><b>Break-Glass</b></td><td>紧急访问通道：留痕、限时、事后复核，有明确边界，不作为常规放行路径。</td><td class="mono">§7.3</td></tr>
+          <tr><td><b>SoD</b><br><span class="tiny muted">职责分离</span></td><td>提出者与批准者分离、审批绑定计划版本、清理与验证分离等硬约束。</td><td class="mono">§7.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>

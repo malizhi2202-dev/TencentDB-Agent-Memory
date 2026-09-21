@@ -178,8 +178,8 @@ grep -rn "router\\.(get|post|put|patch|delete)\\|@(Get|Post|Put|Patch|Delete)" s
 
 ### 步骤 6 · 扩展点 + 容量边界（推荐但非必填）
 
+#### 6.1 § 5 扩展点
 
-(Showing lines 1-180 of 259. Use offset=181 to continue.)
 反问用户："新人 / 新功能最常碰的 5 个扩展点是？"
 
 如果用户答不上来，AI 基于代码扫描给一份候选 → 用户筛选。

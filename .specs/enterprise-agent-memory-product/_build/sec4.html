@@ -1,0 +1,270 @@
+<section class="doc-sec" id="s4">
+  <h2>4 · 核心时序</h2>
+  <p class="lead">本章按六条主链描述平台的关键时序：谁参与、按什么顺序发生、以及当条件不成立时系统<strong>默认收窄、隔离、阻断或升级</strong>，而不是继续执行。链路骨架来自 <span class="mono">CONCEPTS.md</span> 第 5 节与 <span class="mono">ARCHITECTURE.md</span> 第 2、3 节；每一步的状态取值、字段与反例约束指回议题 01–10 的蒸馏事实。序号表示逻辑顺序，不表示同步调用或单次事务。</p>
+  <p class="small muted">统一不变量（贯穿全部链路）：<span class="mono">requested ≠ executed ≠ verified</span>、<span class="mono">retained ≠ service-visible</span>、<span class="mono">unknown ≠ zero</span>、<span class="mono">approved ≠ published</span>、<span class="mono">Run succeeded ≠ Task accepted</span>、<span class="mono">owner ≠ visibility ≠ ACL ≠ execution authority</span>。高风险动作默认 <span class="mono">blocked</span>，页面必须同屏给出「阻断原因 + 下一门槛 + 责任角色」。</p>
+
+  <h3 id="s4-1">4.1 Harness 接入与跨 Harness 工作现场交接</h3>
+  <div class="flow">
+    <span class="step">Harness（Codex / Claude Code / DSH）</span><span class="to">→</span>
+    <span class="step">Connector Gateway</span><span class="to">→</span>
+    <span class="step">Ingestion &amp; Triage</span><span class="to">→</span>
+    <span class="step">Work Thread / Lineage</span><span class="to">→</span>
+    <span class="step">接手执行者（成员或另一 Harness）</span>
+  </div>
+  <p class="small muted">依据：议题 1 子议题深化 16、19、2、21；<span class="mono">CONCEPTS.md</span> §5.1；议题 3 子议题深化 7。<span class="chip warn">待确认</span> 本链路的归属边界受 Team↔Project 基数口径影响：<span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> §3.1 为「一对多归属」，<span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §3.1 为「多对多协作关联」；两处冲突，本文件不自行裁决。</p>
+
+  <h4>主链步骤（编号 ①–⑧ 对应下图行）</h4>
+  <figure>
+    <figcaption><b>4.1</b> —— 从 Connector 握手到责任转移。虚线行表示由新执行者接续的起点。</figcaption>
+    <div class="seq-wrap"><table class="seq">
+      <thead><tr><th class="actor-ext">Harness</th><th class="actor-cc">Connector Gateway</th><th>Ingestion &amp; Triage</th><th>Work Thread / Lineage</th><th class="actor-ext">接手执行者</th></tr></thead>
+      <tbody>
+        <tr><td class="msg" colspan="2"><span class="label"><span class="n">①</span><b>Handshake</b>：协议版本、connector / harness / instance 身份、主体身份、租户范围、能力档案、凭据引用</span><span class="arrow"></span></td><td></td><td></td><td></td></tr>
+        <tr><td class="note">声明能力</td><td class="note">验身份、能力与租约</td><td></td><td></td><td></td></tr>
+        <tr><td class="msg" colspan="2"><span class="label"><span class="n">②</span><b>Event Append</b>：Evidence + source revision + observed_at + 幂等键</span><span class="arrow"></span></td><td></td><td></td><td></td></tr>
+        <tr><td class="note">断线后按 Cursor 补发</td><td class="note">消息级与业务意图级重复分开处理</td><td class="note">四类 Cursor 分离</td><td></td><td></td></tr>
+        <tr><td></td><td class="msg" colspan="2"><span class="label"><span class="n">③</span>四个独立判断面：Identity / Provenance / Binding / Temporal State</span><span class="arrow"></span></td><td></td><td></td></tr>
+        <tr><td></td><td class="note">只提供归属证据入口</td><td class="note">缺失或不可信元数据永不扩大 Scope</td><td></td><td></td></tr>
+        <tr><td></td><td></td><td class="msg" colspan="2"><span class="label"><span class="n">④</span>归属裁决 + WorkContext 更新：<span class="mono">ownership_pending</span> 或 <span class="mono">confirmed</span>；生成 Checkpoint 与 Work Thread Revision</span><span class="arrow"></span></td><td></td></tr>
+        <tr><td></td><td></td><td class="note">写 Ownership Decision 审计</td><td class="note">Revision 不可变，重要写入带 base_revision</td><td></td></tr>
+        <tr><td></td><td></td><td></td><td class="msg" colspan="2"><span class="label"><span class="n">⑤</span>交接预检：<span class="mono">handoff_requested → handoff_ready → permission_checked → handoff_pending</span>，投影 Continuation Package</span><span class="arrow"></span></td></tr>
+        <tr><td></td><td></td><td></td><td class="note">权限取多要素交集</td><td class="note">收到的是权限过滤后的投影</td></tr>
+        <tr><td></td><td></td><td></td><td class="msg rtl" colspan="2"><span class="label"><span class="n">⑥</span>接手者动作：accept / reject / return_for_completion / request_more_context</span><span class="arrow rtl"></span></td></tr>
+        <tr><td></td><td></td><td></td><td class="msg" colspan="2"><span class="label"><span class="n">⑦</span><span class="mono">receiver_confirmed → responsibility_transferred</span>；写 HandoffAcceptanceRecord</span><span class="arrow"></span></td></tr>
+        <tr><td></td><td></td><td></td><td class="note">超时与沉默不视为接受；责任转移不改变 canonical owner</td><td class="note">接手不等于获得 Owner 转移、导出、发布或生产写入权</td></tr>
+        <tr><td class="msg dash" colspan="5"><span class="label"><span class="n">⑧</span>新执行者以最小 <b>ContextManifest</b> 与 Run Context Snapshot 启动，形成新 Run 证据；凭据类信息只以 <span class="mono">credential_ref</span> 形式存在</span><span class="arrow"></span></td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <h4>异常分支与 fail-closed 行为</h4>
+  <table class="tbl compact">
+    <thead><tr><th style="width:280px">异常条件</th><th>fail-closed 行为</th><th style="width:150px">依据</th></tr></thead>
+    <tbody>
+      <tr><td>元数据缺失或不可信</td><td>永不扩大 Scope；进入待分流或隔离，不默认写入更宽 scope。</td><td class="mono">03 §深化7；CONCEPTS §5.1</td></tr>
+      <tr><td>低置信度、乱序、重复、撤销状态未知</td><td>进入待分流或隔离；重复与重放永不产生不可逆副作用，迟到事件不凭到达顺序覆盖较新有效版本。</td><td class="mono">CONCEPTS §5.1；03 §深化7</td></tr>
+      <tr><td>权限不足</td><td>有效权限取多要素交集；按安全降级路径处理：完整恢复 → 语义恢复 + 操作材料部分恢复 → 语义恢复 + 脱敏摘要 → 仅工作元数据 → 拒绝访问。</td><td class="mono">01 §17</td></tr>
+      <tr><td>交接超时或接手者沉默</td><td>仅触发提醒或升级，不自动视为接受或拒绝；原执行者责任不静默解除。</td><td class="mono">01 §12、§21</td></tr>
+      <tr><td>L1 语义续办不可用</td><td>不得宣称可安全续办；L2 缺失时必须指导重新获取或明确降级；L3 不可用时可重建，但不能伪装已恢复。</td><td class="mono">01 §15、§子议题深化19</td></tr>
+      <tr><td>凭据、Token、Cookie、私钥或登录态出现在续办包正文</td><td>阻断该投影；只允许记录 <span class="mono">credential_ref</span>、能力与重新连接方式。</td><td class="mono">01 §17</td></tr>
+      <tr><td>Connector 能力不匹配、已撤销或未验证</td><td><span class="mono">unknown</span> 不得自动视为 eligible；按不支持 / 部分支持 / 暂时不可用 / 已撤销 / 未验证 / 策略阻断区分并升级。</td><td class="mono">01 §子议题深化24</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-2">4.2 记忆自动归属与分诊（Triage → ChangeSet）</h3>
+  <div class="flow">
+    <span class="step">Connector / Harness</span><span class="to">→</span>
+    <span class="step">Ingestion &amp; Triage</span><span class="to">→</span>
+    <span class="step">归属解析（规则事实 + 模型信号 + 风险门禁）</span><span class="to">→</span>
+    <span class="step">治理队列 / 隔离</span><span class="to">→</span>
+    <span class="step">MemorySpace Owner</span>
+  </div>
+  <p class="small muted">依据：议题 3 第 1–3 轮、补充专题、子议题深化 2、3、7；议题 4 深化 7。<span class="chip warn">待确认</span> 本链路末端的变更对象名称存在两种口径：议题 03 / 05 / 06 的蒸馏稿未出现 <span class="mono">ChangeSet</span> 作为归属或变更对象（议题 05 明确「两份文档均未出现 ChangeSet」），其链路写作 <span class="mono">Triage → Knowledge Candidate</span>；<span class="mono">.specs/final-v1/DOMAIN-MODEL.md</span> §2 与 <span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §2 把 <span class="mono">ChangeSet</span> 定义为内容变更审核发布的统一对象。不自行裁决。</p>
+
+  <h4>编号步骤</h4>
+  <ol>
+    <li><b>接收候选</b>：Connector 或 Harness 提交候选内容，携带来源、观测时间、绑定资源与有效时间版本；四个判断面（Identity / Provenance / Binding / Temporal State）任一不成立都不能由其他面补齐成正式 Owner。</li>
+    <li><b>归属信号聚合</b>：按「规则事实优先 → 模型信号辅助 → 风险门禁约束」聚合，输出 <span class="mono">candidate_space</span>、<span class="mono">signal_breakdown</span>、<span class="mono">confidence_band</span>、<span class="mono">contradictions</span>、<span class="mono">freshness</span>、<span class="mono">scope_and_purpose</span>、<span class="mono">automation_eligibility</span>；不使用全局固定权重。</li>
+    <li><b>候选与裁决</b>：采用「候选 + 规则裁决」，顺序为显式授权声明 → 已确认 Work Thread / Project / Team → Connector 验证绑定 → 稳定历史关联 → 内容语义推断 → 保守默认落点；保留 Ownership Decision 审计。</li>
+    <li><b>风险六维评估</b>：影响范围、敏感性、证据强度、可逆性、冲突程度、执行影响；不采用单一总分自动放行。</li>
+    <li><b>四种处置</b>：自动落位（低影响、非敏感、归属唯一、来源可信、无冲突、可撤回）；自动暂存 / 候选；人工确认或治理队列；隔离。自动暂存与治理队列必须区分。</li>
+    <li><b>自动处理等级</b>：A0 显式选择或规范 Owner 关联（记录事实但仍查权限）；A1 低风险可自动生成候选或受限更新；A2 跨空间、Owner 变化、敏感高影响或冲突时只生成候选并进入审核。</li>
+    <li><b>落位与状态迁移</b>：<span class="mono">ownership_pending → confirmed</span>，进入目标空间正常治理并保留 L0 来源与确认记录；<span class="mono">owner_scope → narrowed_scope / promoted_scope / derived_scope / rejected / isolated / withdrawn</span> 四类事件分别处理，不统一改一个 owner 字段。</li>
+    <li><b>下游传播</b>：检索、Context Manifest 与知识化候选按当前 owner、ACL、用途、敏感性和有效性重新判断；旧 Manifest 与正在运行的 Run Context Snapshot 不因新归属事件被静默改写。</li>
+  </ol>
+
+  <h4>异常分支与 fail-closed 行为</h4>
+  <table class="tbl compact">
+    <thead><tr><th style="width:280px">异常条件</th><th>fail-closed 行为</th><th style="width:150px">依据</th></tr></thead>
+    <tbody>
+      <tr><td>候选 owner 不唯一或存在多个合理 owner</td><td>不静默选择；生成自动暂存或进入治理队列（Ownership Review Item 必须带 reviewer、due_at、升级路径与最终决定）。</td><td class="mono">03 §第1轮-4、§第3轮-5</td></tr>
+      <tr><td>跨 User / Project / Team / 租户 / 组织边界</td><td>不得自动正式落位；请求有权主体确认，默认保留较窄边界或 <span class="mono">ownership_pending</span>。</td><td class="mono">03 §第3轮-4</td></tr>
+      <tr><td>含隐私、凭证、健康、财务、身份或安全信息</td><td>不得自动正式落位；严重越权、泄露或疑似恶意注入直接隔离。</td><td class="mono">03 §第3轮-4</td></tr>
+      <tr><td>来源为推断、转述或未验证第三方</td><td>只生成候选，不进入正式落位；高风险场景隔离或阻断。</td><td class="mono">03 §第3轮-4、§深化7</td></tr>
+      <tr><td>与既有记忆、ACL 或指令冲突；影响权限、生产、资金、删除、发布、合规或人事</td><td>任一命中即升级；高风险阻断相关 retrieval / action 并进入治理队列。</td><td class="mono">03 §第3轮-4</td></tr>
+      <tr><td>批量导入异常、高频写入或疑似提示注入</td><td>隔离；隔离内容不得进入普通检索、摘要、Context Manifest 或自动执行链路。</td><td class="mono">03 §第3轮-4、§第3轮-6</td></tr>
+      <tr><td>权限检查、归属解析、敏感性判断、审计记录、撤回传播或目标 scope 访问验证失败</td><td>默认拒绝写入或隔离；不 fallback 到 Team、最近 Project、个人空间或全局检索。</td><td class="mono">03 §第3轮-6；final-v1 §7</td></tr>
+      <tr><td>Connector 元数据 <span class="mono">missing / malformed / stale / ambiguous / misbound</span></td><td>不猜 Scope；关键步骤失败默认暂存、收窄或隔离，错误绑定永不继续扩大传播。</td><td class="mono">03 §深化7</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-3">4.3 记忆知识化与发布（ChangeSet → Review → Publish → 消费反馈）</h3>
+  <div class="flow">
+    <span class="step">提炼 Agent（author / proposer）</span><span class="to">→</span>
+    <span class="step">Knowledge Pipeline</span><span class="to">→</span>
+    <span class="step">审核者（content / policy / release / consumer）</span><span class="to">→</span>
+    <span class="step">消费者与反馈</span>
+  </div>
+  <p class="small muted">依据：议题 5 第 1、2 轮、子议题 1–3、深化 1–15；议题 6 深化 7、14。链路名中的 <span class="mono">ChangeSet</span> 采用 <span class="mono">.specs/redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §6 的口径；议题 05 的实际链路写作 <span class="mono">Knowledge Candidate → Review → Publish</span>（<span class="chip warn">待确认</span> 见 4.2）。</p>
+
+  <h4>主链步骤（编号 ①–⑧ 对应下图行）</h4>
+  <figure>
+    <figcaption><b>4.3</b> —— 候选到发布再到反馈复核。<span class="mono">Approved ≠ Published</span>、<span class="mono">Published ≠ Actionable</span> 是两次独立判断。</figcaption>
+    <div class="seq-wrap"><table class="seq">
+      <thead><tr><th class="actor-ext">提炼 Agent</th><th class="actor-cc">Knowledge Pipeline</th><th>审核者</th><th class="actor-ext">消费者与反馈</th></tr></thead>
+      <tbody>
+        <tr><td class="msg" colspan="2"><span class="label"><span class="n">①</span>自动识别对象类型（Wiki / Skill / RCA / Template / Code Context）→ <b>Knowledge Candidate</b>：<span class="mono">source → candidate</span></span><span class="arrow"></span></td><td></td><td></td></tr>
+        <tr><td class="note">只能是 author 或 proposer，不能自审自批自发布</td><td class="note">五类对象各有最低发布门槛</td><td class="note">candidate 仅供授权审核者查看</td><td></td></tr>
+        <tr><td></td><td class="msg" colspan="2"><span class="label"><span class="n">②</span>补齐来源 / 范围 / 证据 / 适用条件，并附风险、敏感、冲突与缺证据标记</span><span class="arrow"></span></td><td></td></tr>
+        <tr><td></td><td class="msg" colspan="2"><span class="label"><span class="n">③</span>Pre-check：结构可解析、来源可追溯；失败默认隔离 / 补证 / 退回 / 拒绝</span><span class="arrow"></span></td><td></td></tr>
+        <tr><td></td><td class="note">预检通过只表示允许进入审核</td><td class="note">敏感、跨空间、可执行、高影响必须人工审核</td><td></td></tr>
+        <tr><td></td><td class="msg rtl" colspan="2"><span class="label"><span class="n">④</span>Governance decision：approve / reject / needs_more_evidence；审核超时保持 Review，不自动批准</span><span class="arrow rtl"></span></td><td></td></tr>
+        <tr><td></td><td class="msg" colspan="2"><span class="label"><span class="n">⑤</span><b>Publish</b> KnowledgeAssetVersion：绑定 <span class="mono">asset_version</span>、来源记忆与 Work Thread 版本、<span class="mono">source_code_revisions</span>、policy 与脱敏版本、<span class="mono">consumer_projection_version</span></span><span class="arrow"></span></td><td></td></tr>
+        <tr><td></td><td class="note">派生资产权限不得宽于来源</td><td class="note">已发布版本不原地覆盖</td><td class="note">三级适配 <span class="mono">discoverable → referenceable → actionable</span></td></tr>
+        <tr><td></td><td class="msg" colspan="3"><span class="label"><span class="n">⑥</span>消费与反馈：<span class="mono">feedback → classify → impact assessment → review candidate</span>；反馈只作追加证据</span><span class="arrow"></span></td></tr>
+        <tr><td></td><td class="msg" colspan="3"><span class="label"><span class="n">⑦</span>源变化影响评估：<span class="mono">source_changed → impact_pending → impact_scoped → low_async | medium_review | high_blocked | unknown_isolated</span></span><span class="arrow"></span></td></tr>
+        <tr><td class="note">高影响必须同步阻断新使用</td><td class="note">低影响可异步生成新版本</td><td class="note">中影响暂停受影响候选并重新审核</td><td class="note">来源撤回时相关索引、缓存与派生资产进入级联暂停或撤回</td></tr>
+        <tr><td class="msg dash" colspan="4"><span class="label"><span class="n">⑧</span>复核结果：<span class="mono">consumer_propagation → verified_current | narrowed | revised | revoked</span>；复核结果至少支持 <span class="mono">keep / narrow / revise / suspend / deprecate / revoke / archive</span> 并扩充 <span class="mono">recompute / rollback</span></span><span class="arrow"></span></td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <h4>异常分支与 fail-closed 行为</h4>
+  <table class="tbl compact">
+    <thead><tr><th style="width:280px">异常条件</th><th>fail-closed 行为</th><th style="width:150px">依据</th></tr></thead>
+    <tbody>
+      <tr><td>预检失败（结构、来源或血缘不完整）</td><td>默认隔离、补证、退回或拒绝，不是「带警告继续」。</td><td class="mono">05 §深化3</td></tr>
+      <tr><td>审核超时或无人处理</td><td>保持 Review 或暂停，不自动批准；<span class="mono">review_due ≠ invalid</span>，但到期资产不得获得新的高风险执行资格。</td><td class="mono">05 §深化3、§深化9</td></tr>
+      <tr><td>敏感、跨空间、可执行或高影响内容</td><td>必须人工审核或隔离；自动模型只能生成候选，不能自动发布。</td><td class="mono">05 §第1轮-1</td></tr>
+      <tr><td>身份无法验证、来源 ACL 缺失、目标范围无法证明不扩大、敏感识别或脱敏失败、血缘缺失、索引与缓存无法失效、撤回传播失败</td><td>默认拒绝或隔离；禁止 <span class="mono">catch → warn → 返回成功</span>，不得回退到默认 Team / Project、全局检索或旧权限。</td><td class="mono">05 §子议题3-6</td></tr>
+      <tr><td>源撤回或权限降级</td><td>逻辑撤回优先：立即不可检索、不可注入、不可执行；无法找到完整血缘或无法确定影响时，不得宣称全链路撤回完成。</td><td class="mono">05 §子议题2-5、§深化4-8</td></tr>
+      <tr><td>派生资产权限可能宽于来源</td><td>阻断发布；必须满足 <span class="mono">target_scope ⊆ effective_scope</span>，脱敏完成不等于获得目标空间授权。</td><td class="mono">05 §子议题3-3、§深化4</td></tr>
+      <tr><td>消费者不兼容或投影失败</td><td>不得误判为源知识错误；按能力收窄表示或阻断，不以改写、摘要或工具结果绕过授权。</td><td class="mono">05 §子议题2-2、§深化5</td></tr>
+      <tr><td>工具返回成功、HTTP 成功、退出码为零或模型生成完整结果</td><td>都不能自动触发写入长期记忆、发布 Skill、提交代码或标记 RCA 已验证。</td><td class="mono">05 §深化5</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-4">4.4 按需融合与上下文投影（ContextManifest → Harness 投影）</h3>
+  <div class="flow">
+    <span class="step">请求主体 / 委托链</span><span class="to">→</span>
+    <span class="step">Retrieval Plane（四通道）</span><span class="to">→</span>
+    <span class="step">Fusion</span><span class="to">→</span>
+    <span class="step">Projection</span><span class="to">→</span>
+    <span class="step">Harness</span><span class="to">→</span>
+    <span class="step">审计</span>
+  </div>
+  <p class="small muted">依据：议题 4 第 1 轮、补充专题 1、2、子议题深化 3–10；议题 7 深化 4；议题 3 补充专题 3。<span class="chip warn">待确认</span> 本链路使用的记忆层名（L1 原子 / L2 场景 / L3 长期）在议题 02 中的口径为「L1 = 原子记忆、L2 = 可恢复场景边界、L3 = 长期记忆演进规则」且未定义 L0，而 <span class="mono">README.md</span> 与 <span class="mono">CONTRACT.md</span> 演示数据集使用「L0 对话 / L1 原子 / L2 场景 / L3 事实」；两处冲突，本文件不自行裁决。</p>
+
+  <h4>编号步骤</h4>
+  <ol>
+    <li><b>解析请求</b>：至少解析 User / Agent / Harness / Team / Project / Task / Code Context / Purpose 八个上下文维度，并固化一次不可变、带版本的 Visibility Context。</li>
+    <li><b>建立允许访问与使用的 scope 集合</b>：<span class="mono">Eligibility = action + principal + source/target scope + purpose + sensitivity + source permission + validity/revocation + owner/related/derived lineage constraints</span>；<span class="mono">Eligibility = false</span> 不能通过 <span class="mono">Utility</span> 变成可用。</li>
+    <li><b>在授权范围内检索</b>：关键词、向量、代码邻近、关系与血缘四通道并行发现候选；过滤必须发生在候选召回之前，不能先全库召回再隐藏结果。</li>
+    <li><b>重排</b>：按 Harness 安全规则 &gt; 当前 Task / Code 局部事实 &gt; Project 约束 &gt; Team 稳定规范 &gt; User 偏好 &gt; 历史经验的默认优先级重排；该顺序只影响相关性与投影优先级，不影响权限。</li>
+    <li><b>轻量融合</b>：形成带来源的结构化融合视图，区分 <span class="mono">constraint / fact / exception / suggestion / dispute</span>，表达「默认规则 + 明确例外」并保留来源、owner scope、适用范围、有效时间与冲突关系。</li>
+    <li><b>生成带来源的融合结果</b>：<span class="mono">applicable_scope</span>、<span class="mono">conclusion</span>、<span class="mono">default_rule</span>、<span class="mono">exceptions</span>、<span class="mono">conflicts</span>、<span class="mono">source_refs</span>、<span class="mono">effective_time</span>、<span class="mono">allowed_use</span>、<span class="mono">unresolved_questions</span>。</li>
+    <li><b>按 Harness 能力、用途与预算投影</b>：两次授权复核与一次能力复核（Authority Check 1 → Capability Check → Projection → Authority Check 2），第二次复核不能省略；输出分四级 <span class="mono">Direct / Cited / Conditional / Blocked</span>。</li>
+    <li><b>输出前泄露检查</b>：检查秘密与个人数据、跨 scope 传播、恶意链接或附件再发布、未经确认的策略或事实承诺、把不确定结果写成确定结论。</li>
+    <li><b>记录审计并原子发布 ContextManifest</b>：至少回答谁在什么 Harness / Task / Purpose 下请求、哪些 scope 被允许或拒绝、哪些候选被纳入排除或降级、使用了哪个记忆版本与策略版本、最终注入了什么、是否经过脱敏或字段级裁剪。</li>
+  </ol>
+
+  <h4>异常分支与 fail-closed 行为</h4>
+  <table class="tbl compact">
+    <thead><tr><th style="width:280px">异常条件</th><th>fail-closed 行为</th><th style="width:150px">依据</th></tr></thead>
+    <tbody>
+      <tr><td>权限、归属、敏感分类、审计或过滤失败</td><td>默认 fail-closed；不以「不确定」解释成「仍然允许」。</td><td class="mono">04 §第1轮-9</td></tr>
+      <tr><td>索引或过滤环节失败</td><td>不退化为全局不受控召回；默认收窄或拒绝，并显示有限、可行动的降级状态，不伪造「没有结果」。</td><td class="mono">04 §深化3</td></tr>
+      <tr><td>上下文预算不足</td><td>按确定性降级序列处理：保留 Harness 安全规则 → 保留 Task / Code 局部约束 → 保留 Project 必要事实 → 合并压缩重复内容 → 次要内容引用化 → 继续检索 → 提示不足或阻断；禁止随机截断，预算不等于隐私授权。</td><td class="mono">04 §第1轮-8、§深化6</td></tr>
+      <tr><td><span class="mono">dispute</span>、敏感、隔离、撤回或未授权内容</td><td>不得进入普通投影、摘要或自动执行链路；冲突详情不能泄露无权访问的另一条记忆。</td><td class="mono">04 §补充1-4</td></tr>
+      <tr><td>第二次授权复核（Authority Check 2）不一致</td><td>收窄或阻断；投影状态未知、绑定缺失或依赖不完整时减少可见范围。</td><td class="mono">04 §深化5</td></tr>
+      <tr><td>记忆或工具返回文本中出现「请执行」「忽略规则」「授予权限」等指令</td><td>始终按不可信数据处理；不能成为系统指令、工具授权、策略变更或安全门禁，检测未命中也不解除门禁。</td><td class="mono">04 §深化9</td></tr>
+      <tr><td>Harness 能力不支持、当前主体无权、敏感性未知或版本无法确认</td><td>选择更窄的已支持表示或阻断；不以改写、摘要、翻译或工具结果绕过原 scope 与撤回。</td><td class="mono">04 §深化5、§深化7</td></tr>
+      <tr><td>来源撤回、权限降级、Purpose 撤销或敏感性升级</td><td>标记依赖该来源的索引、缓存、摘要、Embedding、Manifest、融合视图与投影，阻止新增 discover / read / use / derive / project；传播「到达」不等于「生效」。</td><td class="mono">04 §深化8</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-5">4.5 跨空间复用与执行门禁（Action Proposal → RunGate → Constrained Run → Verification）</h3>
+  <div class="flow">
+    <span class="step">当前主体 / 委托链</span><span class="to">→</span>
+    <span class="step">Action Proposal</span><span class="to">→</span>
+    <span class="step">Policy Plane</span><span class="to">→</span>
+    <span class="step">RunGate + Tool Policy</span><span class="to">→</span>
+    <span class="step">Constrained Run</span><span class="to">→</span>
+    <span class="step">Verification + External Effect</span>
+  </div>
+  <p class="small muted">依据：议题 10 第 1、2、3、7 轮；议题 9 第 1、2、3 轮与子议题 1、2、5；议题 5 深化 8；<span class="mono">ARCHITECTURE.md</span> 第 2 节；<span class="mono">CONCEPTS.md</span> §5.3。<span class="chip warn">待确认</span> 风险分级存在两套并行口径且文档未给出映射：议题 9 第 3 轮定义动作风险 <span class="mono">R0–R3</span>，议题 10 第 1 轮定义跨空间操作风险 <span class="mono">S0–S3</span>（<span class="mono">.specs/enterprise-agent-memory-platform/09-企业级权限与治理.md</span>、<span class="mono">10-跨空间复用与脱敏.md</span>）。两套分级的对应关系待确认。</p>
+
+  <h4>主链步骤（编号 ①–⑧ 对应下图行）</h4>
+  <figure>
+    <figcaption><b>4.5</b> —— 建议不等于执行：Action Proposal 默认阻断，RunGate 是唯一准入，且执行后仍需独立验证。</figcaption>
+    <div class="seq-wrap"><table class="seq">
+      <thead><tr><th class="actor-ext">当前主体 / 委托链</th><th class="actor-cc">Action Proposal</th><th>Policy Plane</th><th>RunGate + Tool Policy</th><th class="actor-ext">Constrained Run / Verification</th></tr></thead>
+      <tbody>
+        <tr><td class="msg" colspan="2"><span class="label"><span class="n">①</span>可引用 → 可检索 → 可建议：生成 <b>Action Proposal</b>（默认 <span class="mono">blocked</span>）</span><span class="arrow"></span></td><td></td><td></td><td></td></tr>
+        <tr><td class="note">发起人不能自批</td><td class="note">含目标、来源资产、建议动作、参数摘要、影响预览、前置条件、不适用范围</td><td></td><td></td><td></td></tr>
+        <tr><td></td><td class="msg" colspan="2"><span class="label"><span class="n">②</span>风险分级与影响预览 + 当前授权与策略检查</span><span class="arrow"></span></td><td></td><td></td></tr>
+        <tr><td></td><td class="note">跨空间操作区分 reference / project / derive / promote / export / share / replicate / aggregate</td><td class="note">交集：主体 ∩ 源 ACL ∩ 目标 ACL ∩ Purpose ∩ 敏感与脱敏 ∩ 血缘与发布状态 ∩ 能力 ∩ ToolPolicy ∩ RunGate</td><td></td><td></td></tr>
+        <tr><td></td><td class="msg rtl" colspan="2"><span class="label"><span class="n">③</span>决策：<span class="mono">allow / deny / isolate / needs_review</span>，并返回 obligations、required_approvals、redactions、allowed_scope 与 expiry</span><span class="arrow rtl"></span></td><td></td><td></td></tr>
+        <tr><td></td><td class="msg" colspan="2"><span class="label"><span class="n">④</span>独立审批：绑定不可变 Run Plan 版本（proposer / approver / executor / verifier 分离）</span><span class="arrow"></span></td><td></td><td></td></tr>
+        <tr><td></td><td class="note">审批绑定目标 revision、环境、工具调用集合、验证与回滚计划</td><td class="note">关键变化使原审批自动失效</td><td class="note">审批超时不等于批准</td><td></td></tr>
+        <tr><td></td><td></td><td></td><td class="msg" colspan="2"><span class="label"><span class="n">⑤</span><b>RunGate 准入</b>：<span class="mono">admit / hold / deny</span>；每个 Tool Call 与 Attempt 前持续重检</span><span class="arrow"></span></td></tr>
+        <tr><td></td><td></td><td class="note">策略或审计系统不可用时高风险路径 fail-closed</td><td class="note">不得放宽 Tool Policy</td><td class="note">Run Plan、幂等键、停止条件、补偿策略随行</td></tr>
+        <tr><td></td><td></td><td></td><td class="msg" colspan="2"><span class="label"><span class="n">⑥</span>受约束 Run：记录实际 Tool Call、计划外差异与结果</span><span class="arrow"></span></td></tr>
+        <tr><td></td><td></td><td></td><td class="msg rtl" colspan="2"><span class="label"><span class="n">⑦</span>Verification + External Effect 回写；<span class="mono">executed ≠ verified</span></span><span class="arrow rtl"></span></td></tr>
+        <tr><td class="note">权限撤回时新调用立即阻断</td><td class="note">结果未知时冻结重复副作用</td><td class="note">结果 unknown 时外部对账</td><td class="note">执行者不能自审、不能把超时当完成</td><td class="note">残余风险与未验证路径显式保留</td></tr>
+        <tr><td class="msg dash" colspan="5"><span class="label"><span class="n">⑧</span>审计分三类：Decision / Execution / Impact；补偿、回滚、重试、替代 Provider 与人工接管本身都是新的受授权动作</span><span class="arrow"></span></td></tr>
+      </tbody>
+    </table></div>
+  </figure>
+
+  <h4>异常分支与 fail-closed 行为</h4>
+  <table class="tbl compact">
+    <thead><tr><th style="width:280px">异常条件</th><th>fail-closed 行为</th><th style="width:150px">依据</th></tr></thead>
+    <tbody>
+      <tr><td>任一必要条件缺失、冲突、过期或 <span class="mono">unknown</span></td><td>结果为 <span class="mono">blocked</span> 或人工审核，不得默认低风险；<span class="mono">unknown impact ≠ R0</span>。</td><td class="mono">09 §第1轮-4、子议题1</td></tr>
+      <tr><td>计划、环境、revision、参数、风险或权限发生变化</td><td>原审批自动失效 → <span class="mono">RunGate = blocked</span> → 重新生成 Run Plan → 重新审批。</td><td class="mono">09 §第3轮-2</td></tr>
+      <tr><td>运行中 Run 发生权限撤回</td><td>新调用立即阻断，当前 Tool Call 逐 Attempt 重检；按工具能力与副作用阶段选择安全边界、取消、暂停、补偿、回滚或人工接管。</td><td class="mono">09 子议题5</td></tr>
+      <tr><td>取消或回滚被请求</td><td><span class="mono">cancel requested ≠ side effect stopped</span>、<span class="mono">rollback requested ≠ rollback succeeded</span>；外部撤销无法确认时标记 <span class="mono">revocation_unknown</span>。</td><td class="mono">09 子议题5</td></tr>
+      <tr><td>执行结果未知</td><td>冻结重复副作用并外部对账；<span class="mono">unknown result ≠ safe to retry</span>，权限恢复也不自动重放旧调用。</td><td class="mono">09 子议题5；06 深化8</td></tr>
+      <tr><td>策略服务、身份服务、血缘服务、Connector 或撤回状态未知</td><td>不得错误 fail-open；策略或审计不可用时高风险路径 fail-closed。</td><td class="mono">10 第7轮；09 子议题3</td></tr>
+      <tr><td>跨空间资产没有明确 Target Owner</td><td>只能保留候选，不得正式发布；源 Owner 不能替代目标 Owner，目标 Owner 不能解除源 ACL。</td><td class="mono">10 第2轮</td></tr>
+      <tr><td>跨空间可执行 Skill 或高风险不可逆动作</td><td>默认不得自动形成；<span class="mono">action_status = blocked</span>，需要独立批准与最小必要交付。</td><td class="mono">10 第1轮、第3轮</td></tr>
+      <tr><td>提议者试图自批或自验</td><td>阻断；<span class="mono">more approvers ≠ independent approval</span>，替代者不能把高风险降级或扩大范围。</td><td class="mono">09 第1轮-7、子议题2</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s4-6">4.6 撤回与清理证明（Propagation Stop → Copy Inventory → 分层处置 → 独立验证 → 分层报告）</h3>
+  <div class="flow">
+    <span class="step">源撤回 / 策略变化</span><span class="to">→</span>
+    <span class="step">Propagation Stop</span><span class="to">→</span>
+    <span class="step">Copy Inventory snapshot</span><span class="to">→</span>
+    <span class="step">分层处置</span><span class="to">→</span>
+    <span class="step">独立验证</span><span class="to">→</span>
+    <span class="step">分层报告与通知</span>
+  </div>
+  <p class="small muted">依据：<span class="mono">CONCEPTS.md</span> §5.4、<span class="mono">ARCHITECTURE.md</span> 第 3 节；议题 10 第 9–21 轮；议题 2 深化 4；议题 7 深化 6、7；议题 9 子议题 4、6、7、8。<span class="chip warn">待确认</span> 证据等级与导出风险分级同名不同义：议题 10 第 11 轮定义证据等级 <span class="mono">E0–E4</span>（未确认 / 传播或访问已阻断 / 逻辑处置已执行 / 范围内验证 / 受控介质或责任方证明），而议题 10 第 14 轮与议题 7 深化 7 使用 <span class="mono">E0–E3</span> 表示导出与终端副本的风险分级（<span class="mono">.specs/enterprise-agent-memory-platform/10-跨空间复用与脱敏.md</span>、<span class="mono">07-企业记忆血缘.md</span>）。两套同名分级的关系待确认。</p>
+
+  <h4>编号步骤</h4>
+  <ol>
+    <li><b>权威撤回与同步最小阻断</b>：源撤回、权限收窄或策略变化形成权威撤回版本；立即阻断新的检索、投影、下载、执行与再分享（<span class="mono">deny_path_active</span>）。检测信号不等于权威撤回，阻断先于证明，阻断也不冒充删除。</li>
+    <li><b>Copy Inventory 版本化快照</b>：记录逻辑副本身份与来源 revision、边界与责任方（owner / controller / provider / recipient）、用途与分类与保留保全、生命周期与访问与处置、发现观测与覆盖率与新鲜度、证明快照与声明范围。快照是清理证明的范围基线，每个观测、处置与验证保留自己的时间、版本与来源。</li>
+    <li><b>分层处置</b>：在线对象、缓存、索引与 Embedding、Manifest 走在线分支；备份、灾备与恢复介质走备份生命周期轨道；导出、下载、再分享与终端走外部轨道；Provider 与再处理者走合同与证明包轨道。四轨并行：服务阻断、备份生命周期、法律保全、恢复重建。</li>
+    <li><b>不可变保留与法律保全判定</b>：命中保全或不可变保留时标记 <span class="mono">retained</span>，<span class="mono">service_blocked</span> 与 <span class="mono">retained</span> 可同时存在；保留不等于可继续检索或执行。解除保全、缩短不可变保留或提前删除都是独立高风险动作。</li>
+    <li><b>独立验证</b>：按证据等级分层声明——<span class="mono">E0</span> 未确认、<span class="mono">E1</span> 传播或访问已阻断、<span class="mono">E2</span> 逻辑处置已执行、<span class="mono">E3</span> 范围内验证、<span class="mono">E4</span> 受控介质或责任方证明。证据等级不跨副本继承，抽样结果不得表述为数学意义上的全量证明。</li>
+    <li><b>逐消费者确认与闭包验证</b>：每个消费者必须证明已应用所需版本（<span class="mono">applied_and_verified</span>），再进入 <span class="mono">closure_verified</span>；<span class="mono">stale / pending / failed / unknown</span> 不得伪装为 <span class="mono">current</span>。</li>
+    <li><b>分层报告</b>：先生成不可变事实内核，再做受众投影（平台操作人员、客户与数据主体、Provider、监管与执法）；字段分五类（必须披露、条件披露、仅内部、禁止外发、由法务批准），字段披露、脱敏、未知与禁止外发规则在渲染前执行。</li>
+    <li><b>投递与修订</b>：一个报告共享 Delivery Intent，各渠道独立 Attempt；记录生成、批准、排队、发送尝试、渠道接受、传输完成、接收确认、阅读或下载、撤回请求与修订发布。渠道接受不等于人已接收，接收不等于已阅读，新事实不静默改写已发送报告。</li>
+    <li><b>恢复轨道</b>：备份恢复、灾备切换、索引或 Embedding 重建、缓存回填、Manifest 重生成、Provider 重试、跨区域复制、迁移导入与恢复演练都可能重新生成已撤回内容；恢复前检查撤回与保全状态，恢复后生成新 inventory 并重新执行传播阻断与验证，不继承旧证明。</li>
+  </ol>
+
+  <h4>异常分支与 fail-closed 行为</h4>
+  <table class="tbl compact">
+    <thead><tr><th style="width:280px">异常条件</th><th>fail-closed 行为</th><th style="width:150px">依据</th></tr></thead>
+    <tbody>
+      <tr><td>未发现、不可访问或未接入的副本</td><td>不能被默认为不存在；默认不纳入「已全量清理」声明，覆盖率以分层分母与盲区报告。</td><td class="mono">10 第9轮、第10轮</td></tr>
+      <tr><td>无法证明传播或清理状态，或任务超时</td><td>维持 <span class="mono">blocked</span> 或 <span class="mono">unknown</span>；超时保持阻断并转为未知、过期或升级，超时不是成功。</td><td class="mono">10 第11轮</td></tr>
+      <tr><td>非受管终端、外部接收者或离线导出</td><td>标记 <span class="mono">requested / not_confirmed / external_unknown</span>，禁止升级为 <span class="mono">verified</span>；不承诺对未纳管终端实现全量发现或强制删除。</td><td class="mono">10 第14轮</td></tr>
+      <tr><td>法律保全、不可变保留或恢复介质仍存在</td><td>报告 <span class="mono">retained</span>，不报告全量清理；保留不恢复服务可见性，保全不绕过当前权限。</td><td class="mono">10 第12轮</td></tr>
+      <tr><td>Provider 回执与 Inventory 冲突、再处理者未披露或证据过期</td><td>收窄交付、停止高敏复用与再导出并标记 <span class="mono">unknown</span>；不自动认定供应商法律违约，也不把自述回执升级为独立验证。</td><td class="mono">10 第13轮、第21轮</td></tr>
+      <tr><td>恢复或重建带回已撤回内容</td><td>生成新 inventory、重新执行传播阻断与验证；旧任务与旧幂等键不得覆盖新 revision 状态。</td><td class="mono">10 第15轮</td></tr>
+      <tr><td>通知投递失败、渠道拒绝或接收者不可认证</td><td>继续阻断并保存证据，升级到备用责任人、法务或合规；失败不等于送达，通知失败不等于通知义务已满足。</td><td class="mono">09 子议题6；10 第19轮</td></tr>
+      <tr><td>模板或翻译可能省略 <span class="mono">unknown</span>、<span class="mono">retained</span> 或 <span class="mono">not_scoped</span></td><td>阻断渲染；先做授权投影与字段过滤再渲染或翻译，禁止事后文本清洗作为唯一门禁，也不得用模板文字补救。</td><td class="mono">10 第17轮、第20轮</td></tr>
+      <tr><td>外部副本状态无法确认</td><td>不伪造为已清除，也不自动定性为供应商违约；作为暴露可能性处理，维持阻断与升级。</td><td class="mono">10 第21轮</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <h5>边界声明</h5>
+    <p class="small">本章描述的是产品语义与门禁顺序，不是已实现的接口时序或事务边界。最终 Schema、事件协议、算法与阈值、抽样与统计参数、SLA 与责任矩阵在各议题中均记为暂缓；实现前需以低敏样本、真实部署边界和责任矩阵验证。</p>
+  </div>
+</section>

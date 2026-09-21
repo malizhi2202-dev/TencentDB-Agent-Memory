@@ -1,0 +1,538 @@
+  <section class="doc-sec" id="s5">
+    <h2>5 · 使用指南（模块级操作手册）</h2>
+    <p class="lead">本章回答四个问题：每个模块从哪个 hash 路由进入；哪些角色可以做哪一步；做完之后用户看到什么状态、写到哪里、谁收到通知；以及无权限、冲突、unknown、部分成功、离线、过期时系统如何表现。5.0 给出模块与角色的进入口径，5.1–5.18 每个模块固定四段：<b>入口路径 / 操作步骤 / 结果反馈 / 边界情况</b>。</p>
+    <p class="small muted"><span class="chip warn">演示数据</span> 本章出现的全部对象编号（<span class="mono">team-pay</span>、<span class="mono">p-db</span>、<span class="mono">t-104</span>、<span class="mono">r-83</span>、<span class="mono">cs-2201</span>、<span class="mono">ci-8812</span>、<span class="mono">rpt-3301</span> 等）取自构建契约第 6 节的统一演示数据集，均为虚构数据；示例时间统一为 <span class="mono">2026-09-21 14:32</span> 这类绝对时间戳。本产品设计文档描述的是产品语义与交互口径，不表示代码已实现；未验证的阈值、Schema 与 SLA 一律按“待确认 / 暂缓”处理。</p>
+
+    <h3 id="s5-1">5.0 指南总览与角色可见性</h3>
+    <p>下表「主要角色」列固定按 8 个角色的顺序给出可见性符号：<span class="mono">member / team-owner / project-admin / knowledge-owner / agent-admin / governance / auditor / platform-admin</span>。图例：<b>●</b> 可操作 / <b>○</b> 只可见 / <b>—</b> 不可见。本列与构建契约第 5 节「模块 × 角色矩阵」逐行一致，未作任何放宽或收紧。</p>
+    <table class="tbl">
+      <thead>
+        <tr><th style="width:170px">模块</th><th style="width:270px">入口路径</th><th style="width:200px">主要角色</th><th>边界说明</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>工作台 <span class="tiny muted">→ 5.2</span></td>
+          <td class="mono">#/home</td>
+          <td><span class="mono">● ● ● ● ● ● ○ ●</span></td>
+          <td>只显示可行动事项与当前 scope 内证据；统计口径里 <span class="mono">unknown</span> 不显示为 0，清理 unknown 与 RunGate blocked 均给出下一门槛。</td>
+        </tr>
+        <tr>
+          <td>项目与成员 <span class="tiny muted">→ 5.3</span></td>
+          <td class="mono">#/projects · #/project/p-db/overview · #/team</td>
+          <td><span class="mono">○ ● ● ○ ○ ○ ○ ○</span></td>
+          <td>进入 Project 不等于获得其资源写权；<span class="mono">owner ≠ visibility ≠ ACL ≠ execution authority</span>，Team 成员身份不自动传递为 Project 成员身份。</td>
+        </tr>
+        <tr>
+          <td>任务与运行 <span class="tiny muted">→ 5.4 / 5.5</span></td>
+          <td class="mono">#/project/p-db/tasks · #/task/t-104 · #/task/t-104/run/r-83</td>
+          <td><span class="mono">● ● ● ○ ○ ○ ○ ○</span></td>
+          <td><span class="mono">Run succeeded ≠ Task accepted</span>；Run 不作为常规顶层资源出现，只从 Task 或 Project 下钻。</td>
+        </tr>
+        <tr>
+          <td>Agent 配置 <span class="tiny muted">→ 5.6</span></td>
+          <td class="mono">#/agent/a-retriever</td>
+          <td><span class="mono">○ ○ ○ — ● ○ ○ ○</span></td>
+          <td>关联范围只授予明确的 <span class="mono">view/use</span> 能力；秘密只显示引用与指纹，RunGate 与 Tool Policy 不可绕过。</td>
+        </tr>
+        <tr>
+          <td>记忆与空间 <span class="tiny muted">→ 5.7</span></td>
+          <td class="mono">#/memory · #/memory/spaces</td>
+          <td><span class="mono">● ● ● ● ○ ○ ○ ○</span></td>
+          <td>不提供 public Memory；归属不等于权限，<span class="mono">unknown ≠ zero</span>，撤回必须区分逻辑撤回与物理删除。</td>
+        </tr>
+        <tr>
+          <td>导入与分诊 <span class="tiny muted">→ 5.11 / 5.12</span></td>
+          <td class="mono">#/ingestion/import · #/ingestion/triage</td>
+          <td><span class="mono">○ ○ ○ ● — ○ ○ —</span></td>
+          <td>Triage 是唯一的归属人工处理入口；缺元数据、低置信度、冲突或无写权限时停在 staging，不自动写入更宽 scope。</td>
+        </tr>
+        <tr>
+          <td>变更与发布 <span class="tiny muted">→ 5.13</span></td>
+          <td class="mono">#/changes</td>
+          <td><span class="mono">○ ○ ○ ● ○ ○ ○ ○</span></td>
+          <td>唯一的内容审核入口；<span class="mono">approved ≠ published</span>，自动化 Agent 只能作为 author / proposer，不能自审自批自发布。</td>
+        </tr>
+        <tr>
+          <td>知识资产 <span class="tiny muted">→ 5.9</span></td>
+          <td class="mono">#/knowledge · #/knowledge/wiki/k-wiki-connpool</td>
+          <td><span class="mono">○ ● ● ● ○ ○ ○ ●</span></td>
+          <td><span class="mono">published ≠ actionable</span>；版本不可原地覆盖，Template 引用必须锁定版本。</td>
+        </tr>
+        <tr>
+          <td>代码场景 <span class="tiny muted">→ 5.10</span></td>
+          <td class="mono">#/scenario/cs-2201</td>
+          <td><span class="mono">● ● ● ● ○ ○ ○ ○</span></td>
+          <td>必须以 <span class="mono">repo + revision</span> 为硬锚点；<span class="mono">resolved ≠ closed</span>，Patch Candidate 默认 <span class="mono">action_status=blocked</span>。</td>
+        </tr>
+        <tr>
+          <td>血缘 <span class="tiny muted">→ 5.14</span></td>
+          <td class="mono">#/governance/lineage</td>
+          <td><span class="mono">○ ○ ○ ● ○ ● ● ○</span></td>
+          <td>血缘不扩大权限，也不得作为绕过 ACL 的反向索引；缺口、无权与超时不得显示为“无影响”。</td>
+        </tr>
+        <tr>
+          <td>清理证据 <span class="tiny muted">→ 5.15</span></td>
+          <td class="mono">#/governance/cleanup</td>
+          <td><span class="mono">— ○ ○ ○ — ● ○ ○</span></td>
+          <td><span class="mono">requested ≠ executed ≠ verified</span>；<span class="mono">retained ≠ service-visible</span>，外部副本未知时 fail-closed。</td>
+        </tr>
+        <tr>
+          <td>报告中心 <span class="tiny muted">→ 5.16</span></td>
+          <td class="mono">#/reports</td>
+          <td><span class="mono">— ○ ○ ○ — ● ● ○</span></td>
+          <td>先授权投影再渲染，模板不能决定权限；渠道接受不等于人已接收，撤回不等于外部副本已删除。</td>
+        </tr>
+        <tr>
+          <td>团队 <span class="tiny muted">→ 5.17</span></td>
+          <td class="mono">#/team</td>
+          <td><span class="mono">○ ● ○ ○ ○ ○ ○ ○</span></td>
+          <td>Team 是组织与共享层，不是 Platform 公共资源的 owner；Team 成员不等于关联 Project 的成员。</td>
+        </tr>
+        <tr>
+          <td>设置 <span class="tiny muted">→ 5.18</span></td>
+          <td class="mono">#/settings</td>
+          <td><span class="mono">○ ○ ○ ○ ○ ○ — ●</span></td>
+          <td>只显示 Vault 引用、指纹与撤销状态，不回显秘密；Project 与 Team 只能收紧、不能放宽 Platform 策略。</td>
+        </tr>
+        <tr>
+          <td>权限矩阵 <span class="tiny muted">→ 5.18</span></td>
+          <td class="mono">#/permissions</td>
+          <td><span class="mono">○ ○ ○ ○ ○ ● ● ●</span></td>
+          <td>只读说明页，不在此页做授权变更；授权输出不能只有布尔值，必须带 obligations 与 expiry。</td>
+        </tr>
+        <tr>
+          <td>审计 <span class="tiny muted">→ 5.18</span></td>
+          <td class="mono">#/audit</td>
+          <td><span class="mono">— ○ ○ ○ — ● ● ●</span></td>
+          <td>追加式证据，不可静默修改；<span class="mono">retained ≠ retrievable</span>、<span class="mono">expired ≠ all copies deleted</span>。</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="small muted"><b>矩阵行与本章小节的对应关系</b>：上表 16 行的名称、顺序与可见性符号与构建契约第 5 节「模块 × 角色矩阵」逐行一致（不新增、不合并、不重排）。本章按操作手册的一屏一节把矩阵行展开为 18 节（5.1–5.18）：其中「任务与运行」拆为 5.4 任务与 5.5 运行；「导入与分诊」拆为 5.11 导入与 5.12 分诊；「设置 / 权限矩阵 / 审计」三行合并为 5.18。另有 3 处不在矩阵行内、也未新增任何角色能力：5.1 登录与全局导航（壳外页面，登录后按矩阵渲染侧栏）、5.8 资源库（授权后的跨类型发现页，只跳转不编辑）、5.3 中的项目内二级导航（沿用「项目与成员」行的可见性）。</p>
+
+    <h3 id="s5-2">5.1 登录与全局导航</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/login</span>（壳外页面，不进入侧栏）。登录成功后落地 <span class="mono">#/home</span>。侧栏四级分组与全部入口以构建契约第 3 节为准，本章各节只重复与本节相关的 hash。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开 <span class="mono">#/login</span>。平台不提供自助注册：账号与凭据由 <b>platform-admin</b> 在 <span class="mono">#/settings</span>（Users / Keys）维护。</li>
+      <li>输入账号与口令登录。登录成功与失败都写审计，可由 <b>governance</b> / <b>auditor</b> 在 <span class="mono">#/audit</span> 按“操作者 + 动作”筛选。</li>
+      <li>登录后按当前角色渲染侧栏：契约矩阵中标为 <b>—</b> 的模块不出现；标为 <b>○</b> 的模块只呈现只读入口。</li>
+      <li>确认顶栏当前 scope 与角色标识（日常演示身份为 <span class="mono">林工（lin.gong）· member</span>；平台账号 <span class="mono">admin</span> 显示 <span class="mono">platform-admin · 管理员</span>）。</li>
+      <li>切换 Team / Project scope 或直接输入 hash 深链；内容按当前授权重新解析，不沿用上一个 scope 的可见结果。</li>
+      <li>左下角「退出登录」结束会话。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>落地 <span class="mono">#/home</span>；侧栏 <span class="mono">active</span> 项与当前路由一致；顶栏面包屑前两段可点（回上一级），叶子段为纯文本。登录、退出、失败尝试、scope 切换均产生审计事件。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>无权限</b>：直接输入矩阵中为 <b>—</b> 的模块 hash 时显示 <span class="mono">denied</span>；拒绝信息不回显无权对象的名称或数量。</li>
+      <li><b>身份不可确认</b>：无法确认实际操作者时记为 <span class="mono">actor_unknown</span>；Key 或凭据的登记人不等于实际操作者（<span class="mono">createdBy ≠ owner ≠ actor</span>）。</li>
+      <li><b>禁用与过期</b>：账号被禁用时口令正确也拒绝；会话过期后重新登录回到当前路由，但不自动重放未完成动作。</li>
+      <li><b>离线</b>：本地打开原型时为合成数据，页面标注「演示数据」，任何授权与投递结论都不成立。</li>
+    </ul>
+
+    <h3 id="s5-3">5.2 工作台</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/home</span>。工作台是登录后的默认落点，也是“我的项目们现在需要我做什么”的唯一入口。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>用顶部 scope switcher 选择 Team 或 Project 范围（需要该范围的成员关系或 ACL）；工作台只显示当前 scope 内可行动的事项。</li>
+      <li>在「我的 Task」查看处于 <span class="mono">active / paused / blocked</span> 的 Task，点行进入 <span class="mono">#/task/t-104</span>；<span class="mono">paused ≠ blocked</span>。</li>
+      <li>在「等待分诊」查看 <span class="mono">#/ingestion/triage</span> 中处于 <span class="mono">staged / assigned</span> 的候选数量与范围；需要 <b>knowledge-owner</b> 才能进入处理，其他角色只见计数。</li>
+      <li>在「等待审核」查看 <span class="mono">#/changes</span> 中 <span class="mono">review_required</span> 的 ChangeSet（演示对象 <span class="mono">cs-4410</span>）；处理需要 <b>knowledge-owner</b>。</li>
+      <li>在「失败 Run」查看 <span class="mono">r-81</span> 这类失败 Run，下钻到 <span class="mono">#/task/t-104/run/r-81</span> 看失败原因、缺口与下一门槛。</li>
+      <li>从「最近证据」或清理 unknown / RunGate blocked 卡片进入 <span class="mono">#/governance/cleanup</span>、<span class="mono">#/governance/lineage</span>；工作台自身不提供执行按钮。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>每张卡片同屏显示<b>范围 + 证据时间 + 责任边界 + 下一门槛</b>；计数是当前授权范围内的实测值，点击后跳转到对应专业页并由该页承担操作与授权判定。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>无权限</b>：矩阵为 <b>—</b> 的模块不出现；为 <b>○</b> 的角色只看到计数与范围，看不到候选内容与证据正文。</li>
+      <li><b>unknown</b>：清理 unknown 与外部副本状态显示为 <span class="mono">unknown</span>，不显示为 0（<span class="mono">unknown ≠ zero</span>）。</li>
+      <li><b>高风险动作</b>：RunGate <span class="mono">blocked</span> 卡片显示阻断原因、下一门槛与责任角色，不提供「一键执行」。</li>
+      <li><b>部分成功与离线</b>：Connector 离线或事件缺口时显示 <span class="mono">partial / stale</span> 与最后证据时间；<span class="mono">loading / empty / filtered-empty</span> 分开表达，不用一个「暂无数据」覆盖。</li>
+      <li><span class="chip warn">待确认</span> 首页卡片集合在两处来源中列举不同：<span class="mono">redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §6 只列「我的 Task、等待分诊、等待审核、失败 Run」；<span class="mono">CONCEPTS.md</span> §7 另列 scope switcher、待分流、待审核、清理 unknown、RunGate blocked、最近证据。本节按并集描述，最终卡片集合未收敛。</li>
+    </ul>
+
+    <h3 id="s5-4">5.3 项目与项目导航</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/projects</span>（列表）→ <span class="mono">#/project/p-db/overview</span>。项目内二级导航（概览 / Tasks / Agents / Runs / Resources / Access / Activity）由项目页内的水平页签承载，不进入全局侧栏。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>在 <span class="mono">#/projects</span> 按可见范围浏览 Project 卡片（<b>member</b> 只看到自己参与的 Project）；点击卡片进入概览，不直跳 Task。</li>
+      <li>在概览页确认 owning Team、可见性（<span class="mono">open / restricted</span>）、当前 revision 与最近活动时间。</li>
+      <li>用二级导航进入 Tasks / Agents / Runs / Resources / Access；切换页签只改变视图，不改写对象归属或授权。</li>
+      <li>在 Tasks 中新建或认领 Task（需要 <b>project-admin</b> 或 Project 内写权限）；写操作写审计。</li>
+      <li>需要引用其他 Project 的只读来源时，在 Task 的 ContextBinding 中登记 <span class="mono">referenceProjectIds[]</span>，逐项单独授权，不复制来源内容。</li>
+      <li>成员与访问在 <span class="mono">#/project/p-db/access</span> 由 <b>project-admin</b> 维护；Team 级成员在 <span class="mono">#/team</span> 由 <b>team-owner</b> 维护。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>进入 Project 后立即显示 scope、可见性与当前角色；<span class="mono">open</span> 只放宽日常协作入口，不放宽 Memory / Wiki / Code / Skill / Template 的 CRUD，也不放宽成员、ACL、visibility、Agent 配置与 Project 删除转移（这些仅 Team Owner / Project Admin 可做）。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>无权限</b>：<span class="mono">restricted</span> Project 需要显式读权限，否则 <span class="mono">denied</span>，且不泄露 Project 内的对象名称或数量。</li>
+      <li><b>关系不等于权限</b>：Team 成员身份不等于关联 Project 的成员身份；TeamProject 关联不等于项目读写授权。</li>
+      <li><b>绑定冲突</b>：显式无权目标直接拒绝；<span class="mono">context_conflict</span> 时不得回退到最近 Project、个人空间或相似 Project。</li>
+      <li><b>归档</b>：Project 归档后其 MemorySpace 转只读或归档，保留历史 owner 与来源，不自动删除或转移记忆，也不静默改变 ACL。</li>
+      <li><span class="chip warn">待确认</span> Team ↔ Project 关系口径未收敛：<span class="mono">final-v1/DOMAIN-MODEL.md</span> §3 写「Team → Project 是一对多归属关系，每个 Project 必须且只能有一个 owning Team」；<span class="mono">redesign-v3/DOMAIN-MODEL-AND-IA.md</span> §3 写「多对多协作关联」。两处并存，本手册不自行裁决，只按“必须有唯一 owning Team + 协作关系不授予权限”执行操作口径。</li>
+      <li><b>过期与筛选</b>：revision 变化或关系命中过期时标 <span class="mono">stale</span>；筛选为空与真为空分开。</li>
+    </ul>
+
+    <h3 id="s5-5">5.4 任务</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/task/t-104</span>（从 <span class="mono">#/project/p-db/tasks</span> 或工作台进入）。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开 <span class="mono">t-104</span>「修复 DB-Proxy 连接池耗尽」，确认目标、验收标准与交付物（状态：进行中）。</li>
+      <li>读 <b>planning snapshot</b>：任务计划与资源配置在确认时被锁定为不可变快照，之后 latest 配置变化不回填、不改写该快照。</li>
+      <li>读 <b>ContextBinding</b>：<span class="mono">primaryProjectId</span>（主要工作现场）、<span class="mono">referenceProjectIds[]</span>（逐项单独授权的只读来源）、<span class="mono">writeTargetSpaceId</span>（本次唯一写入目标）；三者都不授予对其他项目的读或写。</li>
+      <li>逐个查看关联 Runs（<span class="mono">r-83</span> verified、<span class="mono">r-81</span> failed）；Run 成功不改变 Task 的验收状态。</li>
+      <li>交付与验收：确认交付物与验证证据后由有权主体验收（需要 <b>project-admin</b> 或 Task 验收权限）；无权限时只能提议，不能自行置为已验收。</li>
+      <li>需要重启工作或派生后续任务时创建 Reopen / Follow-up / Derived，而不是就地改写历史 Run 或历史快照。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>Task 保持「进行中」直到验收被独立确认；每次状态转移记录 from / to / reason / evidence_refs / actor / timestamp 并写审计。planning snapshot 与 Binding 以只读方式展示 revision 与时间。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>状态分离</b>：<span class="mono">Run succeeded ≠ Task accepted</span>；完成 ≠ 验证完成，完成 ≠ 发布或可执行；「最后一次 Run 成功」「Harness 返回完成」「Owner 点击完成」都不能单独决定完成。</li>
+      <li><b>历史快照</b>：历史 Snapshot 保存事实，不能绕过当前撤权；<span class="mono">verification_expired / approval_invalidated / manifest_stale</span> 显示为需重新确认。</li>
+      <li><b>绑定冲突</b>：弱证据或多候选进入 Triage，不自动选定一个目标。</li>
+      <li><b>无权限</b>：<b>member / team-owner / project-admin</b> 可操作；<b>knowledge-owner / agent-admin / governance / auditor / platform-admin</b> 只可见（矩阵口径）；无权读取时显示受限状态而非伪造确定归属。</li>
+    </ul>
+
+    <h3 id="s5-6">5.5 运行</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/task/t-104/run/r-83</span>；Run 列表在 <span class="mono">#/project/p-db/runs</span>。Run 不作为常规顶层资源出现，只从 Task 或所属 Project 下钻。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>从 Task 详情或工作台的失败 Run 卡片进入 Run 详情。</li>
+      <li>读<b>树形事件</b>：按事件层级展开当前 Harness / Agent、工具调用、输入证据、输出与审计；事件是追加式记录，缺失、乱序、采样分别标注，不补造顺序。</li>
+      <li>读<b>实际上下文</b>：本次 Run 实际解析出的不可变 ContextManifest，含 <span class="mono">memory_id</span>、<span class="mono">source_revision</span>、<span class="mono">owner_scope</span>、<span class="mono">inclusion_reason</span>、<span class="mono">authorization_context</span>、<span class="mono">policy_version</span>、<span class="mono">sensitivity_decision</span>、<span class="mono">redaction_state</span>；它与 Agent 的默认装配（mounted）不是同一件事。</li>
+      <li>读<b>工具证据</b>：逐条 Tool Call 的计划与实际调用、结果与 External Effect；计划外差异单列，工具调用成功不代表返回内容可信。</li>
+      <li>读 <b>RunGate</b>：状态 <span class="mono">approved / executing / verified / blocked / expired / revoked / unknown</span>，同屏显示当前策略、下一门槛与责任角色；RunGate 不能放宽 ToolPolicy。</li>
+      <li>读交付与验证：Verification Result 与交付物；外部效果 <span class="mono">unknown</span> 时冻结扩大副作用并进入对账。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>Run 状态、证据时间与范围同屏；<span class="mono">requested ≠ executed ≠ verified</span>。RunGate 判定、审批失效、撤回与恢复都产生新的状态记录或新 revision，不覆盖历史事实。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>unknown</b>：结果未知时不自动重试有副作用的动作，也不扩大副作用；<span class="mono">unknown</span> 不得视为成功或失败。</li>
+      <li><b>审批失效</b>：资源、revision、工具参数、范围扩大、环境、风险升级、权限变化、来源撤回或回滚方案变化都会使审批失效 → <span class="mono">RunGate=blocked</span> → 重新生成计划并重新审批；审批超时不等于批准。</li>
+      <li><b>工具被拒</b>：超出 Tool Policy 时显示拒绝原因与可行动作，不用摘要、改写或工具结果绕过。</li>
+      <li><b>离线与缺口</b>：<span class="mono">missing_event / out_of_order / duplicate / lease_expired</span> 标为 <span class="mono">partial / unknown</span>，不显示为 <span class="mono">complete</span>；Trace 缺失不等于动作未发生。</li>
+      <li><b>撤权</b>：权限撤销、敏感暴露、归属撤销或高风险 owner 变化可暂停受影响的 Run 并要求重新解析上下文。</li>
+    </ul>
+
+    <h3 id="s5-7">5.6 Agent</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/agent/a-retriever</span>（演示对象另有 <span class="mono">a-coder</span>「代码修复 Agent」、<span class="mono">a-reviewer</span>「变更评审 Agent」）。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开 Agent 详情，确认基本信息：<span class="mono">name / description / type / visibility / owner / status / version</span> 与关联范围。</li>
+      <li>读关联范围：<span class="mono">AgentTeam</span> / <span class="mono">AgentProject</span> 关系只授予明确的 <span class="mono">view / use</span> 能力，不授予写、工具调用、审批或成员管理能力。</li>
+      <li>读装配三层：<span class="mono">accessible</span>（当前主体可用的候选）、<span class="mono">mounted</span>（Agent 默认装配）、<span class="mono">effective</span>（某个 Run 实际解析出的不可变集合）；三者不可互换。</li>
+      <li>修改行为配置（系统提示词、运行参数、模型配置引用、工具、Skill、Hooks）：需要 <b>agent-admin</b> 角色；模型与工具仍受上级 policy 限制。</li>
+      <li>查看 Vault reference 与 Policy：只显示引用、指纹、scope、轮换与撤销状态，不回显秘密内容。</li>
+      <li>查看实际运行：从 Agent 下钻到使用它的 Run 与运行证据；不要用 <span class="mono">mounted</span> 资源替代 Run 的 <span class="mono">effective</span> 资源。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>配置修改生成新 <span class="mono">version</span> 并写审计；<span class="mono">visibility</span> 只控制发现与查看元数据，不会让私有资源公开；关联变更不改变被关联资源的 owner 与 ACL。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>角色口径</b>：仅 <b>agent-admin</b> 可操作（矩阵为 ●）；<b>member / team-owner / project-admin / governance / auditor / platform-admin</b> 只可见（○）；<b>knowledge-owner</b> 不可见（—）。</li>
+      <li><b>秘密与拒绝</b>：API Key 只在创建时展示一次，系统只保存哈希/指纹与撤销状态；拒绝信息不泄露无权对象的名称或数量。</li>
+      <li><b>不能自我审批</b>：<span class="mono">Agent proposal ≠ approval / publish</span>；治理 Agent 只能 detect / explain / propose / open_review / request_revalidation，不能 reopen、change_owner、export、publish、delete 或 grant_permission。</li>
+      <li><b>写入受控</b>：<span class="mono">write</span> 必须按资源类型拆分——对 Memory 是按 MemorySpace 写策略写入候选；对 Wiki / Code / Skill 是创建或修改候选并进入 <span class="mono">#/changes</span>。</li>
+      <li><b>能力不等于授权</b>：Harness / Agent 声称支持某工具、结构化输出或长上下文，不代表可访问该工具、字段或 scope；能力未知不得自动视为可用。</li>
+      <li><b>退役与撤权</b>：Agent 退役后其 MemorySpace 停止新增或转只读，产生的业务记忆不随 Agent 自动删除；历史 Snapshot 不能绕过当前撤权。</li>
+    </ul>
+
+    <h3 id="s5-8">5.7 记忆与空间策略</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/memory</span>（浏览、来源、版本、纠错）与 <span class="mono">#/memory/spaces</span>（空间与策略，作为记忆的管理视图）。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>选择 MemorySpace：<span class="mono">ms-proj-db</span>（project/p-db）、<span class="mono">ms-team-pay</span>（team/team-pay）、<span class="mono">ms-user-lin</span>（user）、<span class="mono">ms-agent-retriever</span>（agent）；长期 owner 只有这四类，平台不提供 public Memory。</li>
+      <li>打开单条记忆（如 <span class="mono">m-9031</span> L1 原子「DB-Proxy 连接池上限 200」、<span class="mono">m-9044</span> L2 场景、<span class="mono">m-9102</span> L3 事实）：查看层级、<span class="mono">canonical_owner_scope</span>、来源与 revision、Purpose、敏感性、生命周期与可见范围。</li>
+      <li>读来源与版本：真源是规范对象与不可变 revision；Index、Projection、Snapshot 都是绑定 revision 的派生物（<span class="mono">Index ≠ Canonical Truth</span>）。</li>
+      <li>纠错：提交 correction 或 transfer；纠正以追加 <span class="mono">correction_record</span> 的方式展示历史链，不覆盖原归属事实；只有显式 Transfer 才改变 owner。</li>
+      <li>空间策略：在 <span class="mono">#/memory/spaces</span> 查看四类空间的写策略、ACL 与生命周期；归档或只读状态只影响新写入，不改历史归属。</li>
+      <li>跨空间复用时走受控形态（<span class="mono">reference / promotion_candidate / derived_asset / published_asset / transfer</span>），默认 <span class="mono">reference_status=available</span>、<span class="mono">retrieval_status=restricted</span>、<span class="mono">action_status=blocked</span>。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>归属或内容变化生成指向有效历史版本的新规范 Revision，并沿血缘覆盖主存储、检索索引、缓存、派生摘要、Context Manifest 与知识化候选；传播失败时暂停扩大传播。撤回显示「访问已撤销、停止传播、平台已处置、索引失效中、外部清除未知、受法律保留阻断」，不只显示「已删除」。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>归属不等于权限</b>：属于 Team ≠ 所有 Team 成员都可读；属于 Project ≠ Project 内所有主体都可改；由 Agent 产生 ≠ 记忆属于 Agent；被某 Project 引用 ≠ 归属该 Project。</li>
+      <li><b>状态表达</b>：当前有效 / 待确认 / 已更新 / 存在争议 / 已失效或已撤回 / 部分可用 / 未知；<span class="mono">unknown</span> 表示「系统无法安全判断」，不等于成功或失败；模型不可用或输入缺失不默认通过。</li>
+      <li><b>冲突</b>：显示冲突是什么、影响什么、依据是什么、为何需要人工审核；冲突不得由最后写入者、单一置信度或模型相似度裁决。</li>
+      <li><b>fail-closed</b>：权限检查、归属解析、敏感性判断、审计记录或撤回传播失败时默认拒绝写入或隔离；隔离内容不得进入普通检索、摘要、Context Manifest、自动执行或默认训练链路。</li>
+      <li><b>纠错不可回退权限</b>：回滚生成新的规范 Revision，不恢复旧权限或旧审批；「纠正不能只修改 owner 字段」。</li>
+      <li><b>角色口径</b>：<b>member / team-owner / project-admin / knowledge-owner</b> 可操作；<b>agent-admin / governance / auditor / platform-admin</b> 只可见；无权用户不得通过归属解释推断隐藏 Space、Owner 或资源存在性。</li>
+    </ul>
+
+    <h3 id="s5-9">5.8 资源库</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/library</span>。资源库是授权后的跨类型发现页，只做发现与跳转，不编辑任何资源。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>进入 <span class="mono">#/library</span>：系统先按当前主体、Purpose、租户与 scope 完成授权过滤，再做筛选（先授权再筛选，不能先全库召回再隐藏结果）。</li>
+      <li>选择 Team 维度（<span class="mono">relatedTeamId</span>）、Project 维度（<span class="mono">relatedProjectId</span>）、User 维度（<span class="mono">ownerUserId</span>）。</li>
+      <li>选择 Agent 维度时必须明确关系类型：<span class="mono">mountedByAgentId</span>（默认装配）或 <span class="mono">usedInRunByAgentId</span>（实际运行使用）。</li>
+      <li>组合筛选：同维内取 OR，维间取 AND；<span class="mono">actor</span> 是独立维度，不能与 owner 混用。</li>
+      <li>点击结果行跳转到对应专业页：记忆 <span class="mono">#/memory</span>、知识资产 <span class="mono">#/knowledge/wiki/k-wiki-connpool</span>、代码场景 <span class="mono">#/scenario/cs-2201</span>。</li>
+      <li>需要编辑、发布、撤回或执行时，回到对应专业页并按其角色与门槛操作；资源库不提供这些入口。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>结果行显示命中的关系类型与对象类型，用于解释「为什么看到它」；跳转保留 hash 深链，返回时筛选条件不丢失。命中只表示关系存在，不表示获得读取、注入、执行或导出权限。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>关系图不等于权限图</b>：关联不等于共享，引用不等于所有权，组织关系不等于权限继承；用户应能区分所属、参与、引用、影响与派生。</li>
+      <li><b>无权限</b>：无权对象不进入结果集，也不体现为计数差；关系查询本身可能泄露组织结构与资源存在性，需最小权限。</li>
+      <li><b>空态区分</b>：<span class="mono">loading / empty / filtered-empty</span> 分别表达；筛选条件过窄导致的空结果与确实没有对象不同。</li>
+      <li><b>过期</b>：对象 revision 变化或来源撤回后，原关系命中标 <span class="mono">stale</span>，并可下钻到血缘页确认传播状态。</li>
+      <li><b>角色口径</b>：契约矩阵未单列「资源库」行，本页不新增任何角色能力；可见性由被查对象的 owner、ACL 与上方矩阵对应模块共同决定。</li>
+    </ul>
+
+    <h3 id="s5-10">5.9 知识资产</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/knowledge</span>（目录）→ 专业页：<span class="mono">#/knowledge/wiki/k-wiki-connpool</span>、<span class="mono">#/knowledge/skill/k-skill-pg-triage</span>、<span class="mono">#/knowledge/rca/k-rca-2201</span>、<span class="mono">#/knowledge/template/k-tpl-scene-db</span>、<span class="mono">#/knowledge/code-context/k-ctx-dbproxy</span>。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>按类型进入专业页：Wiki 回答「这是什么 / 为什么」，Skill 回答「怎么做」，RCA 回答「为什么失败 / 如何避免复发」，Template 回答「从什么结构产出」，Code Context 回答「代码意味着什么 / 改动边界」。</li>
+      <li>读版本：<span class="mono">asset_version / parent_version / content_revision</span> 与来源 revision、policy 版本、脱敏版本；版本不可原地覆盖。</li>
+      <li>读适用范围与消费者状态：<span class="mono">valid_from / valid_until</span>、<span class="mono">applies_to / does_not_apply_to</span>，以及分离的 <span class="mono">reference_status / retrieval_status / action_status</span>。</li>
+      <li>发布或修订走 <span class="mono">#/changes</span> 的 Queue → Review → Publish（需要 <b>knowledge-owner</b>）；<span class="mono">approved ≠ published</span>。</li>
+      <li>复核与处置：按 <span class="mono">keep / narrow / revise / suspend / deprecate / revoke / archive</span> 处理，必要时 <span class="mono">recompute / rollback</span>；高影响变化同步阻断新使用并级联撤回或复核。</li>
+      <li>消费反馈走 <span class="mono">feedback → classify → impact assessment → review candidate → 人工或策略决定 → 新版本 / 收窄 / 暂停 / 撤回</span>，反馈不能直接改写资产。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p><span class="mono">published</span> 只表示在当前范围内可见、可参考；<span class="mono">published ≠ actionable</span>，可执行仍需独立授权（<span class="mono">action_status</span> 默认 <span class="mono">blocked</span>）。撤回优先于自动巩固、同步、发布与缓存刷新；逻辑撤回（立即不可检索、不可注入、不可执行）与物理删除分离，失败时 fail-closed。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>类型不等价</b>：Wiki ≠ Skill；RCA ≠ 普通 Wiki；Template ≠ 历史产物复制品；Code Context ≠ 单纯代码索引；Skill ≠ Prompt 收藏。</li>
+      <li><b>发布门槛</b>：Wiki 需来源可追溯；Skill 需演练或测试验证，且工具调用仍由独立 Tool Policy 与 RunGate 授权；RCA 必须区分确认根因、假设与待补证据；Template 需真实复用记录；Code Context 必须绑定 repo、revision、路径、符号或模块。</li>
+      <li><b>反馈与使用率</b>：一次负反馈不能自动删除稳定知识，一次成功也不能自动提升为团队规范；长期未使用不等于错误，高使用率也不等于正确。</li>
+      <li><b>影响评估</b>：内容、源内容、代码 revision、权限归属、敏感性脱敏、消费者投影六类变化必须触发影响评估；<span class="mono">impact_pending</span> 不能直接进入 <span class="mono">current</span>。</li>
+      <li><b>无 Target Owner</b>：只能保留候选，不得正式发布；脱敏验证或血缘缺失时隔离。</li>
+      <li><b>角色口径</b>：<b>team-owner / project-admin / knowledge-owner / platform-admin</b> 可操作；<b>member / agent-admin / governance / auditor</b> 只可见。</li>
+      <li><b>超时</b>：复核超时标 <span class="mono">review_overdue / escalated / blocked</span>，不自动通过。</li>
+    </ul>
+
+    <h3 id="s5-11">5.10 代码场景</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/scenario/cs-2201</span>「连接池耗尽导致 DB-Proxy P99 抖动」。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开场景，先确认 <b>repo + revision</b> 硬锚点（如 <span class="mono">sha256:9f3c7a2</span> 短码）；branch 是可移动引用，不能替代 revision。</li>
+      <li>按 <span class="mono">Identity → Code Anchor → Scope → Evidence → Paths → RCA → Change → Verification → Resume</span> 逐段读；Code Context、RCA 与 Work Thread 边界分离，不合并为一条记忆。</li>
+      <li>读 RCA：默认展示「症状 → 关键证据 → 当前结论」，按需展开候选假设、冲突、未知与验证门槛；明确区分「确认根因」与「问题已解决」。</li>
+      <li>提交修复：<span class="mono">Fix: proposed → authorized → applied → rolled_back</span>；改代码、配置、数据库或生产需要独立审批与 RunGate（需要 <b>project-admin</b> 或场景 owner 发起，审批主体不得是执行者）。</li>
+      <li>验证：<span class="mono">Verification: pending / partial / passed / failed / expired</span>；测试通过不等于生产风险消失。</li>
+      <li>关闭：<span class="mono">contained / resolved / monitored / closed / reopened</span>；<span class="mono">resolved ≠ closed</span>，关闭需要证据、观察窗口与残余风险接受。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>每次状态转移记录 from / to / reason / evidence_refs / actor / timestamp 并写审计。Tool Policy 与 RunGate 是两道独立门禁：没有 RunGate 不能运行，有 RunGate 但超出 Tool Policy 仍不能运行。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>硬锚点缺失</b>：缺 repo 或 revision 时不得发布稳定 Code Context、确定性 RCA、可执行 Patch 或 Skill。</li>
+      <li><b>完整性</b>：时间线是带完整性状态的派生视图，缺失显示 <span class="mono">partial / unknown</span>，不补造顺序；只有一条可读时间线时也必须显示 <span class="mono">sampled / gapped / redacted / unknown</span>。</li>
+      <li><b>三不变量</b>：修复有效 ≠ 根因完整；未复现 ≠ 问题不存在；测试通过 ≠ 生产风险消失。</li>
+      <li><b>未知不重试</b>：恢复不得盲目重放有副作用的写操作；Run 状态未知不得自动重试；Patch Candidate 默认 <span class="mono">action_status=blocked</span>。</li>
+      <li><b>旁路状态</b>：<span class="mono">blocked / paused / needs_human_confirmation / abandoned / reopened</span> 均需给出下一门槛与责任角色。</li>
+      <li><b>角色口径</b>：<b>member / team-owner / project-admin / knowledge-owner</b> 可操作；<b>agent-admin / governance / auditor / platform-admin</b> 只可见。</li>
+    </ul>
+
+    <h3 id="s5-12">5.11 导入</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/ingestion/import</span>；演示批次 <span class="mono">imp-77</span>。导入是候选的采集入口，不决定归属——归属判定统一由 <span class="mono">#/ingestion/triage</span> 承担。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开批次 <span class="mono">imp-77</span>，确认来源类型：<span class="mono">observed / declared / curated / derived / mixed</span>；Derived 不覆盖 source，抽取器不得把模型推断写回 observed 事实。</li>
+      <li>确认来源绑定：租户、Project、来源 ACL、血缘、revision 与验证信息；任一缺失按硬门处理（默认拒绝或隔离）。</li>
+      <li>确认去重与幂等：批次携带 <span class="mono">idempotency_key</span> 与 <span class="mono">sequence_or_cursor</span>，采用「至少一次投递 + 消费端幂等 + 资产版本收敛」。</li>
+      <li>确认脱敏步骤依次完成：分类 → 最小化 → 脱敏 → 脱敏结果检查 → 目标范围检查；凭证、Token、私钥、密码与连接串默认拒绝进入知识资产。</li>
+      <li>读批次状态：<span class="mono">captured → classified → redacted → ingested → correlated → retained / expired</span>；旁路 <span class="mono">delayed / sampled / rejected / failed / lost / unknown / quarantined</span> 分别显示原因。</li>
+      <li>把归属未定的候选送入分诊队列；导入页不写 MemorySpace，也不扩宽 scope。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>批次页显示各状态计数、完整性状态（<span class="mono">complete / partial / sampled / gapped / late / duplicate / rejected / isolated</span>）与证据时间；失败不得走 <span class="mono">catch → warn → 返回成功</span>。写入结果可在 <span class="mono">#/governance/lineage</span> 按来源 revision 追溯。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>硬门</b>：身份、租户、Project、来源 ACL、血缘、revision 或验证信息缺失 → 默认拒绝或隔离；不支持「缺 metadata 就猜 scope」，也不以「最后到达即为真」。</li>
+      <li><b>禁止推导</b>：<span class="mono">redacted ≠ authorized ≠ public ≠ safe for every Purpose ≠ no longer subject to revocation</span>；脱敏完成不等于获得目标空间授权。</li>
+      <li><b>部分成功</b>：批次标 <span class="mono">partial</span> 并逐条列出 <span class="mono">failed / lost / unknown / quarantined</span>，不合并成「已完成」。</li>
+      <li><b>乱序与迟到</b>：<span class="mono">late / out_of_order / duplicate / replay</span> 分别标注，由消费端幂等与版本收敛处理。</li>
+      <li><b>角色口径</b>：<b>knowledge-owner</b> 可操作；<b>member / team-owner / project-admin / governance / auditor</b> 只可见；<b>agent-admin / platform-admin</b> 不可见（—）。</li>
+    </ul>
+
+    <h3 id="s5-13">5.12 分诊 Triage</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/ingestion/triage</span>；演示分诊项 <span class="mono">tri-512</span>（归属冲突）与 <span class="mono">tri-513</span>（低置信度）。Triage 是唯一的归属人工处理入口。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>在队列中打开分诊项，确认当前状态为 <span class="mono">staged</span> 或 <span class="mono">assigned</span>，并确认受理人（需要 <b>knowledge-owner</b> 角色）。</li>
+      <li>读候选归属与理由：信号分解包括 <span class="mono">explicit_user_selection / work_thread_owner / project_or_team_context / resource_path_and_revision / producer_identity / connector_metadata / participant_membership / recent_activity / content_semantics / historical_assignment</span>；置信度以「依据充分 / 有限 / 存在争议 / 尚未确认」表达，不显示虚假精确百分比。</li>
+      <li>读候选目标与写权限：确认目标 MemorySpace 的写策略与 ACL，并验证 <span class="mono">target_scope ⊆ effective_scope</span>；目标空间管理员不能绕过来源 ACL。</li>
+      <li>读脱敏预览、敏感性与来源血缘：确认脱敏版本与来源 revision；脱敏不扩大授权。</li>
+      <li>做决策：自动落位 / 自动暂存候选 / 人工确认（治理队列）/ 隔离；跨边界、敏感或存在冲突的场景必须请求有权主体确认（来源 Owner 同意 + 目标接受）。</li>
+      <li>写决策记录：<span class="mono">candidate_scopes / selected_scope / signal_refs / decision_reason / policy_version / model_or_rule_version / confidence / decided_at / reviewer</span>。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>归属候选状态由 <span class="mono">ownership_pending</span> 走向 <span class="mono">confirmed</span>，或转入 <span class="mono">narrowed / promoted / derived / rejected / isolated / withdrawn</span>。只有显式 Transfer 改变 owner；引用与派生都不改变原 owner。变更传播覆盖主存储、检索索引、缓存、派生摘要、Context Manifest 与知识化候选，传播失败时暂停扩大。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>低置信度与冲突</b>：停在 <span class="mono">staged</span>，不自动写入更宽 scope；宁可暂时留在较窄的原始边界。冲突类型 <span class="mono">multiple_owner / owner_vs_participant / space_scope_conflict / temporal_conflict / source_conflict / revision_conflict / producer_binding_conflict / permission_conflict / transfer_conflict</span> 分别显示。</li>
+      <li><b>冲突展示</b>：显示候选、差异、依据、影响与下一步，不用「已自动解决」掩盖范围变化；冲突不得由最后写入者或单一置信度裁决。</li>
+      <li><b>denied 与隔离</b>：权限检查、归属解析、敏感性判断、审计记录或撤回传播失败 → 拒绝写入或隔离；隔离内容不得进入普通检索、摘要、Context Manifest、自动执行或默认训练链路。</li>
+      <li><b>批量迁移</b>：<span class="mono">planned → validated → approved → running → partially_succeeded / paused / rolled_back_candidate / completed / failed / unknown</span>；需预览、影响范围、成功/失败/未知分项与恢复入口。回滚不恢复旧权限或旧审批。</li>
+      <li><b>队列纪律</b>：治理队列必须有 <span class="mono">reviewer</span>、<span class="mono">due_at</span>、升级路径与最终决定，不能成为无期限暂存区。</li>
+      <li><b>角色口径</b>：<b>knowledge-owner</b> 可操作；<b>member / team-owner / project-admin / governance / auditor</b> 只可见；<b>agent-admin / platform-admin</b> 不可见（—）。</li>
+    </ul>
+
+    <h3 id="s5-14">5.13 变更与发布</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/changes</span>，含 Queue / Review / Publish 三个视图；演示对象 <span class="mono">cs-4410</span>（ChangeSet，待 Review）。这是唯一的内容审核入口，发布构建状态也在这里显示。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>在 Queue 打开 <span class="mono">cs-4410</span>，确认变更来源（人工编辑或 Agent 候选）、目标对象与目标 scope。</li>
+      <li>确认三方合并前提：变更处于 <span class="mono">locked</span>、基线版本已固定，且审核针对 <span class="mono">mergedHash + headRevision</span>；发布按 CAS 语义执行，基线漂移即拒绝发布。</li>
+      <li>执行 Pre-check：来源可追溯、血缘与 revision 一致、无权限扩大、无敏感性扩大；预检失败默认隔离、补证、退回或拒绝，不允许「带警告继续」。</li>
+      <li>按对象类型走专项审核门槛（Wiki 来源可追溯；Skill 需演练或测试验证；RCA 区分确认根因与假设；Template 需真实复用记录；Code Context 绑定 repo / revision / 路径 / 符号）。</li>
+      <li>高风险或跨域变更追加安全、隐私与治理审核；<span class="mono">author / content_reviewer / policy_reviewer / release_approver / consumer_owner</span> 分离，执行者不能自审、自批、自发布。</li>
+      <li>Publish：生成不可变新版本与消费者投影；撤回优先于发布与缓存刷新，逻辑撤回立即不可检索、不可注入、不可执行。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>状态在 <span class="mono">source / candidate / review_required / approved / published / suspended / deprecated / revoked</span> 之间流转，<span class="mono">approved ≠ published</span>；每次决定写审计（主体、Purpose、策略版本、理由、义务）。审核超时保持 Review 或暂停，不自动批准。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>预检失败</b>：进入隔离或补证，不进入审核；预检通过只表示允许进入审核，不表示会被批准。</li>
+      <li><b>无 Target Owner</b>：只能保留候选，不得正式发布；目标空间管理员不能绕过来源 ACL。</li>
+      <li><b>状态语义</b>：<span class="mono">review_required</span> 表示需要重审但不一定错；<span class="mono">suspended</span> 停止新使用；<span class="mono">deprecated</span> 不再推荐但可保留受控历史引用；<span class="mono">revoked</span> 不得进入普通检索、投影或执行；<span class="mono">candidate</span> 只对授权审核者可见。</li>
+      <li><b>影响评估</b>：<span class="mono">impact_pending</span> 不能直接进入 <span class="mono">current</span>；低影响异步出新版本，中影响暂停并重审，高影响同步阻断新使用并级联撤回或复核。</li>
+      <li><b>撤回传播</b>：发布后源权限收窄 → 立即阻断并重新评估；外部副本状态未知时保持阻断，不伪造「已清除」。</li>
+      <li><b>角色口径</b>：<b>knowledge-owner</b> 可操作；<b>member / team-owner / project-admin / agent-admin / governance / auditor / platform-admin</b> 只可见。</li>
+    </ul>
+
+    <h3 id="s5-15">5.14 血缘</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/governance/lineage</span>。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>选择起点对象（记忆 <span class="mono">m-9031</span>、知识资产、代码场景 <span class="mono">cs-2201</span> 或某个 Run）并携带 source revision 发起查询。</li>
+      <li>读当前关系：<span class="mono">LineageAssertion → 验证与冲突处理 → CurrentLineageRelation</span>；同屏显示覆盖范围、缺口、过期与 <span class="mono">partial</span>。</li>
+      <li>查看影响分析：只产出 Impact Report、Impact Candidate、Recommended Review、Blocking Recommendation 四类结论，不是执行动作。</li>
+      <li>处理隐藏节点：对被当前主体无权访问的节点只显示「存在关系但不可见」与风险级别，不显示对象名称、数量或内容。</li>
+      <li>处理冲突：<span class="mono">accepted / rejected / superseded / unresolved</span>；不得由最后写入者、单一置信度或模型相似度裁决。</li>
+      <li>需要进一步处置时跳转到 <span class="mono">#/changes</span> 或 <span class="mono">#/governance/cleanup</span>；血缘页自身不改对象、不扩大权限。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>撤回场景显示阻断原因类别、范围、时间、缺口与下一门槛，不暴露受限源细节；长任务显示进度、缺口、取消与重提；异步状态取 <span class="mono">requested → authorized_snapshot → queued → running → partial / paused / awaiting_recheck → completed / failed / cancelled / expired / stale</span>。截断或超时不得标 <span class="mono">complete</span>。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>可见性分层</b>：普通用户只看本 Project 的直接关系；Project Owner 可看本项目多跳；Security / Privacy 可看授权内跨边界；治理与审计可看全局闭包但仍受内容 ACL 过滤；跨租户完整闭包默认禁止。</li>
+      <li><b>不得当作反向索引</b>：血缘不扩大权限，也不得用于绕过 ACL 推断无权对象的存在性。</li>
+      <li><b>缺口与超时</b>：超时、无权、缺口、未扫描不得伪装成「无影响」；完整性状态取 <span class="mono">complete / partial / unknown / stale / failed / cancelled</span>。</li>
+      <li><b>缓存与检查点</b>：checkpoint 只恢复计算位置、不恢复权限；缓存命中必须重检当前授权。</li>
+      <li><b>fail-closed</b>：过滤先于召回；无法完成授权过滤时阻断而不是返回部分闭包。</li>
+      <li><b>角色口径</b>：<b>knowledge-owner / governance / auditor</b> 可操作；<b>member / team-owner / project-admin / agent-admin / platform-admin</b> 只可见。</li>
+    </ul>
+
+    <h3 id="s5-16">5.15 清理证据</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/governance/cleanup</span>；演示对象 <span class="mono">ci-8812</span>（CopyInventory）。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开 <span class="mono">ci-8812</span> 的 CopyInventory 快照，确认清理证明的范围基线：<span class="mono">source_revision</span>、副本类别（源资产及 revision、热缓存、检索索引、Embedding、Context Manifest、工作目录与临时文件、离线导出、下载与再分享文件、快照、备份、灾备与异地副本、恢复介质、日志与审计投影、第三方与再处理者副本）。</li>
+      <li>读传播状态：<span class="mono">revoke_committed → deny_path_active → impact_event_enqueued → traversing → consumer_update_pending → applied_and_verified → closure_verified</span>；失败分支 <span class="mono">missing_event / out_of_order / duplicate / lease_expired / consumer_unavailable / version_conflict / dead_letter / reconciliation_failed / external_unknown</span> 逐条列出。</li>
+      <li>派发处置任务（需要 <b>governance</b> 角色）：范围快照 → 传播闸门 → 处置动作 → 验证 → 对账 → 关闭；每步绑定 <span class="mono">source_revision</span>、inventory snapshot、policy version、purpose、scope、idempotency key、attempt、deadline、stop condition 与证据引用。</li>
+      <li>读验证证据等级：<span class="mono">E0</span> 未确认（默认不可声明完成）/ <span class="mono">E1</span> 传播或访问已阻断 / <span class="mono">E2</span> 逻辑处置已执行（留回执）/ <span class="mono">E3</span> 范围内验证 / <span class="mono">E4</span> 受控介质或责任方证明；等级不跨副本继承。</li>
+      <li>读保留与保全四轨：服务轨道（立即阻断检索、投影、导出与执行）、生命周期轨道、保全轨道（法律保全与法定留存冻结指定范围与版本，须有责任人、依据、范围与解除条件）、恢复轨道（恢复前检查撤回与保全，恢复后生成新 inventory 并重跑阻断与验证）。</li>
+      <li>读 Claim Boundary 五类：在线可控范围已验证 / 备份待生命周期到期 / 第三方已回执但未独立验证 / 离线或外部副本未知 / 依法保留。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>处置状态取 <span class="mono">not_scoped / planned / requested / blocked / executed / verified / partial / unknown / retained / expired</span>；报告取值只允许 <span class="mono">retained</span> 或 <span class="mono">unknown</span>。<span class="mono">service_blocked</span> 与 <span class="mono">retained</span> 可以同时存在。每张证据卡同屏显示<b>范围 + 证据时间 + 责任边界 + 下一门槛</b>。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>状态不可混用</b>：<span class="mono">requested ≠ executed ≠ verified</span>；<span class="mono">retained ≠ service-visible</span>；<span class="mono">unknown ≠ zero</span>；超时不是成功。</li>
+      <li><b>未知边界</b>：未发现、不可访问或未接入的副本不得默认不存在；第三方证据不足默认 <span class="mono">unknown / blocked</span> 或收窄交付，不伪造全量删除证明；非受管与外部终端只允许 <span class="mono">requested / not_confirmed / external_unknown</span>，禁止升级为 <span class="mono">verified</span>。</li>
+      <li><b>不得自动重试</b>：未知结果不得自动重试不可逆动作；抽样不得表述为数学意义上的全量证明；<span class="mono">verified_scope ≠ 全局 verified</span>。</li>
+      <li><b>高风险动作默认 blocked</b>：解除保全、缩短不可变保留、提前删除、恢复高敏内容都是独立高风险动作，页面显示阻断原因、下一门槛与责任角色，不提供「一键执行」。</li>
+      <li><b>责任边界</b>：平台可直接控制的必须给出执行与验证证据；只能发起请求的须记录请求、合同或能力声明、Provider 回执、证明范围与时间；无法确认的标 <span class="mono">unknown</span>；自述回执不得升级为独立验证。</li>
+      <li><b>角色口径</b>：仅 <b>governance</b> 可操作；<b>team-owner / project-admin / knowledge-owner / auditor</b> 只可见；<b>member / agent-admin</b> 不可见（—）。</li>
+    </ul>
+
+    <h3 id="s5-17">5.16 报告中心</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/reports</span>；演示对象 <span class="mono">rpt-3301</span>「Provider 副本清理说明（客户版）」，投递 <span class="mono">dlv-902</span>（delivered）与 <span class="mono">dlv-903</span>（delivery_unknown）。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开 <span class="mono">rpt-3301</span>，先读事实内核：事件与请求 ID、源与目标空间、资产与 revision、inventory snapshot、时间线、动作、证据、范围、未知、保留、责任链与版本。</li>
+      <li>选择受众投影（内部 / 客户 / Provider / 监管）：字段披露、脱敏、未知与禁止外发规则在渲染之前执行；模板不能自行决定权限。</li>
+      <li>确认 <span class="mono">unknown / retained / not_scoped / external_copy</span> 的语义在投影中未被省略或改写。</li>
+      <li>批准：<span class="mono">draft → approved</span>；批准与执行分离，执行者不能自批高影响外发（需要 <b>governance</b>）；无责任人、角色冲突、跨租户责任不明或事实不足时先阻断并升级。</li>
+      <li>生成 Delivery Intent 并逐渠道尝试：多渠道共享同一 delivery intent、每个渠道独立 Attempt（<span class="mono">dlv-902</span> 已送达、<span class="mono">dlv-903</span> 投递未知）；不得以一个渠道成功冒充全局送达。</li>
+      <li>修订或撤回：新证据、回执冲突、恢复或范围变化时生成新版本并标 <span class="mono">supersedes</span> / <span class="mono">revokes</span>，旧版本标记过期；不静默改写已发送的报告。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>报告状态取 <span class="mono">draft / approved / superseded / restricted / stale / revoked</span>；投递状态取 <span class="mono">accepted / delivered / acknowledged / failed / delivery_unknown / revoked</span>。渠道接受不等于人已接收，接收不等于已阅读，阅读不等于已理解或已采取行动。每次投递绑定报告快照、接收者、Purpose、渠道、有效期与允许动作。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>事实与法律分离</b>：触发事件只启动评估，不自动等于法定数据泄露或必须通知；技术阻断先于法务判断；「无法判断是否需通知」本身是需要升级的状态。</li>
+      <li><b>最小披露</b>：一租户的通知不得泄露其他租户的名称、数量、关系、资产、攻击路径或副本存在性；内部全量血缘、秘密与凭据不得以「透明」为名外发。</li>
+      <li><b>投递失败</b>：通知失败时继续阻断并保存证据，升级到备用责任人、法务或合规；<span class="mono">delivery_unknown</span> 既不得当作已送达，也不得直接当作失败。</li>
+      <li><b>撤回边界</b>：撤回不等于外部副本已删除；撤回、删除与高影响声明不得因超时盲目重复；新版本触发当前状态重检与必要的重新审批。</li>
+      <li><b>角色口径</b>：<b>governance / auditor</b> 可操作；<b>team-owner / project-admin / knowledge-owner / platform-admin</b> 只可见；<b>member / agent-admin</b> 不可见（—）。</li>
+    </ul>
+
+    <h3 id="s5-18">5.17 团队与成员</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/team</span>；演示 Team <span class="mono">team-pay</span>「支付平台」（成员 6 人），关联 Project <span class="mono">p-db</span>、<span class="mono">p-gw</span>。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li>打开 <span class="mono">#/team</span>，查看 Team 成员、Team 级资源入口与关联 Project。</li>
+      <li>维护成员（需要 <b>team-owner</b>）：添加成员并在添加时确定角色、移除成员；Team 成员关系与 Project 成员关系分别维护。</li>
+      <li>查看关联 Project 与 owning Team；进入 Project 仍需 Project 成员关系或显式 ACL。</li>
+      <li>管理 Team 级共享资源与默认规则；Project 可以比 Team 默认规则更严格，不能放宽或绕过 Platform / Team 的上级限制。</li>
+      <li>审核 Team scope 的知识与变更（进入 <span class="mono">#/changes</span>）；Team Template 变更属 Team scope，Project 的引用稳定指向已锁定版本，升级、复制或派生都是显式 ChangeSet。</li>
+      <li>需要代为处理时建立 Delegation：<span class="mono">delegator / delegate / resource_scope / allowed_actions / purpose / conditions / start_at / expires_at / max_risk / allow_subdelegation / revocable</span>；代理链必须记录 <span class="mono">initiated_by_user / delegated_to_agent / executed_by_harness / approved_by / verified_by</span>，不能只记 <span class="mono">actor=Agent</span>。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>成员与角色变更写审计，Team 级资源归属不变。<span class="mono">publish / revoke / export / execute / approve_action</span>、生产变更、敏感数据访问与跨空间动作不自动继承；继承只覆盖按范围允许的低风险读取、引用与管理动作。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>关系不等于权限</b>：Team 成员不等于关联 Project 的成员；关联不等于读写授权；<span class="mono">member_of Team ≠ can_read_all_team_memory</span>。</li>
+      <li><b>越界限制</b>：team-owner 不能修改其他 Team 或全局策略，也不能拥有 Platform 公共目录；platform-admin 默认不可读取全部业务内容或代替业务 Owner。</li>
+      <li><b>委托边界</b>：<span class="mono">delegate_effective_permission ⊆ delegator_effective_permission</span>；默认禁止无限委托与自动再委托；代理到期或撤销后立即失效。</li>
+      <li><b>生命周期</b>：Team 相关资源归档或 Agent 退役时不自动删除或转移记忆，也不静默改变 ACL 与规范归属。</li>
+      <li><b>角色口径</b>：仅 <b>team-owner</b> 可操作；<b>member / project-admin / knowledge-owner / agent-admin / governance / auditor / platform-admin</b> 只可见。</li>
+      <li><b>未覆盖</b>：成员邀请、角色分配、Project 归属转移与 Team 级通知设置的具体操作流程与界面，在现有事实来源中未给出，按暂缓处理。</li>
+    </ul>
+
+    <h3 id="s5-19">5.18 设置与权限矩阵 / 审计</h3>
+    <h4>入口路径</h4>
+    <p><span class="mono">#/settings</span>（Users / Keys / Models / Integrations）、<span class="mono">#/permissions</span>（只读说明页）、<span class="mono">#/audit</span>（追加式审计）。</p>
+    <h4>操作步骤</h4>
+    <ol>
+      <li><span class="mono">#/settings</span>：由 <b>platform-admin</b> 维护 Users、Keys、Models 与 Integrations；公共模型配置提供 Provider / Model 与 Vault 凭据引用，各 Agent 不复制密钥。</li>
+      <li>凭据操作：API Key 只在创建时展示一次，系统保存哈希或指纹、scope、期限、最后使用与撤销状态；任何页面、日志或 Agent 配置都不回显密钥内容（需要 <b>platform-admin</b>）。</li>
+      <li><span class="mono">#/permissions</span>：只读查看「角色 → 权限与作用」；本页不做授权变更。授权输出包含 <span class="mono">decision / obligations / required_approvals / redactions / allowed_scope / expiry / policy_version / audit_level</span>，不是单一布尔值。</li>
+      <li>判定顺序：租户隔离与安全禁令 → 法规与敏感性 → 来源 ACL 与血缘 → Organization → Team → Project → Resource ACL → Purpose → Harness Capability → Tool Policy → RunGate → 时间与条件检查；上游硬拒绝不能被下游解除，下游只能进一步收紧，<span class="mono">unknown</span> 不转换成允许。</li>
+      <li>审批与执行：高风险动作按 R0–R3 分层处理，审批绑定不可变计划版本；资源、revision、工具参数、范围、环境、风险、权限、来源状态或回滚方案变化都会使审批失效并回到 <span class="mono">RunGate=blocked</span>。</li>
+      <li><span class="mono">#/audit</span>：按事件类型、敏感性、用途、保全与生命周期分层查看 Decision / Execution / Impact / Identity·Policy / Lineage·Retention 五类审计；审计读取同样按当前主体、Purpose、敏感性与最小必要授权。</li>
+    </ol>
+    <h4>结果反馈</h4>
+    <p>权限状态取 <span class="mono">requested / approved / active / suspended / expired / revoked / denied</span>；授权决策取 <span class="mono">allow / deny / isolate / needs_review</span>；审批状态取 <span class="mono">requested / under_review / approved / rejected / expired / revoked / superseded</span>；执行状态取 <span class="mono">queued / gated / running / partially_executed / succeeded / failed / rolled_back / cancelled / blocked</span>。审批超时不等于批准，<span class="mono">absence / timeout ≠ consent</span>。审计生命周期取 <span class="mono">captured → integrity_checked → retained → accessed / audited → hold_or_due → deletion_pending → deleted / retain_minimal / failed / unknown</span>。</p>
+    <h4>边界情况</h4>
+    <ul>
+      <li><b>门槛分层</b>：R0 只读可逆低影响，可按策略自动并审计；R1 受限工作区变更需明确授权与 ToolPolicy；R2 受控资源变更需独立审批、RunGate、回滚与验证；R3 高影响或不可逆禁止仅凭策略自动放行。影响或闭包未知时不得默认 R0。</li>
+      <li><b>职责分离</b>：<span class="mono">proposer / approver / executor / verifier</span> 至少区分，默认禁止同一主体提议并审批、审批并执行、执行并完成最终验证；替代只允许命名替代人、值班代理、Break-Glass approver 与法定人数兜底，且在原授权子集内。</li>
+      <li><b>fail-closed</b>：审计或策略不可用时高风险动作默认阻断；审计不可静默修改。反例：<span class="mono">hash ≠ author proof</span>、<span class="mono">signature ≠ content truth</span>、<span class="mono">retained ≠ retrievable</span>、<span class="mono">expired ≠ all copies deleted</span>。</li>
+      <li><b>删除语义</b>：<span class="mono">deleted</span> 只表示声明范围与方法的删除验证通过；备份、第三方副本或加密擦除无法证明时保留 <span class="mono">unknown / external_unknown</span>；过期清理需覆盖正文、附件、索引、缓存、备份与派生副本。</li>
+      <li><b>最小披露</b>：凭据、客户数据、完整生产请求体与无关 Trace 不因「审计」名义复制；审计读取不授予修改业务资产或批准执行的权力。</li>
+      <li><b>角色口径</b>：设置页仅 <b>platform-admin</b> 可操作，<b>auditor</b> 不可见（—），其余只可见；权限矩阵页 <b>governance / auditor / platform-admin</b> 可操作，其余只可见；审计页 <b>governance / auditor / platform-admin</b> 可操作，<b>member / agent-admin</b> 不可见（—），其余只可见。</li>
+      <li><b>未覆盖</b>：公共模型配置项、通知配置与审计界面的具体形态在现有事实来源中未明确，按暂缓处理。</li>
+    </ul>
+
+</section>

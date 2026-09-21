@@ -1,0 +1,70 @@
+  <!-- ============================ §7 ============================ -->
+  <section class="doc-sec" id="s7">
+    <h2>7 · 角色权限矩阵</h2>
+    <p class="lead">本章回答：每个功能模块，哪类角色能<b>操作</b>、哪类只能<b>看见</b>、哪类<b>完全不可见</b>。本表与 <a href="#s5-1">§5.0</a> 的角色可见性逐行一致，任何改动必须两边同时改。</p>
+
+    <div class="legend">
+      <span><b>●</b> 可操作</span>
+      <span><b>○</b> 只可见</span>
+      <span><b>—</b> 不可见</span>
+      <span class="muted">「可操作」仍受资源 ACL、Purpose、敏感性与当前策略约束，不等于无条件放行。</span>
+    </div>
+
+    <h3 id="s7-1">7.1 模块 × 角色矩阵</h3>
+    <div class="tbl-wrap">
+      <table class="tbl compact">
+        <thead>
+          <tr>
+            <th style="min-width:120px">功能模块</th>
+            <th class="c">成员<br><span class="tiny muted">member</span></th>
+            <th class="c">Team Owner<br><span class="tiny muted">team-owner</span></th>
+            <th class="c">Project Admin<br><span class="tiny muted">project-admin</span></th>
+            <th class="c">知识 Owner<br><span class="tiny muted">knowledge-owner</span></th>
+            <th class="c">Agent Admin<br><span class="tiny muted">agent-admin</span></th>
+            <th class="c">治理 / 安全<br><span class="tiny muted">governance</span></th>
+            <th class="c">审计 / 法务<br><span class="tiny muted">auditor</span></th>
+            <th class="c">平台管理员<br><span class="tiny muted">platform-admin</span></th>
+          </tr>
+        </thead>
+        <tbody>
+<tr><td>工作台</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td></tr>
+<tr><td>项目与成员</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>任务与运行</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>Agent 配置</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>记忆与空间</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>导入与分诊</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td></tr>
+<tr><td>变更与发布</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>知识资产</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td></tr>
+<tr><td>代码场景</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>血缘</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td></tr>
+<tr><td>清理证据</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>报告中心</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td></tr>
+<tr><td>团队</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td></tr>
+<tr><td>设置</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td></tr>
+<tr><td>权限矩阵</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td></tr>
+<tr><td>审计</td><td class="matrix-cell off">—</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell read">○</td><td class="matrix-cell off">—</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td><td class="matrix-cell on">●</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="small muted"><b>行序与范围</b>：上表 16 行的名称、顺序与可见性符号与 <a href="#s5-1">§5.0</a> 的角色可见性列逐行一致（不新增、不合并、不重排），两处任一改动必须同时改。另有 3 处模块不在矩阵行内、也不新增任何角色能力：登录与全局导航（壳外页面，登录后按本矩阵渲染侧栏）、<b>资源库</b>（授权后的跨类型发现页，只跳转不编辑，可见性沿用「知识资产」行的授权范围）、项目内二级导航（沿用「项目与成员」行的可见性）。</p>
+
+    <h3 id="s7-2">7.2 读这张表的三个前提</h3>
+    <table class="tbl">
+      <thead><tr><th style="width:26%">前提</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>矩阵是<b>上限</b>，不是授予</td><td>格子里的 ● 表示「该角色<b>可能</b>拥有此能力」，实际能否操作还要过资源 ACL、Purpose、敏感性、当前策略与 RunGate。矩阵从不直接授予权限。</td></tr>
+        <tr><td>「可见」也受最小投影约束</td><td>○ 表示可以看到入口或摘要，不代表能看到全部字段、名称或数量。无权对象一律不披露其存在、名称与总数。</td></tr>
+        <tr><td>平台管理员不是超级用户</td><td><span class="mono">platform-admin</span> 只维护公共 Wiki / Skill / Template 与公共模型配置，<b>不能越过 Team / Project 策略直接读取私有内容</b>，也不能代替治理角色审批。</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s7-3">7.3 职责分离（SoD）硬约束</h3>
+    <ul>
+      <li><b>提者不批</b>：提出 ChangeSet 或 Action Proposal 的主体，不能同时是最终批准者。</li>
+      <li><b>审批绑定计划版本</b>：审批对象是某一份不可变的计划版本；计划变更即失效，需重新审批。</li>
+      <li><b>RunGate 独立复核</b>：RunGate 不等于审批的重复，它按当前时刻的主体、目标、Purpose、资产版本与撤销状态重新判定。</li>
+      <li><b>清理与报告分离</b>：执行处置的角色与出具验证报告的角色不重合；审计 / 法务只能查看，不能修改事实或自动批准删除。</li>
+      <li><b>Break-Glass 有边界</b>：紧急通道的每一次使用都留痕、限时、事后复核，不能作为常规放行路径。</li>
+    </ul>
+  </section>

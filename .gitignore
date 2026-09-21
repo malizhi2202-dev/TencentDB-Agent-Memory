@@ -146,3 +146,4 @@ MemoryKnowledge/data/**/cg-*/
 # 与 cg-*/ 同理：运行时产物不入库，wiki 源文档仅保留 4 份初始 md。
 MemoryKnowledge/data/**/wiki-*/index.db*
 MemoryKnowledge/data/**/wiki-*/raw/
+code-kit

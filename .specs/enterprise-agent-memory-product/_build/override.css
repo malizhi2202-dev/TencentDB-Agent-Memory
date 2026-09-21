@@ -1,0 +1,115 @@
+/* ============================================================
+   Product-specific overrides —— Enterprise Agent Memory Platform
+   Token 源：.specs/enterprise-agent-memory-product/UI-DESIGN.md
+   Tone: Evidence Console（安静的工程控制台；单一蓝色只用于链接/状态点/选中项；
+         近黑主按钮；1px hairline 边框代替阴影；暗色模式为纯黑）
+
+   注意：本文件在 template.css 之后加载，下方 :root 会整体覆盖模板自带的
+   token 块（模板注释里写的 tokens.css / Terminal Clarity 调色板不再生效），
+   实际生效的调色板以本文件为准。
+   ============================================================ */
+
+:root{
+  --color-brand:#4C7BF0;            --color-brand:oklch(0.62 0.19 255);
+  --color-brand-deep:#3555C8;       --color-brand-deep:oklch(0.48 0.19 255);
+  --color-brand-hover:#6389F5;      --color-brand-hover:oklch(0.68 0.18 255);
+  --color-brand-subtle:#4C7BF014;   --color-brand-subtle:oklch(0.62 0.19 255 / .08);
+
+  --color-bg:#F7F8FA;               --color-bg:oklch(0.985 0.008 250);
+  --color-surface:#FFFFFF;          --color-surface:oklch(1 0 0);
+  --color-surface-hover:#EEEFF3;    --color-surface-hover:oklch(0.95 0.006 250);
+
+  --color-text-primary:#2A2E38;     --color-text-primary:oklch(0.24 0.02 255);
+  --color-text-secondary:#5F6472;   --color-text-secondary:oklch(0.45 0.025 255);
+  --color-text-tertiary:#82868F;    --color-text-tertiary:oklch(0.58 0.02 255);
+  --color-text-invert:#FFFFFF;      --color-text-invert:oklch(1 0 0);
+
+  --color-border:#DFE1E6;           --color-border:oklch(0.9 0.018 255);
+  --color-border-subtle:#0000000A;
+
+  --color-success:#2E9E5B;          --color-success:oklch(0.62 0.15 150);
+  --color-warning:#C8871A;          --color-warning:oklch(0.70 0.14 55);
+  --color-danger:#D0342C;           --color-danger:oklch(0.58 0.21 27);
+  --color-danger-subtle:#D0342C14;
+}
+
+/* ---------- 暗色主题（纯黑底，非装饰性渐变） ---------- */
+:root[data-theme="dark"]{
+  --color-brand:#7AA2FF;            --color-brand:oklch(0.72 0.15 255);
+  --color-brand-deep:#9DB8FF;       --color-brand-deep:oklch(0.80 0.11 255);
+  --color-brand-hover:#93B4FF;      --color-brand-hover:oklch(0.78 0.13 255);
+  --color-brand-subtle:#7AA2FF1F;   --color-brand-subtle:oklch(0.72 0.15 255 / .12);
+
+  --color-bg:#000000;               --color-bg:oklch(0 0 0);
+  --color-surface:#0C0D10;          --color-surface:oklch(0.16 0.008 255);
+  --color-surface-hover:#17191E;    --color-surface-hover:oklch(0.22 0.01 255);
+
+  --color-text-primary:#E8E9ED;     --color-text-primary:oklch(0.93 0.006 255);
+  --color-text-secondary:#A0A4AE;   --color-text-secondary:oklch(0.72 0.012 255);
+  --color-text-tertiary:#6E727C;    --color-text-tertiary:oklch(0.55 0.014 255);
+  --color-text-invert:#0C0D10;      --color-text-invert:oklch(0.16 0.008 255);
+
+  --color-border:#26282E;           --color-border:oklch(0.30 0.012 255);
+  --color-border-subtle:#FFFFFF0F;
+
+  --color-success:#4FBE7C;          --color-success:oklch(0.72 0.15 150);
+  --color-warning:#E0B15F;          --color-warning:oklch(0.78 0.13 55);
+  --color-danger:#F08A82;           --color-danger:oklch(0.72 0.16 27);
+  --color-danger-subtle:#F08A8224;
+}
+
+/* ---------- 主按钮：近黑中性（UI-DESIGN §6），高风险动作不得用 primary ---------- */
+.btn.primary{background:var(--color-text-primary); border-color:var(--color-text-primary); color:var(--color-bg)}
+.btn.primary:hover{background:var(--color-text-secondary); border-color:var(--color-text-secondary)}
+
+/* ---------- 文档/原型补充类 ---------- */
+.c{text-align:center}
+.r{text-align:right}
+.nowrap{white-space:nowrap}
+.section-lead{margin-bottom:var(--space-md)}
+.legend{display:flex; flex-wrap:wrap; gap:var(--space-md); font-size:var(--font-size-xs); color:var(--color-text-secondary); margin:var(--space-xs) 0 var(--space-sm)}
+.legend b{font-family:var(--font-mono); color:var(--color-text-primary)}
+.matrix-cell{font-family:var(--font-mono); text-align:center; font-size:14px}
+.matrix-cell.on{color:var(--color-success)}
+.matrix-cell.read{color:var(--color-text-secondary)}
+.matrix-cell.off{color:var(--color-text-tertiary)}
+.rule{border-left:2px solid var(--color-border); padding-left:var(--space-md); margin:var(--space-sm) 0}
+.tag-row{display:flex; flex-wrap:wrap; gap:6px; margin:4px 0}
+.divider{height:1px; background:var(--color-border); margin:var(--space-md) 0}
+.app-body .panel + .panel{margin-top:var(--space-md)}
+.panel .panel{border:0; padding:0}
+.tbl-wrap{overflow-x:auto; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-surface)}
+.tbl-wrap table.tbl{border:0; border-radius:0}
+.mini{font-size:12px; color:var(--color-text-secondary)}
+.spacer-sm{height:var(--space-sm)}
+
+/* ---------- 原型外壳：解除固定高度导致的侧栏裁切 ----------
+   契约要求侧栏逐字复刻 19 个导航条目 + 4 个分组标题（实测内容高约 850px），
+   而 template.css 的 .app 固定 560px / .app.tall 固定 640px，且 .app-side 为
+   overflow:hidden —— 桌面端会静默裁掉底部约 5–6 项（设置 / 权限矩阵 / 审计 / 退出登录）。
+   文档中的静态原型不需要内嵌滚动条，故改为内容自适应高度：侧栏背景随栅格行高铺满，
+   长内容直接撑高整块，任何条目都不会不可达。作用域限定在 >1000px，
+   ≤1000px 的横排侧栏与横向滚动行为仍由 template.css 的媒体查询负责。 */
+@media (min-width:1001px){
+  .app{height:auto; min-height:560px}
+  .app.tall{height:auto; min-height:640px}
+  .app-side,.app-main,.app-body{overflow:visible}
+}
+
+/* ---------- 锚点跳转：为 sticky 顶栏留出偏移 ----------
+   template.css 的 .doc-top 是 position:sticky; top:0，而原生锚点跳转会把目标元素
+   滚到 y=0 —— 结果是从左侧目录点任何一条，目标标题都被压在顶栏下面看不见，
+   且目录高亮会落到下一条（IntersectionObserver 的判定带从顶栏下方开始）。
+   实测顶栏高度：>1000px 为 56px、≤1000px 为 78px（换行）、≤480px 为 147px。
+   这里按断点给出 scroll-margin-top，并留 16px 呼吸空间。 */
+:root{--anchor-offset:72px}
+.doc-main [id]{scroll-margin-top:var(--anchor-offset)}
+@media (max-width:1000px){ :root{--anchor-offset:94px} }
+@media (max-width:560px){ :root{--anchor-offset:164px} }
+
+/* 主题切换按钮 */
+.theme-btn{display:inline-flex; align-items:center; gap:6px}
+
+@media print{
+  :root[data-theme="dark"]{ --color-bg:#fff; --color-surface:#fff; --color-text-primary:#000; --color-border:#999 }
+}
